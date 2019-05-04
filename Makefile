@@ -188,6 +188,7 @@ endif
 
 cocoa: $(BIN)/SameBoy.app
 quicklook: $(BIN)/SameBoy.qlgenerator
+gnome-thumbnailer: $(BIN)/GnomeThumbnailer/SameBoy-thumbnailer
 sdl: $(SDL_TARGET) $(BIN)/SDL/dmg_boot.bin $(BIN)/SDL/cgb_boot.bin $(BIN)/SDL/agb_boot.bin $(BIN)/SDL/sgb_boot.bin $(BIN)/SDL/sgb2_boot.bin $(BIN)/SDL/LICENSE $(BIN)/SDL/registers.sym $(BIN)/SDL/background.bmp $(BIN)/SDL/Shaders
 bootroms: $(BIN)/BootROMs/agb_boot.bin $(BIN)/BootROMs/cgb_boot.bin $(BIN)/BootROMs/dmg_boot.bin $(BIN)/BootROMs/sgb_boot.bin $(BIN)/BootROMs/sgb2_boot.bin
 tester: $(TESTER_TARGET) $(BIN)/tester/dmg_boot.bin $(BIN)/tester/cgb_boot.bin $(BIN)/tester/agb_boot.bin $(BIN)/tester/sgb_boot.bin $(BIN)/tester/sgb2_boot.bin
@@ -198,6 +199,7 @@ all: cocoa sdl tester libretro
 CORE_SOURCES := $(shell ls Core/*.c)
 SDL_SOURCES := $(shell ls SDL/*.c) $(OPEN_DIALOG) SDL/audio/$(SDL_AUDIO_DRIVER).c
 TESTER_SOURCES := $(shell ls Tester/*.c)
+GNOME_THUMBNAILER_SOURCES := $(shell ls GnomeThumbnailer/*.c)
 
 ifeq ($(PLATFORM),Darwin)
 COCOA_SOURCES := $(shell ls Cocoa/*.m) $(shell ls HexFiend/*.m) $(shell ls JoyKit/*.m)
@@ -211,6 +213,7 @@ endif
 CORE_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(CORE_SOURCES))
 COCOA_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(COCOA_SOURCES))
 QUICKLOOK_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(QUICKLOOK_SOURCES))
+GNOME_THUMBNAILER_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(GNOME_THUMBNAILER_SOURCES))
 SDL_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(SDL_SOURCES))
 TESTER_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(TESTER_SOURCES))
 
@@ -315,7 +318,7 @@ $(BIN)/SameBoy.qlgenerator/Contents/MacOS/SameBoyQL: $(CORE_OBJECTS) $(QUICKLOOK
 $(BIN)/SameBoy.qlgenerator/Contents/Resources/cgb_boot_fast.bin: $(BIN)/BootROMs/cgb_boot_fast.bin
 	-@$(MKDIR) -p $(dir $@)
 	cp -f $^ $@
-	
+
 # SDL Port
 
 # Unix versions build only one binary
@@ -325,6 +328,24 @@ $(BIN)/SDL/sameboy: $(CORE_OBJECTS) $(SDL_OBJECTS)
 ifeq ($(CONF), release)
 	$(STRIP) $@
 endif
+
+$(OBJ)/GnomeThumbnailer/cgb_boot_fast.o: $(BIN)/BootROMs/cgb_boot_fast.bin
+	-@$(MKDIR) -p $(dir $@)
+	# TODO: support i386 output as well
+	objcopy -B i386 -I binary -O elf64-x86-64 $^ $@
+
+$(OBJ)/GnomeThumbnailer/%.o: QuickLook/%.png
+	-@$(MKDIR) -p $(dir $@)
+	# TODO: support i386 output as well
+	objcopy -B i386 -I binary -O elf64-x86-64 $< $@
+
+$(BIN)/GnomeThumbnailer/SameBoy-thumbnailer: $(CORE_OBJECTS) $(GNOME_THUMBNAILER_OBJECTS) \
+                            $(OBJ)/GnomeThumbnailer/cgb_boot_fast.o \
+                            $(OBJ)/GnomeThumbnailer/CartridgeTemplate.o \
+                            $(OBJ)/GnomeThumbnailer/ColorCartridgeTemplate.o \
+                            $(OBJ)/GnomeThumbnailer/UniversalCartridgeTemplate.o
+	-@$(MKDIR) -p $(dir $@)
+	$(CC) $(CORE_OBJECTS) $(GNOME_THUMBNAILER_OBJECTS) $(OBJ)/GnomeThumbnailer/cgb_boot_fast.o $(OBJ)/GnomeThumbnailer/CartridgeTemplate.o $(OBJ)/GnomeThumbnailer/ColorCartridgeTemplate.o $(OBJ)/GnomeThumbnailer/UniversalCartridgeTemplate.o -o $@ $(LDFLAGS)
 
 # Windows version builds two, one with a conole and one without it
 $(BIN)/SDL/sameboy.exe: $(CORE_OBJECTS) $(SDL_OBJECTS) $(OBJ)/Windows/resources.o
@@ -342,7 +363,7 @@ $(OBJ)/%.o: %.rc
 else
 $(OBJ)/%.res: %.rc
 	-@$(MKDIR) -p $(dir $@)
-	rc /fo $@ /dVERSION=\"$(VERSION)\" $^ 
+	rc /fo $@ /dVERSION=\"$(VERSION)\" $^
 
 %.o: %.res
 	cvtres /OUT:"$@" $^

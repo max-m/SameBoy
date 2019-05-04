@@ -2,7 +2,6 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <assert.h>
-#include <ctype.h>
 #include <Core/gb.h>
 
 #include "get_image_for_rom.h"
@@ -51,24 +50,8 @@ int get_image_for_rom_common(GB_gameboy_t gb, const char *filename, uint32_t *ou
     GB_set_rgb_encode_callback(&gb, rgb_encode);
     GB_set_async_input_callback(&gb, async_input_callback);
     GB_set_log_callback(&gb, log_callback);
-    GB_set_color_correction_mode(&gb, GB_COLOR_CORRECTION_EMULATE_HARDWARE);
-    
-    size_t length = strlen(filename);
-    char extension[4] = {0,};
-    if (length > 4) {
-        if (filename[length - 4] == '.') {
-            extension[0] = tolower(filename[length - 3]);
-            extension[1] = tolower(filename[length - 2]);
-            extension[2] = tolower(filename[length - 1]);
-        }
-    }
-    if (strcmp(extension, "isx") == 0) {
-        if (GB_load_isx(&gb, filename)) {
-            GB_free(&gb);
-            return 1;
-        }
-    }
-    else if (GB_load_rom(&gb, filename)) {
+
+    if (GB_load_rom(&gb, filename)) {
         GB_free(&gb);
         return 1;
     }
