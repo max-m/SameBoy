@@ -126,7 +126,7 @@ quicklook: $(BIN)/SameBoy.qlgenerator
 sdl: $(SDL_TARGET) $(BIN)/SDL/dmg_boot.bin $(BIN)/SDL/cgb_boot.bin $(BIN)/SDL/agb_boot.bin $(BIN)/SDL/sgb_boot.bin $(BIN)/SDL/sgb2_boot.bin $(BIN)/SDL/LICENSE $(BIN)/SDL/registers.sym $(BIN)/SDL/background.bmp $(BIN)/SDL/Shaders
 bootroms: $(BIN)/BootROMs/agb_boot.bin $(BIN)/BootROMs/cgb_boot.bin $(BIN)/BootROMs/dmg_boot.bin $(BIN)/BootROMs/sgb_boot.bin $(BIN)/BootROMs/sgb2_boot.bin
 tester: $(TESTER_TARGET) $(BIN)/tester/dmg_boot.bin $(BIN)/tester/cgb_boot.bin $(BIN)/tester/agb_boot.bin $(BIN)/tester/sgb_boot.bin $(BIN)/tester/sgb2_boot.bin
-all: cocoa sdl tester libretro
+all: cocoa sdl tester libretro wasm
 
 # Get a list of our source files and their respective object file targets
 
@@ -151,7 +151,7 @@ TESTER_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(TESTER_SOURCES))
 
 # Automatic dependency generation
 
-ifneq ($(filter-out clean bootroms libretro %.bin, $(MAKECMDGOALS)),)
+ifneq ($(filter-out clean bootroms libretro wasm %.bin, $(MAKECMDGOALS)),)
 -include $(CORE_OBJECTS:.o=.dep)
 ifneq ($(filter $(MAKECMDGOALS),sdl),)
 -include $(SDL_OBJECTS:.o=.dep)
@@ -177,12 +177,12 @@ $(OBJ)/Core/%.c.o: Core/%.c
 $(OBJ)/%.c.o: %.c
 	-@$(MKDIR) -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
-	
+
 # HexFiend requires more flags
 $(OBJ)/HexFiend/%.m.o: HexFiend/%.m
 	-@$(MKDIR) -p $(dir $@)
 	$(CC) $(CFLAGS) $(OCFLAGS) -c $< -o $@ -fno-objc-arc -include HexFiend/HexFiend_2_Framework_Prefix.pch
-	
+
 $(OBJ)/%.m.o: %.m
 	-@$(MKDIR) -p $(dir $@)
 	$(CC) $(CFLAGS) $(OCFLAGS) -c $< -o $@
@@ -220,7 +220,7 @@ endif
 
 $(BIN)/SameBoy.app/Contents/Resources/Base.lproj/%.nib: Cocoa/%.xib
 	ibtool --compile $@ $^
-	
+
 # Quick Look generator
 
 $(BIN)/SameBoy.qlgenerator: $(BIN)/SameBoy.qlgenerator/Contents/MacOS/SameBoyQL \
@@ -245,7 +245,7 @@ endif
 $(BIN)/SameBoy.qlgenerator/Contents/Resources/cgb_boot_fast.bin: $(BIN)/BootROMs/cgb_boot_fast.bin
 	-@$(MKDIR) -p $(dir $@)
 	cp -f $^ $@
-	
+
 # SDL Port
 
 # Unix versions build only one binary
@@ -272,7 +272,7 @@ $(OBJ)/%.o: %.rc
 else
 $(OBJ)/%.res: %.rc
 	-@$(MKDIR) -p $(dir $@)
-	rc /fo $@ /dVERSION=\"$(VERSION)\" $^ 
+	rc /fo $@ /dVERSION=\"$(VERSION)\" $^
 
 %.o: %.res
 	cvtres /OUT:"$@" $^
@@ -299,11 +299,11 @@ $(BIN)/tester/sameboy_tester.exe: $(CORE_OBJECTS) $(SDL_OBJECTS)
 $(BIN)/SDL/%.bin $(BIN)/tester/%.bin: $(BOOTROMS_DIR)/%.bin
 	-@$(MKDIR) -p $(dir $@)
 	cp -f $^ $@
-	
+
 $(BIN)/SameBoy.app/Contents/Resources/%.bin: $(BOOTROMS_DIR)/%.bin
 	-@$(MKDIR) -p $(dir $@)
 	cp -f $^ $@
-	
+
 $(BIN)/SDL/LICENSE: LICENSE
 	-@$(MKDIR) -p $(dir $@)
 	cp -f $^ $@
@@ -311,7 +311,7 @@ $(BIN)/SDL/LICENSE: LICENSE
 $(BIN)/SDL/registers.sym: Misc/registers.sym
 	-@$(MKDIR) -p $(dir $@)
 	cp -f $^ $@
-	
+
 $(BIN)/SDL/background.bmp: SDL/background.bmp
 	-@$(MKDIR) -p $(dir $@)
 	cp -f $^ $@
@@ -346,9 +346,13 @@ $(BIN)/BootROMs/%.bin: BootROMs/%.asm $(OBJ)/BootROMs/SameBoyLogo.rle
 # Libretro Core (uses its own build system)
 libretro:
 	$(MAKE) -C libretro
-	
+
+# WASM core (uses its own build system)
+wasm:
+	$(MAKE) -C wasm
+
 # Clean
 clean:
 	rm -rf build
 
-.PHONY: libretro
+.PHONY: libretro wasm
