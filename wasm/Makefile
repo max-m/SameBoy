@@ -32,7 +32,7 @@ CONF ?= debug
 
 BIN := $(CORE_DIR)/build/wasm_bin
 OBJ := $(CORE_DIR)/build/wasm_obj
-BOOTROMS_DIR ?= $(BIN)/BootROMs
+BOOTROMS_DIR ?= $(CORE_DIR)/build/bin/BootROMs
 
 ifdef DATA_DIR
 CFLAGS += -DDATA_DIR="\"$(DATA_DIR)\""
@@ -59,13 +59,15 @@ endif
 
 CFLAGS += -Werror -Wall -Wno-strict-aliasing -Wno-unknown-warning -Wno-unknown-warning-option -Wno-multichar -Wno-int-in-bool-context -std=gnu11 -D_GNU_SOURCE -DVERSION="$(VERSION)" -I. -D_USE_MATH_DEFINES
 CFLAGS += -I$(CORE_DIR)
-WASM_LDFLAGS := -lopenal
+CFLAGS += -s WASM=1 -s USE_SDL=2 --preload-file $(BOOTROMS_DIR)@/BootROMs
+# CFLAGS += -Wcast-align -Wover-aligned -s SAFE_HEAP=1 -s WARN_UNALIGNED=1
+WASM_LDFLAGS :=
 
 LDFLAGS += -lc -lm -ldl
 CFLAGS += -Wno-deprecated-declarations
 
 ifeq ($(CONF),debug)
-CFLAGS += -g
+CFLAGS += -g4 --profiling-funcs
 else ifeq ($(CONF), release)
 CFLAGS += -O3 -DNDEBUG
 else
@@ -74,7 +76,13 @@ endif
 
 # Define our targets
 
-wasm: $(BIN)/SameBoy.js
+bootroms: $(BOOTROMS_DIR)/agb_boot.bin \
+          $(BOOTROMS_DIR)/cgb_boot.bin \
+          $(BOOTROMS_DIR)/dmg_boot.bin \
+          $(BOOTROMS_DIR)/sgb_boot.bin \
+          $(BOOTROMS_DIR)/sgb2_boot.bin
+
+wasm: bootroms $(BIN)/SameBoy.js
 all: wasm
 
 # Get a list of our source files and their respective object file targets
@@ -115,10 +123,13 @@ $(OBJ)/%.c.o: %.c
 $(BIN)/SameBoy.js: $(CORE_OBJECTS) $(WASM_OBJECTS)
 	-@$(MKDIR) -p $(dir $@)
 	cp -r web/* $(BIN)
-	$(CC) -s WASM=1 $^ -o $@ $(LDFLAGS) $(WASM_LDFLAGS)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(WASM_LDFLAGS)
 ifeq ($(CONF), release)
 	strip $@
 endif
+
+$(CORE_DIR)/build/bin/BootROMs/%_boot.bin:
+	$(MAKE) -C $(CORE_DIR) $(patsubst $(CORE_DIR)/%,%,$@)
 
 clean:
 	rm -f $(WASM_OBJECTS) $(BIN)/SameBoy.js $(BIN)/SameBoy.wasm
