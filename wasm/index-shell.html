@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en-us">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
+		<title>SameBoy</title>
+		<style>
+			body {
+				margin: 0;
+				padding: 0;
+			}
+
+			.center {
+				text-align: center;
+			}
+
+			.canvas-wrapper {
+				border: 1px solid black;
+				display: inline-block;
+			}
+
+			/* the canvas *must not* have any border or padding, or mouse coords will be wrong */
+			.canvas-wrapper > canvas {
+				border: 0px none;
+				background-color: black;
+				display: block;
+			}
+
+			.crisp {
+				image-rendering: optimizeSpeed;
+				image-rendering: -moz-crisp-edges;
+				image-rendering: -o-crisp-edges;
+				image-rendering: -webkit-optimize-contrast;
+				image-rendering: optimize-contrast;
+				image-rendering: crisp-edges;
+				image-rendering: pixelated;
+				-ms-interpolation-mode: nearest-neighbor;
+			}
+
+			#end {
+				display: none;
+			}
+
+			/* if an element has been placed after the end marker it is the CPU profiler */
+			#end + div > div {
+				margin-bottom: 10px;
+				margin-left: 5px;
+				margin-right: 5px;
+				margin-top: 5px;
+			}
+
+			/* if an element has been placed after the CPU profiler it is the memory profiler */
+			#end + div + div > div {
+				margin-bottom: 10px;
+				margin-left: 5px;
+				margin-right: 5px;
+				margin-top: 5px;
+			}
+		</style>
+	</head>
+	<body>
+		<ul id="demo-roms">
+			<li><a href="ressources/demos/oh.gb">Oh!</a></li>
+			<li><a href="ressources/demos/pocket.gb">Is that a demo in your pocket?</a></li>
+			<li><a href="ressources/demos/gejmboj.gb">Gejmboj</a></li>
+			<li><a href="ressources/demos/video.gbc">GBVP1</a></li>
+			<li><a href="ressources/demos/mezase.gbc">GBVP2</a></li>
+			<li><a href="ressources/demos/pht-mr.gbc">Mental Respirator</a></li>
+			<li><a href="ressources/demos/pht-pz.gbc">It came from planet Zilog</a></li>
+		</ul>
+		<input type="file" id="file" name="file" accept=".gb,.gbc,.bin">
+
+		<hr/>
+
+		<div class="center">
+			<div id="status">Downloading...</div>
+
+			<progress value="0" max="100" id="progress" hidden=1></progress>
+		</div>
+
+		<div class="center">
+			<div class="canvas-wrapper">
+				<canvas class="crisp" id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+			</div>
+		</div>
+
+		<hr/>
+
+		<div class="center">
+			<input type="checkbox" id="resize">Resize canvas
+			<input type="checkbox" id="pointerLock" checked>Lock/hide mouse pointer
+			&nbsp;&nbsp;&nbsp;
+			<input type="button" value="Fullscreen" onclick="Module.requestFullscreen(document.querySelector('#pointerLock').checked, document.querySelector('#resize').checked)">
+		</div>
+
+		<script type='text/javascript'>
+			const statusElement = document.querySelector('#status');
+			const progressElement = document.querySelector('#progress');
+
+			var Module = {
+				sync_fs: function () {
+					console.log("Syncing file system ...");
+
+					FS.syncfs(function (err) {
+						if (!err) {
+							console.log("File system synchronized.")
+						}
+						else {
+							console.error(err);
+						}
+					});
+				},
+				preRun: [],
+				postRun: [],
+				print: function () {
+					const text = Array.prototype.slice.call(arguments).join(' ');
+					console.log(text);
+				},
+				printErr: function() {
+					const text = Array.prototype.slice.call(arguments).join(' ');
+					console.error(text);
+				},
+				canvas: (function() {
+					const canvas = document.querySelector('#canvas');
+
+					// As a default initial behavior, pop up an alert when webgl context is lost. To make your
+					// application robust, you may want to override this behavior before shipping!
+					// See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
+					canvas.addEventListener("webglcontextlost", function(e) { alert('WebGL context lost. You will need to reload the page.'); e.preventDefault(); }, false);
+
+					return canvas;
+				})(),
+				setStatus: function (text) {
+					if (!Module.setStatus.last) Module.setStatus.last = { time: Date.now(), text: '' };
+					if (text === Module.setStatus.last.text) return;
+					const m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
+					const now = Date.now();
+					if (m && now - Module.setStatus.last.time < 30) return; // if this is a progress update, skip it if too soon
+					Module.setStatus.last.time = now;
+					Module.setStatus.last.text = text;
+					if (m) {
+						text = m[1];
+						progressElement.value = parseInt(m[2])*100;
+						progressElement.max = parseInt(m[4])*100;
+						progressElement.hidden = false;
+					}
+					else {
+						progressElement.value = null;
+						progressElement.max = null;
+						progressElement.hidden = true;
+					}
+					statusElement.innerHTML = text;
+				},
+				totalDependencies: 0,
+				monitorRunDependencies: function (left) {
+					this.totalDependencies = Math.max(this.totalDependencies, left);
+					Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
+				}
+			};
+
+			Module.setStatus('Downloading...');
+
+			window.onerror = function() {
+				Module.setStatus('Exception thrown, see JavaScript console');
+
+				Module.setStatus = function(text) {
+					if (text) Module.printErr('[post-exception status] ' + text);
+				};
+			};
+		</script>
+
+		{{{ SCRIPT }}}
+
+		<a href="#bottom" id="end"></a>
+	</body>
+</html>

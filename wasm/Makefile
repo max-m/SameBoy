@@ -51,15 +51,14 @@ endif
 
 ifeq ($(CONF),native_release)
 override CONF := release
-LDFLAGS += -march=native -mtune=native
-CFLAGS += -march=native -mtune=native
 endif
 
 # Set compilation and linkage flags based on target, platform and configuration
 
 CFLAGS += -Werror -Wall -Wno-strict-aliasing -Wno-unknown-warning -Wno-unknown-warning-option -Wno-multichar -Wno-int-in-bool-context -std=gnu11 -D_GNU_SOURCE -DVERSION="$(VERSION)" -I. -D_USE_MATH_DEFINES
+# CFLAGS += -DGB_INTERNAL=1 # get access to internal APIs
 CFLAGS += -I$(CORE_DIR)
-CFLAGS += -s WASM=1 -s USE_SDL=2 --preload-file $(BOOTROMS_DIR)@/BootROMs
+CFLAGS += -s WASM=1 -s USE_SDL=2 --preload-file $(BOOTROMS_DIR)@/BootROMs -s "EXTRA_EXPORTED_RUNTIME_METHODS=['FS']"
 # CFLAGS += -Wcast-align -Wover-aligned -s SAFE_HEAP=1 -s WARN_UNALIGNED=1
 WASM_LDFLAGS :=
 
@@ -67,9 +66,11 @@ LDFLAGS += -lc -lm -ldl
 CFLAGS += -Wno-deprecated-declarations
 
 ifeq ($(CONF),debug)
-CFLAGS += -g4 --profiling-funcs
+CFLAGS += -g -g4
+CFLAGS += --cpuprofiler --memoryprofiler
 else ifeq ($(CONF), release)
-CFLAGS += -O3 -DNDEBUG
+CFLAGS += -O3 -DNDEBUG --emit-symbol-map
+CFLAGS += --llvm-lto 3 #  might be unstable
 else
 $(error Invalid value for CONF: $(CONF). Use "debug", "release" or "native_release")
 endif
@@ -82,9 +83,6 @@ bootroms: $(BOOTROMS_DIR)/agb_boot.bin \
           $(BOOTROMS_DIR)/sgb_boot.bin \
           $(BOOTROMS_DIR)/sgb2_boot.bin
 
-wasm: bootroms $(BIN)/SameBoy.js
-all: wasm
-
 # Get a list of our source files and their respective object file targets
 
 CORE_SOURCES_RAW := $(shell ls $(CORE_DIR)/Core/*.c)
@@ -93,6 +91,12 @@ CORE_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(CORE_SOURCES))
 
 WASM_SOURCES := $(shell ls *.c)
 WASM_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(WASM_SOURCES))
+
+WEB_SOURCES := $(shell ls ressources/.)
+WEB_OBJECTS := $(patsubst %,$(BIN)/ressources/%,$(WEB_SOURCES))
+
+wasm: bootroms $(BIN)/index.html $(WEB_OBJECTS)
+all: wasm
 
 # Automatic dependency generation
 
@@ -120,12 +124,21 @@ $(OBJ)/%.c.o: %.c
 	-@$(MKDIR) -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BIN)/SameBoy.js: $(CORE_OBJECTS) $(WASM_OBJECTS)
+$(BIN)/ressources/%:
 	-@$(MKDIR) -p $(dir $@)
-	cp -r web/* $(BIN)
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(WASM_LDFLAGS)
+	cp -a $(patsubst $(BIN)/%,%,$@) $@
+
+$(BIN)/index.html: $(CORE_OBJECTS) $(WASM_OBJECTS) index-shell.html main.js
+	-@$(MKDIR) -p $(dir $@)
+	$(CC) \
+		$(CFLAGS) \
+		$(filter %.o, $^) \
+		-o $@ \
+		--shell-file "index-shell.html" \
+		--post-js "main.js" \
+		$(LDFLAGS) \
+		$(WASM_LDFLAGS)
 ifeq ($(CONF), release)
-	strip $@
 endif
 
 $(CORE_DIR)/build/bin/BootROMs/%_boot.bin:

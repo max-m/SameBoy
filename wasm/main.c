@@ -1,62 +1,20 @@
 #include <emscripten.h>
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_opengl.h>
+#include <SDL2/SDL_video.h>
 
 #include <stdbool.h>
 #include <stdio.h>
-#include <string.h>
+
 #include <Core/gb.h>
-
-const char *resource_folder(void)
-{
-#ifdef DATA_DIR
-    return DATA_DIR;
-#else
-    static const char *ret = NULL;
-    if (!ret) {
-        ret = SDL_GetBasePath();
-        if (!ret) {
-            ret = "./";
-        }
-    }
-    return ret;
-#endif
-}
-
-char *resource_path(const char *filename)
-{
-    static char path[1024];
-    snprintf(path, sizeof(path), "%s%s", resource_folder(), filename);
-    return path;
-}
-
-char* concat(const char *s1, const char *s2)
-{
-    char *result = malloc(strlen(s1) + strlen(s2) + 1); // +1 for the null-terminator
-
-    if (!result) {
-        fprintf(stderr, "Failed to allocate memory\n");
-        exit(EXIT_FAILURE);
-    }
-
-    strcpy(result, s1);
-    strcat(result, s2);
-    return result;
-}
+#include "main.h"
+#include "utils.h"
 
 GB_gameboy_t gb;
 
-#define VIDEO_WIDTH 160
-#define VIDEO_HEIGHT 144
-#define VIDEO_PIXELS (VIDEO_WIDTH * VIDEO_HEIGHT)
-
-#define SGB_VIDEO_WIDTH 256
-#define SGB_VIDEO_HEIGHT 224
-#define SGB_VIDEO_PIXELS (SGB_VIDEO_WIDTH * SGB_VIDEO_HEIGHT)
-
-#define FRAME_RATE 0 // let the browser schedule (usually 60 FPS), if absolutely needed define as (0x400000 / 70224.0)
-
 SDL_Window *window;
 SDL_Renderer *renderer;
+SDL_Surface *screen;
 SDL_Texture *texture;
 SDL_PixelFormat *pixel_format;
 SDL_AudioDeviceID device_id;
@@ -65,45 +23,7 @@ static SDL_AudioSpec want_aspec, have_aspec;
 static uint32_t pixel_buffer_1[256 * 224], pixel_buffer_2[256 * 224];
 static uint32_t *active_pixel_buffer = pixel_buffer_1;
 static uint32_t *previous_pixel_buffer = pixel_buffer_2;
-
-signed short soundbuf[1024 * 2];
-
-typedef enum {
-      JOYPAD_AXISES_X,
-      JOYPAD_AXISES_Y,
-      JOYPAD_AXISES_MAX
-} joypad_axis_t;
-
-typedef struct {
-    SDL_Scancode keys[9];
-    GB_color_correction_mode_t color_correction_mode;
-    bool blend_frames;
-
-    GB_highpass_mode_t highpass_mode;
-
-    char filter[32];
-    enum {
-        MODEL_DMG,
-        MODEL_CGB,
-        MODEL_AGB,
-        MODEL_SGB,
-        MODEL_MAX,
-    } model;
-
-    /* v0.11 */
-    uint32_t rewind_length;
-    SDL_Scancode keys_2[32]; /* Rewind and underclock, + padding for the future */
-    uint8_t joypad_configuration[32]; /* 12 Keys + padding for the future*/;
-    uint8_t joypad_axises[JOYPAD_AXISES_MAX];
-
-    /* v0.12 */
-    enum {
-        SGB_NTSC,
-        SGB_PAL,
-        SGB_2,
-        SGB_MAX
-    } sgb_revision;
-} configuration_t;
+static char *battery_save_path_ptr;
 
 configuration_t configuration =
 {
@@ -147,11 +67,22 @@ configuration_t configuration =
     .model = MODEL_CGB
 };
 
+// Use this function instead of GB_save_battery()
+int save_battery(GB_gameboy_t *gb, const char *path) {
+    int result = GB_save_battery(gb, path);
+
+    fprintf(stderr, "Saving battery: \"%s\": %d\n", path, result);
+
+    EM_ASM(Module.sync_fs());
+
+    return result;
+}
+
 unsigned query_sample_rate_of_audiocontexts() {
     return EM_ASM_INT({
-        var AudioContext = window.AudioContext || window.webkitAudioContext;
-        var ctx = new AudioContext();
-        var sr = ctx.sampleRate;
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AudioContext();
+        const sr = ctx.sampleRate;
         ctx.close();
         return sr;
     });
@@ -177,6 +108,18 @@ void render_texture(void *pixels,  void *previous)
         SDL_RenderCopy(renderer, texture, NULL, NULL);
         SDL_RenderPresent(renderer);
     }
+    /*else {
+        static void *_pixels = NULL;
+        if (pixels) {
+            _pixels = pixels;
+        }
+        glClearColor(0, 0, 0, 1);
+        glClear(GL_COLOR_BUFFER_BIT);
+        render_bitmap_with_shader(&shader, _pixels, previous,
+                                  GB_get_screen_width(&gb), GB_get_screen_height(&gb),
+                                  rect.x, rect.y, rect.w, rect.h);
+        SDL_GL_SwapWindow(window);
+    }*/
 }
 
 static void handle_events(GB_gameboy_t *gb) {
@@ -184,7 +127,7 @@ static void handle_events(GB_gameboy_t *gb) {
 }
 
 static void vblank(GB_gameboy_t *gb) {
-    if (1 == 0) {
+    if (configuration.blend_frames) {
         render_texture(active_pixel_buffer, previous_pixel_buffer);
         uint32_t *temp = active_pixel_buffer;
         active_pixel_buffer = previous_pixel_buffer;
@@ -203,7 +146,7 @@ static uint32_t rgb_encode(GB_gameboy_t *gb, uint8_t r, uint8_t g, uint8_t b)
     return SDL_MapRGB(pixel_format, r, g, b);
 }
 
-void init() {
+void init_gb() {
     GB_model_t model;
 
     model = (GB_model_t [])
@@ -273,13 +216,8 @@ void init() {
     error = GB_load_boot_rom(&gb, boot_rom_path);
 }
 
-void run() {
-    GB_run_frame(&gb);
-}
-
-int main(int argc, char **argv)
-{
-#define str(x) #x
+int EMSCRIPTEN_KEEPALIVE init() {
+    #define str(x) #x
 #define xstr(x) str(x)
     pixel_format = (SDL_PixelFormat *) malloc(sizeof(SDL_PixelFormat));
 
@@ -303,7 +241,7 @@ int main(int argc, char **argv)
         SDL_WINDOWPOS_UNDEFINED,
         VIDEO_WIDTH,
         VIDEO_HEIGHT,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI
+        SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS | SDL_WINDOW_ALLOW_HIGHDPI
     );
 
     if (!window) {
@@ -312,6 +250,7 @@ int main(int argc, char **argv)
     }
 
     SDL_SetWindowMinimumSize(window, VIDEO_WIDTH, VIDEO_HEIGHT);
+    SDL_SetWindowMaximumSize(window, VIDEO_WIDTH, VIDEO_HEIGHT);
 
     renderer = SDL_CreateRenderer(
         window,
@@ -324,7 +263,7 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    SDL_Surface *screen = SDL_CreateRGBSurface(
+    screen = SDL_CreateRGBSurface(
         0,
         VIDEO_WIDTH,
         VIDEO_HEIGHT,
@@ -363,23 +302,63 @@ int main(int argc, char **argv)
         fprintf(stderr, "Failed to open audio: %s", SDL_GetError());
     }
 
-    init();
+    EM_ASM({
+        var AudioContext = window.AudioContext || window.webkitAudioContext;
+        var ctx = new AudioContext();
+
+        // unlock audio for iOS
+        if (ctx && ctx.currentTime == 0) {
+            var buffer = ctx.createBuffer(1, 1, 22050);
+            var source = ctx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(ctx.destination);
+            source.start(0);
+        }
+
+        // Google audio enable work-around:
+        // https://github.com/emscripten-ports/SDL2/issues/57
+        try {
+            if (!Module.SDL2 || !ctx || !ctx.resume) return;
+            ctx.resume();
+        } catch (err) {}
+
+        ctx.close();
+    });
+
+    init_gb();
 
     SDL_PauseAudioDevice(device_id, 0);
 
-    emscripten_set_main_loop(
-        run, // our main loop
-        FRAME_RATE,
-        true // infinite loop
-    );
+    return EXIT_SUCCESS;
+}
 
+int EMSCRIPTEN_KEEPALIVE load_rom(char* filename, char* battery_save_path) {
+    int result = GB_load_rom(&gb, filename);
+
+    if (result == 0) {
+        battery_save_path_ptr = battery_save_path;
+        GB_load_battery(&gb, battery_save_path);
+
+        save_battery(&gb, battery_save_path_ptr);
+    }
+
+    return result;
+}
+
+void EMSCRIPTEN_KEEPALIVE quit() {
     fprintf(stderr, "Quitting ...\n");
+
+    emscripten_set_main_loop(NULL, 0, false);
+
+    GB_free(&gb);
 
     SDL_FreeSurface(screen);
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
+}
 
-    return EXIT_SUCCESS;
+void EMSCRIPTEN_KEEPALIVE run_frame() {
+    GB_run_frame(&gb);
 }
