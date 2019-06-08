@@ -58,7 +58,7 @@ endif
 CFLAGS += -Werror -Wall -Wno-strict-aliasing -Wno-unknown-warning -Wno-unknown-warning-option -Wno-multichar -Wno-int-in-bool-context -std=gnu11 -D_GNU_SOURCE -DVERSION="$(VERSION)" -I. -D_USE_MATH_DEFINES
 # CFLAGS += -DGB_INTERNAL=1 # get access to internal APIs
 CFLAGS += -I$(CORE_DIR)
-CFLAGS += -s WASM=1 -s USE_SDL=2 --preload-file $(BOOTROMS_DIR)@/BootROMs -s "EXTRA_EXPORTED_RUNTIME_METHODS=['FS']"
+CFLAGS += -s WASM=1 -s USE_SDL=2 --preload-file $(BOOTROMS_DIR)@/BootROMs -s "EXTRA_EXPORTED_RUNTIME_METHODS=['ccall', 'cwrap', 'getValue', 'AsciiToString', 'FS']"
 # CFLAGS += -Wcast-align -Wover-aligned -s SAFE_HEAP=1 -s WARN_UNALIGNED=1
 WASM_LDFLAGS :=
 

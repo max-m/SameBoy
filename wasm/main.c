@@ -80,11 +80,15 @@ int save_battery(GB_gameboy_t *gb, const char *path) {
 
 unsigned query_sample_rate_of_audiocontexts() {
     return EM_ASM_INT({
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        const ctx = new AudioContext();
-        const sr = ctx.sampleRate;
-        ctx.close();
-        return sr;
+        if (!Module.SDL2 || !Module.SDL2.audioContext) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            const ctx = new AudioContext();
+            const sr = ctx.sampleRate;
+            ctx.close();
+            return sr;
+        }
+
+        return Module.SDL2.audioContext.sampleRate;
     });
 }
 
@@ -217,7 +221,7 @@ void init_gb() {
 }
 
 int EMSCRIPTEN_KEEPALIVE init() {
-    #define str(x) #x
+#define str(x) #x
 #define xstr(x) str(x)
     pixel_format = (SDL_PixelFormat *) malloc(sizeof(SDL_PixelFormat));
 
@@ -292,7 +296,7 @@ int EMSCRIPTEN_KEEPALIVE init() {
     want_aspec.freq = audio_sample_rate;
     want_aspec.format = AUDIO_S16SYS;
     want_aspec.channels = 2;
-    want_aspec.samples = 512;
+    want_aspec.samples = 2048;
 
     want_aspec.callback = audio_callback;
     want_aspec.userdata = &gb;
@@ -302,27 +306,51 @@ int EMSCRIPTEN_KEEPALIVE init() {
         fprintf(stderr, "Failed to open audio: %s", SDL_GetError());
     }
 
-    EM_ASM({
-        var AudioContext = window.AudioContext || window.webkitAudioContext;
-        var ctx = new AudioContext();
+    fprintf(stderr, "WANT:\nfreq: %d\nchannels: %d\nsilence: %d\nsamples: %d\nsize: %d\nformat: %d\n", want_aspec.freq, want_aspec.channels, want_aspec.silence, want_aspec.samples, want_aspec.size, want_aspec.format);
+    fprintf(stderr, "HAVE:\nfreq: %d\nchannels: %d\nsilence: %d\nsamples: %d\nsize: %d\nformat: %d\n", have_aspec.freq, have_aspec.channels, have_aspec.silence, have_aspec.samples, have_aspec.size, have_aspec.format);
 
-        // unlock audio for iOS
-        if (ctx && ctx.currentTime == 0) {
-            var buffer = ctx.createBuffer(1, 1, 22050);
-            var source = ctx.createBufferSource();
-            source.buffer = buffer;
-            source.connect(ctx.destination);
-            source.start(0);
+    EM_ASM({
+        function audio_workaround(e) {
+            if (!Module.SDL2 || !Module.SDL2.audioContext || !Module.SDL2.audioContext.resume) return;
+
+            console.log('Applying audio workarounds...');
+
+            if (Module.SDL2.audioContext.state == 'suspended') {
+                Module.SDL2.audioContext.resume();
+            }
+
+            if (Module.SDL2.audioContext.state == 'running') {
+                document.removeEventListener('touchstart', audio_workaround);
+                document.removeEventListener('click', audio_workaround);
+                document.removeEventListener('keydown', audio_workaround);
+
+                if (Module.canvas) {
+                    Module.canvas.removeEventListener('touchstart', audio_workaround);
+                    Module.canvas.removeEventListener('click', audio_workaround);
+                    Module.canvas.removeEventListener('keydown', audio_workaround);
+                }
+            }
+            else if (Module.SDL2.audioContext && Module.SDL2.audioContext.currentTime == 0) {
+                // unlock audio for iOS
+                let buffer = Module.SDL2.audioContext.createBuffer(1, 1, 22050);
+                let source = Module.SDL2.audioContext.createBufferSource();
+                source.buffer = buffer;
+                source.connect(Module.SDL2.audioContext.destination);
+                source.start(0);
+            }
         }
 
-        // Google audio enable work-around:
-        // https://github.com/emscripten-ports/SDL2/issues/57
-        try {
-            if (!Module.SDL2 || !ctx || !ctx.resume) return;
-            ctx.resume();
-        } catch (err) {}
+        document.addEventListener('touchstart', audio_workaround);
+        document.addEventListener('click', audio_workaround);
+        document.addEventListener('keydown', audio_workaround);
 
-        ctx.close();
+        if (Module.canvas) {
+            Module.canvas.addEventListener('touchstart', audio_workaround);
+            Module.canvas.addEventListener('click', audio_workaround);
+            Module.canvas.addEventListener('keydown', audio_workaround);
+        }
+
+        audio_workaround();
     });
 
     init_gb();
@@ -332,7 +360,11 @@ int EMSCRIPTEN_KEEPALIVE init() {
     return EXIT_SUCCESS;
 }
 
-int EMSCRIPTEN_KEEPALIVE load_rom(char* filename, char* battery_save_path) {
+int EMSCRIPTEN_KEEPALIVE load_boot_rom_from_file(char* filename) {
+    return GB_load_boot_rom(&gb, filename);
+}
+
+int EMSCRIPTEN_KEEPALIVE load_rom_from_file(char* filename, char* battery_save_path) {
     int result = GB_load_rom(&gb, filename);
 
     if (result == 0) {

@@ -98,6 +98,34 @@
 			const progressElement = document.querySelector('#progress');
 
 			var Module = {
+				get_models: function () {
+					const ptr = Module._get_models_string_pointer();
+					const ptr_size = Module._get_models_string_pointer_size();
+					const size = Module._get_models_string_size() - ptr_size; // last element is a end marker
+					const models = [];
+
+					for (let i = 0; i < size; i += ptr_size) {
+						const key = AsciiToString(getValue(ptr + i, '*'));
+
+						models.push(key.replace(/^MODEL_/, ''));
+					}
+
+					return models
+				},
+				get_sgb_revisions: function () {
+					const ptr = Module._get_sgb_revisions_string_pointer();
+					const ptr_size = Module._get_sgb_revisions_string_pointer_size();
+					const size = Module._get_sgb_revisions_string_size() - ptr_size; // last element is a end marker
+					const revisions = [];
+
+					for (let i = 0; i < size; i += ptr_size) {
+						const key = AsciiToString(getValue(ptr + i, '*'));
+
+						revisions.push(key.replace(/^SGB_/, ''));
+					}
+
+					return revisions
+				},
 				sync_fs: function () {
 					console.log("Syncing file system ...");
 

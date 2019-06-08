@@ -50,7 +50,7 @@ const loadRomFromMemory = (name, data) => {
 	const rom_path = allocate(intArrayFromString(`/rom/${name}`), 'i8', ALLOC_NORMAL);
 	const battery_path = allocate(intArrayFromString(`/persist/${battery_name}`), 'i8', ALLOC_NORMAL);
 
-	Module._load_rom(rom_path, battery_path);
+	Module._load_rom_from_file(rom_path, battery_path);
 
 	// The ROM has been read into memory, we can unlink the file now
 	FS.unlink(`/rom/${name}`)
@@ -123,6 +123,9 @@ document.getElementById('file').addEventListener('change', e => {
 }, false);
 
 Module.onRuntimeInitialized = _ => {
+	console.log(Module.get_models());
+	console.log(Module.get_sgb_revisions());
+
 	FS.mkdir('/persist');
 	FS.mount(IDBFS, { }, '/persist');
 
