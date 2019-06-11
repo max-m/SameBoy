@@ -1,7 +1,6 @@
 #include <emscripten.h>
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_opengl.h>
 #include <SDL2/SDL_video.h>
+#include <SDL2/SDL.h>
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -9,6 +8,7 @@
 #include <Core/gb.h>
 #include "main.h"
 #include "utils.h"
+#include "shader.h"
 
 GB_gameboy_t gb;
 
@@ -19,11 +19,35 @@ SDL_Texture *texture;
 SDL_PixelFormat *pixel_format;
 SDL_AudioDeviceID device_id;
 
+shader_t shader;
+
+static SDL_Rect rect;
+static unsigned factor;
 static SDL_AudioSpec want_aspec, have_aspec;
 static uint32_t pixel_buffer_1[256 * 224], pixel_buffer_2[256 * 224];
 static uint32_t *active_pixel_buffer = pixel_buffer_1;
 static uint32_t *previous_pixel_buffer = pixel_buffer_2;
 static char *battery_save_path_ptr;
+
+struct shader_name {
+    const char *file_name;
+    const char *display_name;
+} shaders[] =
+{
+    {"NearestNeighbor", "Nearest Neighbor"},
+    {"Bilinear", "Bilinear"},
+    {"SmoothBilinear", "Smooth Bilinear"},
+    {"LCD", "LCD Display"},
+    {"CRT", "CRT Display"},
+    {"Scale2x", "Scale2x"},
+    {"Scale4x", "Scale4x"},
+    {"AAScale2x", "Anti-aliased Scale2x"},
+    {"AAScale4x", "Anti-aliased Scale4x"},
+    // {"HQ2x", "HQ2x"}, // requires OpenGL ES 1.30 features
+    // {"OmniScale", "OmniScale"}, // requires OpenGL ES 1.30 features
+    {"OmniScaleLegacy", "OmniScale Legacy"},
+    {"AAOmniScaleLegacy", "AA OmniScale Legacy"},
+};
 
 configuration_t configuration =
 {
@@ -62,9 +86,11 @@ configuration_t configuration =
     },
     .color_correction_mode = GB_COLOR_CORRECTION_EMULATE_HARDWARE,
     .highpass_mode = GB_HIGHPASS_ACCURATE,
+    .scaling_mode = GB_SDL_SCALING_INTEGER_FACTOR,
     .blend_frames = true,
     .rewind_length = 60 * 2,
-    .model = MODEL_CGB
+    .model = MODEL_CGB,
+    .filter = "OmniScale",
 };
 
 // Use this function instead of GB_save_battery()
@@ -102,6 +128,46 @@ static void audio_callback(void *gb, Uint8 *stream, int len)
     }
 }
 
+void update_viewport(void)
+{
+    int win_width, win_height;
+    SDL_GL_GetDrawableSize(window, &win_width, &win_height);
+    int logical_width, logical_height;
+    SDL_GetWindowSize(window, &logical_width, &logical_height);
+    factor = win_width / logical_width;
+
+    double x_factor = win_width / (double) GB_get_screen_width(&gb);
+    double y_factor = win_height / (double) GB_get_screen_height(&gb);
+
+    if (configuration.scaling_mode == GB_SDL_SCALING_INTEGER_FACTOR) {
+        x_factor = (int)(x_factor);
+        y_factor = (int)(y_factor);
+    }
+
+    if (configuration.scaling_mode != GB_SDL_SCALING_ENTIRE_WINDOW) {
+        if (x_factor > y_factor) {
+            x_factor = y_factor;
+        }
+        else {
+            y_factor = x_factor;
+        }
+    }
+
+    unsigned new_width = x_factor * GB_get_screen_width(&gb);
+    unsigned new_height = y_factor * GB_get_screen_height(&gb);
+
+    rect = (SDL_Rect){(win_width  - new_width) / 2, (win_height - new_height) / 2,
+        new_width, new_height};
+
+    if (renderer) {
+        SDL_RenderSetViewport(renderer, &rect);
+    }
+    else {
+        glViewport(rect.x, rect.y, rect.w, rect.h);
+    }
+}
+
+
 void render_texture(void *pixels,  void *previous)
 {
     if (renderer) {
@@ -112,7 +178,7 @@ void render_texture(void *pixels,  void *previous)
         SDL_RenderCopy(renderer, texture, NULL, NULL);
         SDL_RenderPresent(renderer);
     }
-    /*else {
+    else {
         static void *_pixels = NULL;
         if (pixels) {
             _pixels = pixels;
@@ -123,7 +189,7 @@ void render_texture(void *pixels,  void *previous)
                                   GB_get_screen_width(&gb), GB_get_screen_height(&gb),
                                   rect.x, rect.y, rect.w, rect.h);
         SDL_GL_SwapWindow(window);
-    }*/
+    }
 }
 
 static void handle_events(GB_gameboy_t *gb) {
@@ -243,8 +309,8 @@ int EMSCRIPTEN_KEEPALIVE init() {
         "SameBoy v" xstr(VERSION),
         SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
-        VIDEO_WIDTH,
-        VIDEO_HEIGHT,
+        VIDEO_WIDTH * 4,
+        VIDEO_HEIGHT * 4,
         SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS | SDL_WINDOW_ALLOW_HIGHDPI
     );
 
@@ -256,37 +322,31 @@ int EMSCRIPTEN_KEEPALIVE init() {
     SDL_SetWindowMinimumSize(window, VIDEO_WIDTH, VIDEO_HEIGHT);
     SDL_SetWindowMaximumSize(window, VIDEO_WIDTH, VIDEO_HEIGHT);
 
-    renderer = SDL_CreateRenderer(
-        window,
-        -1,
-        SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC
-    );
+    // Try to get a GLES 3.0 context
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+    SDL_GLContext gl_context = SDL_GL_CreateContext(window);
 
-    if (!renderer) {
-        fprintf(stderr, "SDL_CreateRenderer Error: %s\n", SDL_GetError());
-        return EXIT_FAILURE;
+    if (gl_context == NULL) {
+        // Try to get a GLES 2.0 context
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+        gl_context = SDL_GL_CreateContext(window);
     }
 
-    screen = SDL_CreateRGBSurface(
-        0,
-        VIDEO_WIDTH,
-        VIDEO_HEIGHT,
-        32,
-        0, 0, 0, 0
-    );
-
-    if (!screen) {
-        SDL_Log("SDL_CreateRGBSurface() failed: %s", SDL_GetError());
-        exit(1);
+    if (gl_context == NULL) {
+        fprintf(stderr, "Using software renderer!\n");
+        renderer = SDL_CreateRenderer(window, -1, 0);
+        texture = SDL_CreateTexture(renderer, SDL_GetWindowPixelFormat(window), SDL_TEXTUREACCESS_STREAMING, 160, 144);
+        pixel_format = SDL_AllocFormat(SDL_GetWindowPixelFormat(window));
     }
+    else {
+        fprintf(stderr, "Using OpenGL renderer!\n");
+        pixel_format = SDL_AllocFormat(SDL_PIXELFORMAT_ABGR8888);
 
-    pixel_format = screen->format;
-
-    texture = SDL_CreateTextureFromSurface(renderer, screen);
-
-    if (!texture) {
-        fprintf(stderr, "SDL_CreateTextureFromSurface Error: %s\n", SDL_GetError());
-        return EXIT_FAILURE;
+        fprintf(stderr, "GLES: %s\n", glGetString(GL_VERSION));
+        fprintf(stderr, "GLSL: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
+        fprintf(stderr, "Parsed GL version: %hu\n", get_gl_version());
     }
 
     unsigned audio_sample_rate = query_sample_rate_of_audiocontexts();
@@ -354,6 +414,11 @@ int EMSCRIPTEN_KEEPALIVE init() {
     });
 
     init_gb();
+
+    if (!init_shader_with_name(&shader, configuration.filter)) {
+        init_shader_with_name(&shader, "NearestNeighbor");
+    }
+    update_viewport();
 
     SDL_PauseAudioDevice(device_id, 0);
 

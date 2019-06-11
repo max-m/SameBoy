@@ -2,7 +2,7 @@
 
 /* The colorspace used by the HQnx filters is not really YUV, despite the algorithm description claims it is. It is
    also not normalized. Therefore, we shall call the colorspace used by HQnx "HQ Colorspace" to avoid confusion. */
-STATIC vec3 rgb_to_hq_colospace(vec4 rgb)
+STATIC vec3 rgb_to_hq_colorspace(vec4 rgb)
 {
     return vec3( 0.250 * rgb.r + 0.250 * rgb.g + 0.250 * rgb.b,
                  0.250 * rgb.r - 0.000 * rgb.g - 0.250 * rgb.b,
@@ -11,7 +11,7 @@ STATIC vec3 rgb_to_hq_colospace(vec4 rgb)
 
 STATIC bool is_different(vec4 a, vec4 b)
 {
-    vec3 diff = abs(rgb_to_hq_colospace(a) - rgb_to_hq_colospace(b));
+    vec3 diff = abs(rgb_to_hq_colorspace(a) - rgb_to_hq_colorspace(b));
     return diff.x > 0.188 || diff.y > 0.027 || diff.z > 0.031;
 }
 
@@ -43,13 +43,13 @@ STATIC vec4 scale(sampler2D image, vec2 position, vec2 input_resolution, vec2 ou
 
 
     vec4 w0 = texture(image, position + vec2( -o.x, -o.y));
-    vec4 w1 = texture(image, position + vec2(    0, -o.y));
+    vec4 w1 = texture(image, position + vec2(  0.0, -o.y));
     vec4 w2 = texture(image, position + vec2(  o.x, -o.y));
-    vec4 w3 = texture(image, position + vec2( -o.x,    0));
-    vec4 w4 = texture(image, position + vec2(    0,    0));
-    vec4 w5 = texture(image, position + vec2(  o.x,    0));
+    vec4 w3 = texture(image, position + vec2( -o.x,  0.0));
+    vec4 w4 = texture(image, position + vec2(  0.0,  0.0));
+    vec4 w5 = texture(image, position + vec2(  o.x,  0.0));
     vec4 w6 = texture(image, position + vec2( -o.x,  o.y));
-    vec4 w7 = texture(image, position + vec2(    0,  o.y));
+    vec4 w7 = texture(image, position + vec2(  0.0,  o.y));
     vec4 w8 = texture(image, position + vec2(  o.x,  o.y));
 
     int pattern = 0;

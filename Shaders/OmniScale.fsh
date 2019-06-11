@@ -2,9 +2,9 @@
     - The actual output calculating was completely redesigned as resolution independent graphic generator. This allows
       scaling to any factor.
     - HQnx approximations that were good enough for a 2x/3x/4x factor were refined, creating smoother gradients.
-    - "Quarters" can be interpolated in more ways than in the HQnx filters 
-    - If a pattern does not provide enough information to determine the suitable scaling interpolation, up to 16 pixels 
-      per quarter are sampled (in contrast to the usual 9) in order to determine the best interpolation. 
+    - "Quarters" can be interpolated in more ways than in the HQnx filters
+    - If a pattern does not provide enough information to determine the suitable scaling interpolation, up to 16 pixels
+      per quarter are sampled (in contrast to the usual 9) in order to determine the best interpolation.
  */
 
 /* We use the same colorspace as the HQ algorithms. */
@@ -28,7 +28,7 @@ STATIC vec4 scale(sampler2D image, vec2 position, vec2 input_resolution, vec2 ou
 {
     // o = offset, the width of a pixel
     vec2 o = 1.0 / input_resolution;
-    
+
     /* We always calculate the top left quarter.  If we need a different quarter, we flip our co-ordinates */
 
     // p = the position within a pixel [0...1]
@@ -44,13 +44,13 @@ STATIC vec4 scale(sampler2D image, vec2 position, vec2 input_resolution, vec2 ou
     }
 
     vec4 w0 = texture(image, position + vec2( -o.x, -o.y));
-    vec4 w1 = texture(image, position + vec2(    0, -o.y));
+    vec4 w1 = texture(image, position + vec2(  0.0, -o.y));
     vec4 w2 = texture(image, position + vec2(  o.x, -o.y));
-    vec4 w3 = texture(image, position + vec2( -o.x,    0));
-    vec4 w4 = texture(image, position + vec2(    0,    0));
-    vec4 w5 = texture(image, position + vec2(  o.x,    0));
+    vec4 w3 = texture(image, position + vec2( -o.x,  0.0));
+    vec4 w4 = texture(image, position + vec2(  0.0,  0.0));
+    vec4 w5 = texture(image, position + vec2(  o.x,  0.0));
     vec4 w6 = texture(image, position + vec2( -o.x,  o.y));
-    vec4 w7 = texture(image, position + vec2(    0,  o.y));
+    vec4 w7 = texture(image, position + vec2(  0.0,  o.y));
     vec4 w8 = texture(image, position + vec2(  o.x,  o.y));
 
     int pattern = 0;
@@ -81,7 +81,7 @@ STATIC vec4 scale(sampler2D image, vec2 position, vec2 input_resolution, vec2 ou
     if (P(0x2f,0x2f)) {
         float dist = length(p - vec2(0.5));
         float pixel_size = length(1.0 / (output_resolution / input_resolution));
-        if (dist < 0.5 - pixel_size / 2) {
+        if (dist < 0.5 - pixel_size / 2.0) {
             return w4;
         }
         vec4 r;
@@ -92,40 +92,40 @@ STATIC vec4 scale(sampler2D image, vec2 position, vec2 input_resolution, vec2 ou
             r = mix(mix(w1 * 0.375 + w0 * 0.25 + w3 * 0.375, w3, p.y * 2.0), w1, p.x * 2.0);
         }
 
-        if (dist > 0.5 + pixel_size / 2) {
+        if (dist > 0.5 + pixel_size / 2.0) {
             return r;
         }
-        return mix(w4, r, (dist - 0.5 + pixel_size / 2) / pixel_size);
+        return mix(w4, r, (dist - 0.5 + pixel_size / 2.0) / pixel_size);
     }
     if (P(0xbf,0x37) || P(0xdb,0x13)) {
         float dist = p.x - 2.0 * p.y;
         float pixel_size = length(1.0 / (output_resolution / input_resolution)) * sqrt(5.0);
-        if (dist > pixel_size / 2) {
+        if (dist > pixel_size / 2.0) {
             return w1;
         }
         vec4 r = mix(w3, w4, p.x + 0.5);
-        if (dist < -pixel_size / 2) {
+        if (dist < -pixel_size / 2.0) {
             return r;
         }
-        return mix(r, w1, (dist + pixel_size / 2) / pixel_size);
+        return mix(r, w1, (dist + pixel_size / 2.0) / pixel_size);
     }
     if (P(0xdb,0x49) || P(0xef,0x6d)) {
         float dist = p.y - 2.0 * p.x;
         float pixel_size = length(1.0 / (output_resolution / input_resolution)) * sqrt(5.0);
-        if (p.y - 2.0 * p.x > pixel_size / 2) {
+        if (p.y - 2.0 * p.x > pixel_size / 2.0) {
             return w3;
         }
         vec4 r = mix(w1, w4, p.x + 0.5);
-        if (dist < -pixel_size / 2) {
+        if (dist < -pixel_size / 2.0) {
             return r;
         }
-        return mix(r, w3, (dist + pixel_size / 2) / pixel_size);
+        return mix(r, w3, (dist + pixel_size / 2.0) / pixel_size);
     }
     if (P(0xbf,0x8f) || P(0x7e,0x0e)) {
         float dist = p.x + 2.0 * p.y;
         float pixel_size = length(1.0 / (output_resolution / input_resolution)) * sqrt(5.0);
 
-        if (dist > 1.0 + pixel_size / 2) {
+        if (dist > 1.0 + pixel_size / 2.0) {
             return w4;
         }
 
@@ -137,11 +137,11 @@ STATIC vec4 scale(sampler2D image, vec2 position, vec2 input_resolution, vec2 ou
             r = mix(mix(w1 * 0.375 + w0 * 0.25 + w3 * 0.375, w3, p.y * 2.0), w1, p.x * 2.0);
         }
 
-        if (dist < 1.0 - pixel_size / 2) {
+        if (dist < 1.0 - pixel_size / 2.0) {
             return r;
         }
 
-        return mix(r, w4, (dist + pixel_size / 2 - 1.0) / pixel_size);
+        return mix(r, w4, (dist + pixel_size / 2.0 - 1.0) / pixel_size);
 
     }
 
@@ -149,7 +149,7 @@ STATIC vec4 scale(sampler2D image, vec2 position, vec2 input_resolution, vec2 ou
         float dist = p.y + 2.0 * p.x;
         float pixel_size = length(1.0 / (output_resolution / input_resolution)) * sqrt(5.0);
 
-        if (p.y + 2.0 * p.x > 1.0 + pixel_size / 2) {
+        if (p.y + 2.0 * p.x > 1.0 + pixel_size / 2.0) {
             return w4;
         }
 
@@ -162,11 +162,11 @@ STATIC vec4 scale(sampler2D image, vec2 position, vec2 input_resolution, vec2 ou
             r = mix(mix(w1 * 0.375 + w0 * 0.25 + w3 * 0.375, w3, p.y * 2.0), w1, p.x * 2.0);
         }
 
-        if (dist < 1.0 - pixel_size / 2) {
+        if (dist < 1.0 - pixel_size / 2.0) {
             return r;
         }
 
-        return mix(r, w4, (dist + pixel_size / 2 - 1.0) / pixel_size);
+        return mix(r, w4, (dist + pixel_size / 2.0 - 1.0) / pixel_size);
     }
 
     if (P(0x1b,0x03) || P(0x4f,0x43) || P(0x8b,0x83) || P(0x6b,0x43))
@@ -185,7 +185,7 @@ STATIC vec4 scale(sampler2D image, vec2 position, vec2 input_resolution, vec2 ou
         float dist = p.x + p.y;
         float pixel_size = length(1.0 / (output_resolution / input_resolution));
 
-        if (dist > 0.5 + pixel_size / 2) {
+        if (dist > 0.5 + pixel_size / 2.0) {
             return w4;
         }
 
@@ -197,11 +197,11 @@ STATIC vec4 scale(sampler2D image, vec2 position, vec2 input_resolution, vec2 ou
             r = mix(mix(w1 * 0.375 + w0 * 0.25 + w3 * 0.375, w3, p.y * 2.0), w1, p.x * 2.0);
         }
 
-        if (dist < 0.5 - pixel_size / 2) {
+        if (dist < 0.5 - pixel_size / 2.0) {
             return r;
         }
 
-        return mix(r, w4, (dist + pixel_size / 2 - 0.5) / pixel_size);
+        return mix(r, w4, (dist + pixel_size / 2.0 - 0.5) / pixel_size);
     }
 
     if (P(0x0b,0x01))
@@ -213,7 +213,7 @@ STATIC vec4 scale(sampler2D image, vec2 position, vec2 input_resolution, vec2 ou
     float dist = p.x + p.y;
     float pixel_size = length(1.0 / (output_resolution / input_resolution));
 
-    if (dist > 0.5 + pixel_size / 2)
+    if (dist > 0.5 + pixel_size / 2.)
         return w4;
 
     /* We need more samples to "solve" this diagonal */
@@ -241,11 +241,11 @@ STATIC vec4 scale(sampler2D image, vec2 position, vec2 input_resolution, vec2 ou
 
     if (diagonal_bias <=  0) {
         vec4 r = mix(w1, w3, p.y - p.x + 0.5);
-        if (dist < 0.5 - pixel_size / 2) {
+        if (dist < 0.5 - pixel_size / 2.0) {
             return r;
         }
-        return mix(r, w4, (dist + pixel_size / 2 - 0.5) / pixel_size);
+        return mix(r, w4, (dist + pixel_size / 2.0 - 0.5) / pixel_size);
     }
-    
+
     return w4;
 }

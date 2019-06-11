@@ -34,9 +34,17 @@ typedef enum {
       JOYPAD_AXISES_MAX
 } joypad_axis_t;
 
+enum scaling_mode {
+    GB_SDL_SCALING_ENTIRE_WINDOW,
+    GB_SDL_SCALING_KEEP_RATIO,
+    GB_SDL_SCALING_INTEGER_FACTOR,
+    GB_SDL_SCALING_MAX,
+};
+
 typedef struct {
     SDL_Scancode keys[9];
     GB_color_correction_mode_t color_correction_mode;
+    enum scaling_mode scaling_mode;
     bool blend_frames;
 
     GB_highpass_mode_t highpass_mode;
