@@ -819,7 +819,7 @@ static bool registers(GB_gameboy_t *gb, char *arguments, char *modifiers, const 
     GB_log(gb, "AF = $%04x (%c%c%c%c)\n", gb->registers[GB_REGISTER_AF], /* AF can't really be an address */
            (gb->f & GB_CARRY_FLAG)?      'C' : '-',
            (gb->f & GB_HALF_CARRY_FLAG)? 'H' : '-',
-           (gb->f & GB_SUBSTRACT_FLAG)?  'S' : '-',
+           (gb->f & GB_SUBSTRACT_FLAG)?  'N' : '-',
            (gb->f & GB_ZERO_FLAG)?       'Z' : '-');
     GB_log(gb, "BC = %s\n", value_to_string(gb, gb->registers[GB_REGISTER_BC], false));
     GB_log(gb, "DE = %s\n", value_to_string(gb, gb->registers[GB_REGISTER_DE], false));
@@ -1766,16 +1766,16 @@ static const debugger_command_t commands[] = {
     {"cartridge", 2, mbc, "Displays information about the MBC and cartridge"},
     {"mbc", 3, }, /* Alias */
     {"apu", 3, apu, "Displays information about the current state of the audio chip"},
-    {"wave", 3, wave, "Prints a visual representation of the wave RAM" HELP_NEWLINE
+    {"wave", 3, wave, "Prints a visual representation of the wave RAM." HELP_NEWLINE
                       "Modifiers can be used for a (f)ull print (the default)," HELP_NEWLINE
-                      "a more (c)ompact one, or a one-(l)iner"},
+                      "a more (c)ompact one, or a one-(l)iner", "", "(f|c|l)"},
     {"lcd", 3, lcd, "Displays information about the current state of the LCD controller"},
     {"palettes", 3, palettes, "Displays the current CGB palettes"},
     {"breakpoint", 1, breakpoint, "Add a new breakpoint at the specified address/expression" HELP_NEWLINE
                                   "Can also modify the condition of existing breakpoints." HELP_NEWLINE
                                   "If the j modifier is used, the breakpoint will occur just before" HELP_NEWLINE
                                   "jumping to the target.",
-                                  "<expression>[ if <condition expression>]", "(j)"},
+                                  "<expression>[ if <condition expression>]", "j"},
     {"delete", 2, delete, "Delete a breakpoint by its address, or all breakpoints", "[<expression>]"},
     {"watch", 1, watch, "Add a new watchpoint at the specified address/expression." HELP_NEWLINE
                         "Can also modify the condition and type of existing watchpoints." HELP_NEWLINE
