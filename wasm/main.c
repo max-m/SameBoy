@@ -28,6 +28,7 @@ static uint32_t pixel_buffer_1[256 * 224], pixel_buffer_2[256 * 224];
 static uint32_t *active_pixel_buffer = pixel_buffer_1;
 static uint32_t *previous_pixel_buffer = pixel_buffer_2;
 static char *battery_save_path_ptr;
+static bool skip_audio;
 
 struct shader_name {
     const char *file_name;
@@ -90,7 +91,7 @@ configuration_t configuration =
     .blend_frames = true,
     .rewind_length = 60 * 2,
     .model = MODEL_CGB,
-    .filter = "OmniScale",
+    .filter = "OmniScaleLegacy",
 };
 
 // Use this function instead of GB_save_battery()
@@ -118,14 +119,10 @@ unsigned query_sample_rate_of_audiocontexts() {
     });
 }
 
-static void audio_callback(void *gb, Uint8 *stream, int len)
+static void gb_audio_callback(GB_gameboy_t *gb, GB_sample_t *sample)
 {
-    if (GB_is_inited(gb)) {
-        GB_apu_copy_buffer(gb, (GB_sample_t *) stream, len / sizeof(GB_sample_t));
-    }
-    else {
-        memset(stream, 0, len);
-    }
+    if (skip_audio) return;
+    SDL_QueueAudio(device_id, sample, sizeof(*sample));
 }
 
 void update_viewport(void)
@@ -209,6 +206,8 @@ static void vblank(GB_gameboy_t *gb) {
     }
 
     handle_events(gb);
+
+    skip_audio = (SDL_GetQueuedAudioSize(device_id) / sizeof(GB_sample_t)) > have_aspec.freq / 20;
 }
 
 static uint32_t rgb_encode(GB_gameboy_t *gb, uint8_t r, uint8_t g, uint8_t b)
@@ -244,8 +243,6 @@ void init_gb() {
 
         GB_init(&gb, model);
 
-        GB_set_input_callback(&gb, NULL);
-        GB_set_async_input_callback(&gb, NULL);
         GB_set_vblank_callback(&gb, (GB_vblank_callback_t) vblank);
         GB_set_pixels_output(&gb, active_pixel_buffer);
         GB_set_rgb_encode_callback(&gb, rgb_encode);
@@ -253,6 +250,10 @@ void init_gb() {
         GB_set_color_correction_mode(&gb, configuration.color_correction_mode);
         GB_set_highpass_filter_mode(&gb, configuration.highpass_mode);
         GB_set_rewind_length(&gb, 0);
+        GB_apu_set_sample_callback(&gb, gb_audio_callback);
+
+        GB_set_input_callback(&gb, NULL);
+        GB_set_async_input_callback(&gb, NULL);
     }
 
     SDL_DestroyTexture(texture);
@@ -309,8 +310,8 @@ int EMSCRIPTEN_KEEPALIVE init() {
         "SameBoy v" xstr(VERSION),
         SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
-        VIDEO_WIDTH * 4,
-        VIDEO_HEIGHT * 4,
+        VIDEO_WIDTH * 2,
+        VIDEO_HEIGHT * 2,
         SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS | SDL_WINDOW_ALLOW_HIGHDPI
     );
 
@@ -358,8 +359,6 @@ int EMSCRIPTEN_KEEPALIVE init() {
     want_aspec.channels = 2;
     want_aspec.samples = 2048;
 
-    want_aspec.callback = audio_callback;
-    want_aspec.userdata = &gb;
     device_id = SDL_OpenAudioDevice(NULL, 0, &want_aspec, &have_aspec, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE);
 
     if (device_id == 0) {
