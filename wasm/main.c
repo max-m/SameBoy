@@ -28,7 +28,6 @@ static uint32_t pixel_buffer_1[256 * 224], pixel_buffer_2[256 * 224];
 static uint32_t *active_pixel_buffer = pixel_buffer_1;
 static uint32_t *previous_pixel_buffer = pixel_buffer_2;
 static char *battery_save_path_ptr;
-static bool skip_audio;
 
 struct shader_name {
     const char *file_name;
@@ -121,7 +120,9 @@ unsigned query_sample_rate_of_audiocontexts() {
 
 static void gb_audio_callback(GB_gameboy_t *gb, GB_sample_t *sample)
 {
-    if (skip_audio) return;
+    if ((SDL_GetQueuedAudioSize(device_id) / sizeof(GB_sample_t)) > have_aspec.freq / 12) {
+        return;
+    }
     SDL_QueueAudio(device_id, sample, sizeof(*sample));
 }
 
@@ -206,8 +207,6 @@ static void vblank(GB_gameboy_t *gb) {
     }
 
     handle_events(gb);
-
-    skip_audio = (SDL_GetQueuedAudioSize(device_id) / sizeof(GB_sample_t)) > have_aspec.freq / 20;
 }
 
 static uint32_t rgb_encode(GB_gameboy_t *gb, uint8_t r, uint8_t g, uint8_t b)
