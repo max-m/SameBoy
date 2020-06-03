@@ -26,8 +26,8 @@ endif
 
 CORE_DIR     += ..
 
-VERSION := 0.11.1
-export VERSION
+#VERSION := 0.13
+#export VERSION
 CONF ?= debug
 
 BIN := $(CORE_DIR)/build/wasm_bin
@@ -61,7 +61,7 @@ CFLAGS += -I$(CORE_DIR)
 CFLAGS += -s WASM=1 -s USE_SDL=2 --preload-file $(BOOTROMS_DIR)@/BootROMs --preload-file $(CORE_DIR)/Shaders@/Shaders -s "EXTRA_EXPORTED_RUNTIME_METHODS=['ccall', 'cwrap', 'getValue', 'AsciiToString', 'FS']"
 CFLAGS += -s USE_WEBGL2=1
 # CFLAGS += -Wcast-align -Wover-aligned -s SAFE_HEAP=1 -s WARN_UNALIGNED=1
-WASM_LDFLAGS :=
+WASM_LDFLAGS := -lidbfs.js
 
 LDFLAGS += -lc -lm -ldl
 CFLAGS += -Wno-deprecated-declarations
@@ -90,7 +90,7 @@ CORE_SOURCES_RAW := $(shell ls $(CORE_DIR)/Core/*.c)
 CORE_SOURCES := $(shell realpath --relative-to=$(CORE_DIR) $(CORE_SOURCES_RAW))
 CORE_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(CORE_SOURCES))
 
-WASM_SOURCES := $(shell ls *.c)
+WASM_SOURCES := $(shell ls *.c) $(CORE_DIR)/SDL/audio/sdl.c
 WASM_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(WASM_SOURCES))
 
 WEB_SOURCES := $(shell ls ressources/.)

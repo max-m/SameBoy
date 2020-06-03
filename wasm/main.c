@@ -10,6 +10,8 @@
 #include "utils.h"
 #include "shader.h"
 
+#include "SDL/audio/audio.h"
+
 GB_gameboy_t gb;
 
 SDL_Window *window;
@@ -17,13 +19,11 @@ SDL_Renderer *renderer;
 SDL_Surface *screen;
 SDL_Texture *texture;
 SDL_PixelFormat *pixel_format;
-SDL_AudioDeviceID device_id;
 
 shader_t shader;
 
 static SDL_Rect rect;
 static unsigned factor;
-static SDL_AudioSpec want_aspec, have_aspec;
 static uint32_t pixel_buffer_1[256 * 224], pixel_buffer_2[256 * 224];
 static uint32_t *active_pixel_buffer = pixel_buffer_1;
 static uint32_t *previous_pixel_buffer = pixel_buffer_2;
@@ -120,10 +120,11 @@ unsigned query_sample_rate_of_audiocontexts() {
 
 static void gb_audio_callback(GB_gameboy_t *gb, GB_sample_t *sample)
 {
-    if ((SDL_GetQueuedAudioSize(device_id) / sizeof(GB_sample_t)) > have_aspec.freq / 12) {
+    if (GB_audio_get_queue_length() / sizeof(*sample) > GB_audio_get_sample_rate() / 4) {
         return;
     }
-    SDL_QueueAudio(device_id, sample, sizeof(*sample));
+
+    GB_audio_queue_sample(sample);
 }
 
 void update_viewport(void)
@@ -245,7 +246,7 @@ void init_gb() {
         GB_set_vblank_callback(&gb, (GB_vblank_callback_t) vblank);
         GB_set_pixels_output(&gb, active_pixel_buffer);
         GB_set_rgb_encode_callback(&gb, rgb_encode);
-        GB_set_sample_rate(&gb, have_aspec.freq);
+        GB_set_sample_rate(&gb, GB_audio_get_sample_rate());
         GB_set_color_correction_mode(&gb, configuration.color_correction_mode);
         GB_set_highpass_filter_mode(&gb, configuration.highpass_mode);
         GB_set_rewind_length(&gb, 0);
@@ -352,20 +353,7 @@ int EMSCRIPTEN_KEEPALIVE init() {
     unsigned audio_sample_rate = query_sample_rate_of_audiocontexts();
     fprintf(stderr, "Sample rate: %u\n", audio_sample_rate);
 
-    memset(&want_aspec, 0, sizeof(want_aspec));
-    want_aspec.freq = audio_sample_rate;
-    want_aspec.format = AUDIO_S16SYS;
-    want_aspec.channels = 2;
-    want_aspec.samples = 2048;
-
-    device_id = SDL_OpenAudioDevice(NULL, 0, &want_aspec, &have_aspec, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE);
-
-    if (device_id == 0) {
-        fprintf(stderr, "Failed to open audio: %s", SDL_GetError());
-    }
-
-    fprintf(stderr, "WANT:\nfreq: %d\nchannels: %d\nsilence: %d\nsamples: %d\nsize: %d\nformat: %d\n", want_aspec.freq, want_aspec.channels, want_aspec.silence, want_aspec.samples, want_aspec.size, want_aspec.format);
-    fprintf(stderr, "HAVE:\nfreq: %d\nchannels: %d\nsilence: %d\nsamples: %d\nsize: %d\nformat: %d\n", have_aspec.freq, have_aspec.channels, have_aspec.silence, have_aspec.samples, have_aspec.size, have_aspec.format);
+    GB_audio_init(audio_sample_rate);
 
     EM_ASM({
         function audio_workaround(e) {
@@ -418,7 +406,7 @@ int EMSCRIPTEN_KEEPALIVE init() {
     }
     update_viewport();
 
-    SDL_PauseAudioDevice(device_id, 0);
+    GB_audio_set_paused(false);
 
     return EXIT_SUCCESS;
 }

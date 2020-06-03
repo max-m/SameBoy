@@ -29,6 +29,11 @@ static SDL_AudioSpec want_aspec, have_aspec;
 static unsigned buffer_pos = 0;
 static GB_sample_t audio_buffer[AUDIO_BUFFER_SIZE];
 
+unsigned GB_audio_default_sample_rate(void)
+{
+    return AUDIO_FREQUENCY;
+}
+
 bool GB_audio_is_playing(void)
 {
     return SDL_GetAudioDeviceStatus(device_id) == SDL_AUDIO_PLAYING;
@@ -45,7 +50,7 @@ void GB_audio_clear_queue(void)
     SDL_ClearQueuedAudio(device_id);
 }
 
-unsigned GB_audio_get_frequency(void)
+unsigned GB_audio_get_sample_rate(void)
 {
     return have_aspec.freq;
 }
@@ -65,11 +70,11 @@ void GB_audio_queue_sample(GB_sample_t *sample)
     }
 }
 
-void GB_audio_init(void)
+void GB_audio_init(unsigned sample_rate)
 {
     /* Configure Audio */
     memset(&want_aspec, 0, sizeof(want_aspec));
-    want_aspec.freq = AUDIO_FREQUENCY;
+    want_aspec.freq = sample_rate == 0 ? GB_audio_default_sample_rate() : sample_rate;
     want_aspec.format = AUDIO_S16SYS;
     want_aspec.channels = 2;
     want_aspec.samples = 512;
@@ -93,4 +98,10 @@ void GB_audio_init(void)
 #endif
     
     device_id = SDL_OpenAudioDevice(0, 0, &want_aspec, &have_aspec, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE | SDL_AUDIO_ALLOW_SAMPLES_CHANGE);
+}
+
+void GB_audio_destroy() {
+    GB_audio_set_paused(true);
+
+    SDL_CloseAudioDevice(device_id);
 }
