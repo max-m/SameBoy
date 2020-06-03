@@ -1,4 +1,6 @@
 #import "GBViewMetal.h"
+#pragma clang diagnostic ignored "-Wpartial-availability"
+
 
 static const vector_float2 rect[] =
 {
@@ -15,7 +17,7 @@ static const vector_float2 rect[] =
     id<MTLBuffer> vertices;
     id<MTLRenderPipelineState> pipeline_state;
     id<MTLCommandQueue> command_queue;
-    id<MTLBuffer> mix_previous_buffer;
+    id<MTLBuffer> frame_blending_mode_buffer;
     id<MTLBuffer> output_resolution_buffer;
     vector_float2 output_resolution;
 }
@@ -50,15 +52,16 @@ static const vector_float2 rect[] =
     view.delegate = self;
     self.internalView = view;
     view.paused = YES;
+    view.enableSetNeedsDisplay = YES;
     
     vertices = [device newBufferWithBytes:rect
                                    length:sizeof(rect)
                                   options:MTLResourceStorageModeShared];
     
-    static const bool default_mix_value = false;
-    mix_previous_buffer = [device newBufferWithBytes:&default_mix_value
-                                              length:sizeof(default_mix_value)
-                                             options:MTLResourceStorageModeShared];
+    static const GB_frame_blending_mode_t default_blending_mode = GB_FRAME_BLENDING_MODE_DISABLED;
+    frame_blending_mode_buffer = [device newBufferWithBytes:&default_blending_mode
+                                          length:sizeof(default_blending_mode)
+                                         options:MTLResourceStorageModeShared];
     
     output_resolution_buffer = [device newBufferWithBytes:&output_resolution
                                                    length:sizeof(output_resolution)
@@ -131,6 +134,7 @@ static const vector_float2 rect[] =
 - (void)drawInMTKView:(nonnull MTKView *)view
 {
     if (!(view.window.occlusionState & NSWindowOcclusionStateVisible)) return;
+    if (!self.gb) return;
     if (texture.width  != GB_get_screen_width(self.gb) ||
         texture.height != GB_get_screen_height(self.gb)) {
         [self allocateTextures];
@@ -145,7 +149,7 @@ static const vector_float2 rect[] =
                mipmapLevel:0
                  withBytes:[self currentBuffer]
                bytesPerRow:texture.width * 4];
-    if ([self shouldBlendFrameWithPrevious]) {
+    if ([self frameBlendingMode]) {
         [previous_texture replaceRegion:region
                             mipmapLevel:0
                               withBytes:[self previousBuffer]
@@ -155,9 +159,8 @@ static const vector_float2 rect[] =
     MTLRenderPassDescriptor *render_pass_descriptor = view.currentRenderPassDescriptor;
     id<MTLCommandBuffer> command_buffer = [command_queue commandBuffer];
 
-    if(render_pass_descriptor != nil)
-    {
-        *(bool *)[mix_previous_buffer contents] = [self shouldBlendFrameWithPrevious];
+    if (render_pass_descriptor != nil) { 
+        *(GB_frame_blending_mode_t *)[frame_blending_mode_buffer contents] = [self frameBlendingMode];
         *(vector_float2 *)[output_resolution_buffer contents] = output_resolution;
 
         id<MTLRenderCommandEncoder> render_encoder =
@@ -174,7 +177,7 @@ static const vector_float2 rect[] =
                                  offset:0
                                 atIndex:0];
         
-        [render_encoder setFragmentBuffer:mix_previous_buffer
+        [render_encoder setFragmentBuffer:frame_blending_mode_buffer
                                    offset:0
                                   atIndex:0];
         
@@ -205,7 +208,7 @@ static const vector_float2 rect[] =
 {
     [super flip];
     dispatch_async(dispatch_get_main_queue(), ^{
-        [(MTKView *)self.internalView draw];
+        [(MTKView *)self.internalView setNeedsDisplay:YES];
     });
 }
 

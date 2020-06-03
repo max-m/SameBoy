@@ -1,26 +1,19 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <signal.h>
+#include <ctype.h>
 #include <OpenDialog/open_dialog.h>
-#include <SDL2/SDL.h>
+#include <SDL.h>
 #include <Core/gb.h>
 #include "utils.h"
 #include "gui.h"
 #include "shader.h"
-
+#include "audio/audio.h"
 
 #ifndef _WIN32
-#define AUDIO_FREQUENCY 96000
+#include <unistd.h>
 #else
-/* Windows (well, at least my VM) can't handle 96KHz sound well :( */
-
-/* felsqualle says: For SDL 2.0.6+ using the WASAPI driver, the highest freq.
-   we can get is 48000. 96000 also works, but always has some faint crackling in
-   the audio, no matter how high or low I set the buffer length...
-   Not quite satisfied with that solution, because acc. to SDL2 docs,
-   96k + WASAPI *should* work. */
-
-#define AUDIO_FREQUENCY 48000
+#include <Windows.h>
 #endif
 
 GB_gameboy_t gb;
@@ -34,7 +27,6 @@ static char *filename = NULL;
 static typeof(free) *free_function = NULL;
 static char *battery_save_path_ptr;
 
-SDL_AudioDeviceID device_id;
 
 void set_filename(const char *new_filename, typeof(free) *new_free_function)
 {
@@ -44,8 +36,6 @@ void set_filename(const char *new_filename, typeof(free) *new_free_function)
     filename = (char *) new_filename;
     free_function = new_free_function;
 }
-
-static SDL_AudioSpec want_aspec, have_aspec;
 
 static char *captured_log = NULL;
 
@@ -86,25 +76,62 @@ static const char *end_capturing_logs(bool show_popup, bool should_exit)
     return captured_log;
 }
 
+static void update_palette(void)
+{
+    switch (configuration.dmg_palette) {
+        case 1:
+            GB_set_palette(&gb, &GB_PALETTE_DMG);
+            break;
+            
+        case 2:
+            GB_set_palette(&gb, &GB_PALETTE_MGB);
+            break;
+            
+        case 3:
+            GB_set_palette(&gb, &GB_PALETTE_GBL);
+            break;
+            
+        default:
+            GB_set_palette(&gb, &GB_PALETTE_GREY);
+    }
+}
+
+static void screen_size_changed(void)
+{
+    SDL_DestroyTexture(texture);
+    texture = SDL_CreateTexture(renderer, SDL_GetWindowPixelFormat(window), SDL_TEXTUREACCESS_STREAMING,
+                                GB_get_screen_width(&gb), GB_get_screen_height(&gb));
+    
+    SDL_SetWindowMinimumSize(window, GB_get_screen_width(&gb), GB_get_screen_height(&gb));
+    
+    update_viewport();
+}
+
 static void open_menu(void)
 {
-    bool audio_playing = SDL_GetAudioDeviceStatus(device_id) == SDL_AUDIO_PLAYING;
+    bool audio_playing = GB_audio_is_playing();
     if (audio_playing) {
-        SDL_PauseAudioDevice(device_id, 1);
+        GB_audio_set_paused(true);
     }
+    size_t previous_width = GB_get_screen_width(&gb);
     run_gui(true);
+    SDL_ShowCursor(SDL_DISABLE);
     if (audio_playing) {
-        SDL_PauseAudioDevice(device_id, 0);
+        GB_audio_set_paused(false);
     }
     GB_set_color_correction_mode(&gb, configuration.color_correction_mode);
+    GB_set_border_mode(&gb, configuration.border_mode);
+    update_palette();
     GB_set_highpass_filter_mode(&gb, configuration.highpass_mode);
+    if (previous_width != GB_get_screen_width(&gb)) {
+        screen_size_changed();
+    }
 }
 
 static void handle_events(GB_gameboy_t *gb)
 {
     SDL_Event event;
-    while (SDL_PollEvent(&event))
-    {
+    while (SDL_PollEvent(&event)) { 
         switch (event.type) {
             case SDL_QUIT:
                 pending_command = GB_SDL_QUIT_COMMAND;
@@ -117,7 +144,7 @@ static void handle_events(GB_gameboy_t *gb)
             }
                 
             case SDL_WINDOWEVENT: {
-                if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
+                if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
                     update_viewport();
                 }
                 break;
@@ -130,6 +157,7 @@ static void handle_events(GB_gameboy_t *gb)
                     GB_set_key_state(gb, (GB_key_t) button, event.type == SDL_JOYBUTTONDOWN);
                 }
                 else if (button == JOYPAD_BUTTON_TURBO) {
+                    GB_audio_clear_queue();
                     turbo_down = event.type == SDL_JOYBUTTONDOWN;
                     GB_set_turbo_mode(gb, turbo_down, turbo_down && rewind_down);
                 }
@@ -239,7 +267,6 @@ static void handle_events(GB_gameboy_t *gb)
                             paused = !paused;
                         }
                         break;
-                        
                     case SDL_SCANCODE_M:
                         if (event.key.keysym.mod & MODIFIER) {
 #ifdef __APPLE__
@@ -248,13 +275,7 @@ static void handle_events(GB_gameboy_t *gb)
                                 break;
                             }
 #endif
-                            bool audio_playing = SDL_GetAudioDeviceStatus(device_id) == SDL_AUDIO_PLAYING;
-                            if (audio_playing) {
-                                SDL_PauseAudioDevice(device_id, 1);
-                            }
-                            else if (!audio_playing) {
-                                SDL_PauseAudioDevice(device_id, 0);
-                            }
+                            GB_audio_set_paused(GB_audio_is_playing());
                         }
                     break;
                     
@@ -266,6 +287,7 @@ static void handle_events(GB_gameboy_t *gb)
                             else { 
                                 SDL_SetWindowFullscreen(window, 0);
                             }
+                            update_viewport();
                         }
                         break;
                         
@@ -288,6 +310,7 @@ static void handle_events(GB_gameboy_t *gb)
             case SDL_KEYUP: // Fallthrough
                 if (event.key.keysym.scancode == configuration.keys[8]) {
                     turbo_down = event.type == SDL_KEYDOWN;
+                    GB_audio_clear_queue();
                     GB_set_turbo_mode(gb, turbo_down, turbo_down && rewind_down);
                 }
                 else if (event.key.keysym.scancode == configuration.keys_2[0]) {
@@ -324,7 +347,7 @@ static void vblank(GB_gameboy_t *gb)
         clock_mutliplier += 1.0/16;
         GB_set_clock_multiplier(gb, clock_mutliplier);
     }
-    if (configuration.blend_frames) {
+    if (configuration.blending_mode) {
         render_texture(active_pixel_buffer, previous_pixel_buffer);
         uint32_t *temp = active_pixel_buffer;
         active_pixel_buffer = previous_pixel_buffer;
@@ -344,6 +367,11 @@ static uint32_t rgb_encode(GB_gameboy_t *gb, uint8_t r, uint8_t g, uint8_t b)
     return SDL_MapRGB(pixel_format, r, g, b);
 }
 
+static void rumble(GB_gameboy_t *gb, double amp)
+{
+    SDL_HapticRumblePlay(haptic, amp, 250);
+}
+
 static void debugger_interrupt(int ignore)
 {
     if (!GB_is_inited(&gb)) return;
@@ -356,11 +384,29 @@ static void debugger_interrupt(int ignore)
 }
 
 static void gb_audio_callback(GB_gameboy_t *gb, GB_sample_t *sample)
-{
-    if ((SDL_GetQueuedAudioSize(device_id) / sizeof(GB_sample_t)) > have_aspec.freq / 12) {
+{    
+    if (turbo_down) {
+        static unsigned skip = 0;
+        skip++;
+        if (skip == GB_audio_get_frequency() / 8) {
+            skip = 0;
+        }
+        if (skip > GB_audio_get_frequency() / 16) {
+            return;
+        }
+    }
+    
+    if (GB_audio_get_queue_length() / sizeof(*sample) > GB_audio_get_frequency() / 4) {
         return;
     }
-    SDL_QueueAudio(device_id, sample, sizeof(*sample));
+    
+    if (configuration.volume != 100) {
+        sample->left = sample->left * configuration.volume / 100;
+        sample->right = sample->right * configuration.volume / 100;
+    }
+    
+    GB_audio_queue_sample(sample);
+    
 }
 
     
@@ -385,14 +431,12 @@ static bool handle_pending_command(void)
             return false;
         }
             
-        case GB_SDL_RESET_COMMAND:
-            GB_save_battery(&gb, battery_save_path_ptr);
-            return true;
-            
         case GB_SDL_NO_COMMAND:
             return false;
             
+        case GB_SDL_RESET_COMMAND:
         case GB_SDL_NEW_FILE_COMMAND:
+            GB_save_battery(&gb, battery_save_path_ptr);
             return true;
             
         case GB_SDL_QUIT_COMMAND:
@@ -402,8 +446,27 @@ static bool handle_pending_command(void)
     return false;
 }
 
+static void load_boot_rom(GB_gameboy_t *gb, GB_boot_rom_t type)
+{
+    bool error = false;
+    start_capturing_logs();
+    static const char *const names[] = {
+        [GB_BOOT_ROM_DMG0] = "dmg0_boot.bin",
+        [GB_BOOT_ROM_DMG] = "dmg_boot.bin",
+        [GB_BOOT_ROM_MGB] = "mgb_boot.bin",
+        [GB_BOOT_ROM_SGB] = "sgb_boot.bin",
+        [GB_BOOT_ROM_SGB2] = "sgb2_boot.bin",
+        [GB_BOOT_ROM_CGB0] = "cgb0_boot.bin",
+        [GB_BOOT_ROM_CGB] = "cgb_boot.bin",
+        [GB_BOOT_ROM_AGB] = "agb_boot.bin",
+    };
+    GB_load_boot_rom(gb, resource_path(names[type]));
+    end_capturing_logs(true, error);
+}
+
 static void run(void)
 {
+    SDL_ShowCursor(SDL_DISABLE);
     GB_model_t model;
     pending_command = GB_SDL_NO_COMMAND;
 restart:
@@ -426,39 +489,49 @@ restart:
     else {
         GB_init(&gb, model);
         
+        GB_set_boot_rom_load_callback(&gb, load_boot_rom);
         GB_set_vblank_callback(&gb, (GB_vblank_callback_t) vblank);
         GB_set_pixels_output(&gb, active_pixel_buffer);
         GB_set_rgb_encode_callback(&gb, rgb_encode);
-        GB_set_sample_rate(&gb, have_aspec.freq);
+        GB_set_rumble_callback(&gb, rumble);
+        GB_set_rumble_mode(&gb, configuration.rumble_mode);
+        GB_set_sample_rate(&gb, GB_audio_get_frequency());
         GB_set_color_correction_mode(&gb, configuration.color_correction_mode);
+        update_palette();
+        if ((unsigned)configuration.border_mode <= GB_BORDER_ALWAYS) {
+            GB_set_border_mode(&gb, configuration.border_mode);
+        }
         GB_set_highpass_filter_mode(&gb, configuration.highpass_mode);
         GB_set_rewind_length(&gb, configuration.rewind_length);
         GB_set_update_input_hint_callback(&gb, handle_events);
         GB_apu_set_sample_callback(&gb, gb_audio_callback);
     }
-    
-    SDL_DestroyTexture(texture);
-    texture = SDL_CreateTexture(renderer, SDL_GetWindowPixelFormat(window), SDL_TEXTUREACCESS_STREAMING,
-                                GB_get_screen_width(&gb), GB_get_screen_height(&gb));
-    
-    SDL_SetWindowMinimumSize(window, GB_get_screen_width(&gb), GB_get_screen_height(&gb));
 
-    
     bool error = false;
+    GB_debugger_clear_symbols(&gb);
     start_capturing_logs();
-    const char * const boot_roms[] = {"dmg_boot.bin", "cgb_boot.bin", "agb_boot.bin", "sgb_boot.bin"};
-    const char *boot_rom = boot_roms[configuration.model];
-    if (configuration.model == GB_MODEL_SGB && configuration.sgb_revision == SGB_2) {
-        boot_rom = "sgb2_boot.bin";
-    }
-    error = GB_load_boot_rom(&gb, resource_path(boot_rom));
-    end_capturing_logs(true, error);
-    
-    start_capturing_logs();
-    error = GB_load_rom(&gb, filename);
-    end_capturing_logs(true, error);
-    
     size_t path_length = strlen(filename);
+    char extension[4] = {0,};
+    if (path_length > 4) {
+        if (filename[path_length - 4] == '.') {
+            extension[0] = tolower(filename[path_length - 3]);
+            extension[1] = tolower(filename[path_length - 2]);
+            extension[2] = tolower(filename[path_length - 1]);
+        }
+    }
+    if (strcmp(extension, "isx") == 0) {
+        error = GB_load_isx(&gb, filename);
+        /* Configure battery */
+        char battery_save_path[path_length + 5]; /* At the worst case, size is strlen(path) + 4 bytes for .sav + NULL */
+        replace_extension(filename, path_length, battery_save_path, ".ram");
+        battery_save_path_ptr = battery_save_path;
+        GB_load_battery(&gb, battery_save_path);
+    }
+    else {
+        GB_load_rom(&gb, filename);
+    }
+    end_capturing_logs(true, error);
+    
     
     /* Configure battery */
     char battery_save_path[path_length + 5]; /* At the worst case, size is strlen(path) + 4 bytes for .sav + NULL */
@@ -473,7 +546,7 @@ restart:
     replace_extension(filename, path_length, symbols_path, ".sym");
     GB_debugger_load_symbol_file(&gb, symbols_path);
         
-    update_viewport();
+    screen_size_changed();
 
     /* Run emulation */
     while (true) {
@@ -529,6 +602,9 @@ static bool get_arg_flag(const char *flag, int *argc, char **argv)
 
 int main(int argc, char **argv)
 {
+#ifdef _WIN32
+    SetProcessDPIAware();
+#endif
 #define str(x) #x
 #define xstr(x) str(x)
     fprintf(stderr, "SameBoy v" xstr(VERSION) "\n");
@@ -580,46 +656,16 @@ int main(int argc, char **argv)
         pixel_format = SDL_AllocFormat(SDL_PIXELFORMAT_ABGR8888);
     }
     
-    
-    /* Configure Audio */
-    memset(&want_aspec, 0, sizeof(want_aspec));
-    want_aspec.freq = AUDIO_FREQUENCY;
-    want_aspec.format = AUDIO_S16SYS;
-    want_aspec.channels = 2;
-    want_aspec.samples = 512;
-    
-    SDL_version _sdl_version;
-    SDL_GetVersion(&_sdl_version);
-    unsigned sdl_version = _sdl_version.major * 1000 + _sdl_version.minor * 100 + _sdl_version.patch;
-    
-#ifndef _WIN32
-    /* SDL 2.0.5 on macOS and Linux introduced a bug where certain combinations of buffer lengths and frequencies
-       fail to produce audio correctly. */
-    if (sdl_version >= 2005) {
-        want_aspec.samples = 2048;
-    }
-#else
-    if (sdl_version >= 2006) {
-        /* SDL 2.0.6 offers WASAPI support which allows for much lower audio buffer lengths which at least
-         theoretically reduces lagging. */
-        want_aspec.samples = 32;
-    }
-    else {
-        /* Since WASAPI audio was introduced in SDL 2.0.6, we have to lower the audio frequency
-         to 44100 because otherwise we would get garbled audio output.*/
-        want_aspec.freq = 44100;
-    }
-#endif
-    
-    device_id = SDL_OpenAudioDevice(0, 0, &want_aspec, &have_aspec, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE);
-    
-    /* Start Audio */
+    GB_audio_init();
 
     SDL_EventState(SDL_DROPFILE, SDL_ENABLE);
     
-    char *prefs_dir = SDL_GetPrefPath("", "SameBoy");
-    snprintf(prefs_path, sizeof(prefs_path) - 1, "%sprefs.bin", prefs_dir);
-    SDL_free(prefs_dir);
+    strcpy(prefs_path, resource_path("prefs.bin"));
+    if (access(prefs_path, R_OK | W_OK) != 0) {
+        char *prefs_dir = SDL_GetPrefPath("", "SameBoy");
+        snprintf(prefs_path, sizeof(prefs_path) - 1, "%sprefs.bin", prefs_dir);
+        SDL_free(prefs_dir);
+    }
     
     FILE *prefs_file = fopen(prefs_path, "rb");
     if (prefs_file) {
@@ -643,7 +689,7 @@ int main(int argc, char **argv)
     else {
         connect_joypad();
     }
-    SDL_PauseAudioDevice(device_id, 0);
+    GB_audio_set_paused(false);
     run(); // Never returns
     return 0;
 }

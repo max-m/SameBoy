@@ -1,7 +1,9 @@
 #import "AppDelegate.h"
 #include "GBButtons.h"
+#include "GBView.h"
 #include <Core/gb.h>
 #import <Carbon/Carbon.h>
+#import <JoyKit/JoyKit.h>
 
 @implementation AppDelegate
 {
@@ -36,11 +38,20 @@
                                                               @"GBColorCorrection": @(GB_COLOR_CORRECTION_EMULATE_HARDWARE),
                                                               @"GBHighpassFilter": @(GB_HIGHPASS_REMOVE_DC_OFFSET),
                                                               @"GBRewindLength": @(10),
+                                                              @"GBFrameBlendingMode": @([defaults boolForKey:@"DisableFrameBlending"]? GB_FRAME_BLENDING_MODE_DISABLED : GB_FRAME_BLENDING_MODE_ACCURATE),
                                                               
                                                               @"GBDMGModel": @(GB_MODEL_DMG_B),
                                                               @"GBCGBModel": @(GB_MODEL_CGB_E),
                                                               @"GBSGBModel": @(GB_MODEL_SGB2),
+                                                              @"GBRumbleMode": @(GB_RUMBLE_CARTRIDGE_ONLY),
                                                               }];
+    
+    [JOYController startOnRunLoop:[NSRunLoop currentRunLoop] withOptions:@{
+        JOYAxes2DEmulateButtonsKey: @YES,
+        JOYHatsEmulateButtonsKey: @YES,
+    }];
+    
+    [NSUserNotificationCenter defaultUserNotificationCenter].delegate = self;
 }
 
 - (IBAction)toggleDeveloperMode:(id)sender
@@ -92,4 +103,8 @@
     return YES;
 }
 
+- (void)userNotificationCenter:(NSUserNotificationCenter *)center didActivateNotification:(NSUserNotification *)notification
+{
+    [[NSDocumentController sharedDocumentController] openDocumentWithContentsOfFile:notification.identifier display:YES];
+}
 @end

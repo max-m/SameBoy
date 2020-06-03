@@ -1,7 +1,7 @@
 #ifndef gui_h
 #define gui_h
 
-#include <SDL2/SDL.h>
+#include <SDL.h>
 #include <Core/gb.h>
 #include <stdbool.h> 
 #include "shader.h"
@@ -21,6 +21,7 @@ extern SDL_Window *window;
 extern SDL_Renderer *renderer;
 extern SDL_Texture *texture;
 extern SDL_PixelFormat *pixel_format;
+extern SDL_Haptic *haptic;
 extern shader_t shader;
 
 enum scaling_mode {
@@ -70,7 +71,7 @@ typedef struct {
     SDL_Scancode keys[9];
     GB_color_correction_mode_t color_correction_mode;
     enum scaling_mode scaling_mode;
-    bool blend_frames;
+    uint8_t blending_mode;
     
     GB_highpass_mode_t highpass_mode;
     
@@ -100,6 +101,12 @@ typedef struct {
         SGB_2,
         SGB_MAX
     } sgb_revision;
+    
+    /* v0.13 */
+    uint8_t dmg_palette;
+    GB_border_mode_t border_mode;
+    uint8_t volume;
+    GB_rumble_mode_t rumble_mode;
 } configuration_t;
 
 extern configuration_t configuration;

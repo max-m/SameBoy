@@ -36,7 +36,7 @@ int GB_save_state(GB_gameboy_t *gb, const char *path)
     if (!DUMP_SECTION(gb, f, rtc       )) goto error;
     if (!DUMP_SECTION(gb, f, video     )) goto error;
     
-    if (GB_is_sgb(gb)) {
+    if (GB_is_hle_sgb(gb)) {
         if (!dump_section(f, gb->sgb, sizeof(*gb->sgb))) goto error;
     }
     
@@ -73,7 +73,7 @@ size_t GB_get_save_state_size(GB_gameboy_t *gb)
     + GB_SECTION_SIZE(apu       ) + sizeof(uint32_t)
     + GB_SECTION_SIZE(rtc       ) + sizeof(uint32_t)
     + GB_SECTION_SIZE(video     ) + sizeof(uint32_t)
-    + (GB_is_sgb(gb)? sizeof(*gb->sgb) + sizeof(uint32_t) : 0)
+    + (GB_is_hle_sgb(gb)? sizeof(*gb->sgb) + sizeof(uint32_t) : 0)
     + gb->mbc_ram_size
     + gb->ram_size
     + gb->vram_size;
@@ -105,7 +105,7 @@ void GB_save_state_to_buffer(GB_gameboy_t *gb, uint8_t *buffer)
     DUMP_SECTION(gb, buffer, rtc       );
     DUMP_SECTION(gb, buffer, video     );
     
-    if (GB_is_sgb(gb)) {
+    if (GB_is_hle_sgb(gb)) {
         buffer_dump_section(&buffer, gb->sgb, sizeof(*gb->sgb));
     }
     
@@ -161,8 +161,8 @@ static bool verify_state_compatibility(GB_gameboy_t *gb, GB_gameboy_t *save)
         return false;
     }
     
-    if (GB_is_sgb(gb) != GB_is_sgb(save)) {
-        GB_log(gb, "The save state is %sfor a Super Game Boy. Try changing the emulated model.\n", GB_is_sgb(save)? "" : "not ");
+    if (GB_is_hle_sgb(gb) != GB_is_hle_sgb(save)) {
+        GB_log(gb, "The save state is %sfor a Super Game Boy. Try changing the emulated model.\n", GB_is_hle_sgb(save)? "" : "not ");
         return false;
     }
     
@@ -178,6 +178,28 @@ static bool verify_state_compatibility(GB_gameboy_t *gb, GB_gameboy_t *save)
     }
     
     return true;
+}
+
+static void sanitize_state(GB_gameboy_t *gb)
+{
+    for (unsigned i = 0; i < 32; i++) {
+        GB_palette_changed(gb, false, i * 2);
+        GB_palette_changed(gb, true, i * 2);
+    }
+    
+    gb->bg_fifo.read_end &= 0xF;
+    gb->bg_fifo.write_end &= 0xF;
+    gb->oam_fifo.read_end &= 0xF;
+    gb->oam_fifo.write_end &= 0xF;
+    gb->object_low_line_address &= gb->vram_size & ~1;
+    gb->fetcher_x &= 0x1f;
+    if (gb->lcd_x > gb->position_in_line) {
+        gb->lcd_x = gb->position_in_line;
+    }
+    
+    if (gb->object_priority == GB_OBJECT_PRIORITY_UNDEFINED) {
+        gb->object_priority = gb->cgb_mode? GB_OBJECT_PRIORITY_INDEX : GB_OBJECT_PRIORITY_X;
+    }
 }
 
 #define READ_SECTION(gb, f, section) read_section(f, GB_GET_SECTION(gb, section), GB_SECTION_SIZE(section))
@@ -223,7 +245,7 @@ int GB_load_state(GB_gameboy_t *gb, const char *path)
         goto error;
     }
     
-    if (GB_is_sgb(gb)) {
+    if (GB_is_hle_sgb(gb)) {
         if (!read_section(f, gb->sgb, sizeof(*gb->sgb))) goto error;
     }
     
@@ -252,19 +274,7 @@ int GB_load_state(GB_gameboy_t *gb, const char *path)
 
     errno = 0;
     
-    if (gb->cartridge_type->has_rumble && gb->rumble_callback) {
-        gb->rumble_callback(gb, gb->rumble_state);
-    }
-    
-    for (unsigned i = 0; i < 32; i++) {
-        GB_palette_changed(gb, false, i * 2);
-        GB_palette_changed(gb, true, i * 2);
-    }
-
-    gb->bg_fifo.read_end &= 0xF;
-    gb->bg_fifo.write_end &= 0xF;
-    gb->oam_fifo.read_end &= 0xF;
-    gb->oam_fifo.write_end &= 0xF;
+    sanitize_state(gb);
     
 error:
     fclose(f);
@@ -334,7 +344,7 @@ int GB_load_state_from_buffer(GB_gameboy_t *gb, const uint8_t *buffer, size_t le
         return -1;
     }
     
-    if (GB_is_sgb(gb)) {
+    if (GB_is_hle_sgb(gb)) {
         if (!buffer_read_section(&buffer, &length, gb->sgb, sizeof(*gb->sgb))) return -1;
     }
     
@@ -347,7 +357,7 @@ int GB_load_state_from_buffer(GB_gameboy_t *gb, const uint8_t *buffer, size_t le
         return -1;
     }
     
-    if (buffer_read(gb->vram,gb->vram_size, &buffer, &length) != gb->vram_size) {
+    if (buffer_read(gb->vram, gb->vram_size, &buffer, &length) != gb->vram_size) {
         return -1;
     }
     
@@ -357,19 +367,7 @@ int GB_load_state_from_buffer(GB_gameboy_t *gb, const uint8_t *buffer, size_t le
     
     memcpy(gb, &save, sizeof(save));
     
-    if (gb->cartridge_type->has_rumble && gb->rumble_callback) {
-        gb->rumble_callback(gb, gb->rumble_state);
-    }
-    
-    for (unsigned i = 0; i < 32; i++) {
-        GB_palette_changed(gb, false, i * 2);
-        GB_palette_changed(gb, true, i * 2);
-    }
-    
-    gb->bg_fifo.read_end &= 0xF;
-    gb->bg_fifo.write_end &= 0xF;
-    gb->oam_fifo.read_end &= 0xF;
-    gb->oam_fifo.write_end &= 0xF;
+    sanitize_state(gb);
     
     return 0;
 }

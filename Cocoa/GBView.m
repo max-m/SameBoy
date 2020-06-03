@@ -1,4 +1,4 @@
-#import <Carbon/Carbon.h>
+#import <IOKit/pwr_mgt/IOPMLib.h>
 #import "GBView.h"
 #import "GBViewGL.h"
 #import "GBViewMetal.h"
@@ -18,7 +18,11 @@
     bool axisActive[2];
     bool underclockKeyDown;
     double clockMultiplier;
+    double analogClockMultiplier;
+    bool analogClockMultiplierValid;
     NSEventModifierFlags previousModifiers;
+    JOYController *lastController;
+    GB_frame_blending_mode_t _frameBlendingMode;
 }
 
 + (instancetype)alloc
@@ -43,8 +47,7 @@
 }
 
 - (void) _init
-{    
-    _shouldBlendFrameWithPrevious = 1;
+{
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(ratioKeepingChanged) name:@"GBAspectChanged" object:nil];
     tracking_area = [ [NSTrackingArea alloc] initWithRect:(NSRect){}
                                                   options:NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways | NSTrackingInVisibleRect
@@ -55,6 +58,7 @@
     [self createInternalView];
     [self addSubview:self.internalView];
     self.internalView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    [JOYController registerListener:self];
 }
 
 - (void)screenSizeChanged
@@ -65,9 +69,9 @@
     
     size_t buffer_size = sizeof(image_buffers[0][0]) * GB_get_screen_width(_gb) * GB_get_screen_height(_gb);
     
-    image_buffers[0] = malloc(buffer_size);
-    image_buffers[1] = malloc(buffer_size);
-    image_buffers[2] = malloc(buffer_size);
+    image_buffers[0] = calloc(1, buffer_size);
+    image_buffers[1] = calloc(1, buffer_size);
+    image_buffers[2] = calloc(1, buffer_size);
     
     dispatch_async(dispatch_get_main_queue(), ^{
         [self setFrame:self.superview.frame];
@@ -79,15 +83,26 @@
     [self setFrame:self.superview.frame];
 }
 
-- (void) setShouldBlendFrameWithPrevious:(BOOL)shouldBlendFrameWithPrevious
+- (void) setFrameBlendingMode:(GB_frame_blending_mode_t)frameBlendingMode
 {
-    _shouldBlendFrameWithPrevious = shouldBlendFrameWithPrevious;
+    _frameBlendingMode = frameBlendingMode;
     [self setNeedsDisplay:YES];
 }
 
+
+- (GB_frame_blending_mode_t)frameBlendingMode
+{
+    if (_frameBlendingMode == GB_FRAME_BLENDING_MODE_ACCURATE) {
+        if (!_gb || GB_is_sgb(_gb)) {
+            return GB_FRAME_BLENDING_MODE_SIMPLE;
+        }
+        return GB_is_odd_frame(_gb)? GB_FRAME_BLENDING_MODE_ACCURATE_ODD : GB_FRAME_BLENDING_MODE_ACCURATE_EVEN;
+    }
+    return _frameBlendingMode;
+}
 - (unsigned char) numberOfBuffers
 {
-    return _shouldBlendFrameWithPrevious? 3 : 2;
+    return _frameBlendingMode? 3 : 2;
 }
 
 - (void)dealloc
@@ -100,11 +115,12 @@
         [NSCursor unhide];
     }
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [self setRumble:0];
+    [JOYController unregisterListener:self];
 }
 - (instancetype)initWithCoder:(NSCoder *)coder
 {
-    if (!(self = [super initWithCoder:coder]))
-    {
+    if (!(self = [super initWithCoder:coder])) { 
         return self;
     }
     [self _init];
@@ -113,8 +129,7 @@
 
 - (instancetype)initWithFrame:(NSRect)frameRect
 {
-    if (!(self = [super initWithFrame:frameRect]))
-    {
+    if (!(self = [super initWithFrame:frameRect])) { 
         return self;
     }
     [self _init];
@@ -147,13 +162,21 @@
 
 - (void) flip
 {
-    if (underclockKeyDown && clockMultiplier > 0.5) {
-        clockMultiplier -= 1.0/16;
-        GB_set_clock_multiplier(_gb, clockMultiplier);
+    if (analogClockMultiplierValid && [[NSUserDefaults standardUserDefaults] boolForKey:@"GBAnalogControls"]) {
+        GB_set_clock_multiplier(_gb, analogClockMultiplier);
+        if (analogClockMultiplier == 1.0) {
+            analogClockMultiplierValid = false;
+        }
     }
-    if (!underclockKeyDown && clockMultiplier < 1.0) {
-        clockMultiplier += 1.0/16;
-        GB_set_clock_multiplier(_gb, clockMultiplier);
+    else {
+        if (underclockKeyDown && clockMultiplier > 0.5) {
+            clockMultiplier -= 1.0/16;
+            GB_set_clock_multiplier(_gb, clockMultiplier);
+        }
+        if (!underclockKeyDown && clockMultiplier < 1.0) {
+            clockMultiplier += 1.0/16;
+            GB_set_clock_multiplier(_gb, clockMultiplier);
+        }
     }
     current_buffer = (current_buffer + 1) % self.numberOfBuffers;
 }
@@ -180,6 +203,7 @@
                 switch (button) {
                     case GBTurbo:
                         GB_set_turbo_mode(_gb, true, self.isRewinding);
+                        analogClockMultiplierValid = false;
                         break;
                         
                     case GBRewind:
@@ -189,6 +213,7 @@
                         
                     case GBUnderclock:
                         underclockKeyDown = true;
+                        analogClockMultiplierValid = false;
                         break;
                         
                     default:
@@ -221,6 +246,7 @@
                 switch (button) {
                     case GBTurbo:
                         GB_set_turbo_mode(_gb, false, false);
+                        analogClockMultiplierValid = false;
                         break;
                         
                     case GBRewind:
@@ -229,6 +255,7 @@
                         
                     case GBUnderclock:
                         underclockKeyDown = false;
+                        analogClockMultiplierValid = false;
                         break;
                         
                     default:
@@ -243,123 +270,99 @@
     }
 }
 
-- (void) joystick:(NSString *)joystick_name button: (unsigned)button changedState: (bool) state
+- (void)setRumble:(double)amp
 {
-    unsigned player_count = GB_get_player_count(_gb);
-
-    UpdateSystemActivity(UsrActivity);
-    for (unsigned player = 0; player < player_count; player++) {
-        NSString *preferred_joypad = [[[NSUserDefaults standardUserDefaults] dictionaryForKey:@"GBDefaultJoypads"]
-                                      objectForKey:[NSString stringWithFormat:@"%u", player]];
-        if (player_count != 1 && // Single player, accpet inputs from all joypads
-            !(player == 0 && !preferred_joypad) && // Multiplayer, but player 1 has no joypad configured, so it takes inputs from all joypads
-            ![preferred_joypad isEqualToString:joystick_name]) {
-            continue;
-        }
-        NSDictionary *mapping = [[NSUserDefaults standardUserDefaults] dictionaryForKey:@"GBJoypadMappings"][joystick_name];
-        
-        for (GBButton i = 0; i < GBButtonCount; i++) {
-            NSNumber *mapped_button = [mapping objectForKey:GBButtonNames[i]];
-            if (mapped_button && [mapped_button integerValue] == button) {
-                switch (i) {
-                    case GBTurbo:
-                        GB_set_turbo_mode(_gb, state, state && self.isRewinding);
-                        break;
-                        
-                    case GBRewind:
-                        self.isRewinding = state;
-                        if (state) {
-                            GB_set_turbo_mode(_gb, false, false);
-                        }
-                        break;
-                    
-                    case GBUnderclock:
-                        underclockKeyDown = state;
-                        break;
-                        
-                    default:
-                        GB_set_key_state_for_player(_gb, (GB_key_t)i, player, state);
-                        break;
-                }
-            }
-        }
-    }
+    [lastController setRumbleAmplitude:amp];
 }
 
-- (void) joystick:(NSString *)joystick_name axis: (unsigned)axis movedTo: (signed) value
+- (void)controller:(JOYController *)controller movedAxis:(JOYAxis *)axis
 {
-    unsigned player_count = GB_get_player_count(_gb);
+    if (![self.window isMainWindow]) return;
 
-    UpdateSystemActivity(UsrActivity);
-    for (unsigned player = 0; player < player_count; player++) {
-        NSString *preferred_joypad = [[[NSUserDefaults standardUserDefaults] dictionaryForKey:@"GBDefaultJoypads"]
-                                      objectForKey:[NSString stringWithFormat:@"%u", player]];
-        if (player_count != 1 && // Single player, accpet inputs from all joypads
-            !(player == 0 && !preferred_joypad) && // Multiplayer, but player 1 has no joypad configured, so it takes inputs from all joypads
-            ![preferred_joypad isEqualToString:joystick_name]) {
-            continue;
-        }
-        
-        NSDictionary *mapping = [[NSUserDefaults standardUserDefaults] dictionaryForKey:@"GBJoypadMappings"][joystick_name];
-        NSNumber *x_axis = [mapping objectForKey:@"XAxis"];
-        NSNumber *y_axis = [mapping objectForKey:@"YAxis"];
-        
-        if (axis == [x_axis integerValue]) {
-            if (value > JOYSTICK_HIGH) {
-                axisActive[0] = true;
-                GB_set_key_state_for_player(_gb, GB_KEY_RIGHT, player, true);
-                GB_set_key_state_for_player(_gb, GB_KEY_LEFT, player, false);
-            }
-            else if (value < -JOYSTICK_HIGH) {
-                axisActive[0] = true;
-                GB_set_key_state_for_player(_gb, GB_KEY_RIGHT, player, false);
-                GB_set_key_state_for_player(_gb, GB_KEY_LEFT, player, true);
-            }
-            else if (axisActive[0] && value < JOYSTICK_LOW && value > -JOYSTICK_LOW) {
-                axisActive[0] = false;
-                GB_set_key_state_for_player(_gb, GB_KEY_RIGHT, player, false);
-                GB_set_key_state_for_player(_gb, GB_KEY_LEFT, player, false);
-            }
-        }
-        else if (axis == [y_axis integerValue]) {
-            if (value > JOYSTICK_HIGH) {
-                axisActive[1] = true;
-                GB_set_key_state_for_player(_gb, GB_KEY_DOWN, player, true);
-                GB_set_key_state_for_player(_gb, GB_KEY_UP, player, false);
-            }
-            else if (value < -JOYSTICK_HIGH) {
-                axisActive[1] = true;
-                GB_set_key_state_for_player(_gb, GB_KEY_DOWN, player, false);
-                GB_set_key_state_for_player(_gb, GB_KEY_UP, player, true);
-            }
-            else if (axisActive[1] && value < JOYSTICK_LOW && value > -JOYSTICK_LOW) {
-                axisActive[1] = false;
-                GB_set_key_state_for_player(_gb, GB_KEY_DOWN, player, false);
-                GB_set_key_state_for_player(_gb, GB_KEY_UP, player, false);
-            }
-        }
+    NSDictionary *mapping = [[NSUserDefaults standardUserDefaults] dictionaryForKey:@"JoyKitInstanceMapping"][controller.uniqueID];
+    if (!mapping) {
+        mapping = [[NSUserDefaults standardUserDefaults] dictionaryForKey:@"JoyKitNameMapping"][controller.deviceName];
     }
-}
-
-- (void) joystick:(NSString *)joystick_name hat: (unsigned)hat changedState: (int8_t) state
-{
-    unsigned player_count = GB_get_player_count(_gb);
     
-    UpdateSystemActivity(UsrActivity);
+    if ((axis.usage == JOYAxisUsageR1 && !mapping) ||
+        axis.uniqueID == [mapping[@"AnalogUnderclock"] unsignedLongValue]){
+        analogClockMultiplier = MIN(MAX(1 - axis.value + 0.2, 1.0 / 3), 1.0);
+        analogClockMultiplierValid = true;
+    }
+    
+    else if ((axis.usage == JOYAxisUsageL1 && !mapping) ||
+        axis.uniqueID == [mapping[@"AnalogTurbo"] unsignedLongValue]){
+        analogClockMultiplier = MIN(MAX(axis.value * 3 + 0.8, 1.0), 3.0);
+        analogClockMultiplierValid = true;
+    }
+}
+
+- (void)controller:(JOYController *)controller buttonChangedState:(JOYButton *)button
+{
+    if (![self.window isMainWindow]) return;
+    if (controller != lastController) {
+        [self setRumble:0];
+        lastController = controller;
+    }
+    
+    
+    unsigned player_count = GB_get_player_count(_gb);
+
+    IOPMAssertionID assertionID;
+    IOPMAssertionDeclareUserActivity(CFSTR(""), kIOPMUserActiveLocal, &assertionID);
+    
     for (unsigned player = 0; player < player_count; player++) {
-        NSString *preferred_joypad = [[[NSUserDefaults standardUserDefaults] dictionaryForKey:@"GBDefaultJoypads"]
-                                      objectForKey:[NSString stringWithFormat:@"%u", player]];
+        NSString *preferred_joypad = [[[NSUserDefaults standardUserDefaults] dictionaryForKey:@"JoyKitDefaultControllers"]
+                                      objectForKey:n2s(player)];
         if (player_count != 1 && // Single player, accpet inputs from all joypads
             !(player == 0 && !preferred_joypad) && // Multiplayer, but player 1 has no joypad configured, so it takes inputs from all joypads
-            ![preferred_joypad isEqualToString:joystick_name]) {
+            ![preferred_joypad isEqualToString:controller.uniqueID]) {
             continue;
         }
-        assert(state + 1  < 9);
-                                                                      /* -  N NE  E SE  S SW  W NW */
-        GB_set_key_state_for_player(_gb, GB_KEY_UP,    player, (bool []){0, 1, 1, 0, 0, 0, 0, 0, 1}[state + 1]);
-        GB_set_key_state_for_player(_gb, GB_KEY_RIGHT, player, (bool []){0, 0, 1, 1, 1, 0, 0, 0, 0}[state + 1]);
-        GB_set_key_state_for_player(_gb, GB_KEY_DOWN,  player, (bool []){0, 0, 0, 0, 1, 1, 1, 0, 0}[state + 1]);
-        GB_set_key_state_for_player(_gb, GB_KEY_LEFT,  player, (bool []){0, 0, 0, 0, 0, 0, 1, 1, 1}[state + 1]);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [controller setPlayerLEDs:1 << player];
+        });
+        NSDictionary *mapping = [[NSUserDefaults standardUserDefaults] dictionaryForKey:@"JoyKitInstanceMapping"][controller.uniqueID];
+        if (!mapping) {
+            mapping = [[NSUserDefaults standardUserDefaults] dictionaryForKey:@"JoyKitNameMapping"][controller.deviceName];
+        }
+        
+        JOYButtonUsage usage = ((JOYButtonUsage)[mapping[n2s(button.uniqueID)] unsignedIntValue]) ?: button.usage;
+        if (!mapping && usage >= JOYButtonUsageGeneric0) {
+            usage = (const JOYButtonUsage[]){JOYButtonUsageY, JOYButtonUsageA, JOYButtonUsageB, JOYButtonUsageX}[(usage - JOYButtonUsageGeneric0) & 3];
+        }
+        
+        switch (usage) {
+                
+            case JOYButtonUsageNone: break;
+            case JOYButtonUsageA: GB_set_key_state_for_player(_gb, GB_KEY_A, player, button.isPressed); break;
+            case JOYButtonUsageB: GB_set_key_state_for_player(_gb, GB_KEY_B, player, button.isPressed); break;
+            case JOYButtonUsageC: break;
+            case JOYButtonUsageStart:
+            case JOYButtonUsageX: GB_set_key_state_for_player(_gb, GB_KEY_START, player, button.isPressed); break;
+            case JOYButtonUsageSelect:
+            case JOYButtonUsageY: GB_set_key_state_for_player(_gb, GB_KEY_SELECT, player, button.isPressed); break;
+            case JOYButtonUsageR2:
+            case JOYButtonUsageL2:
+            case JOYButtonUsageZ: {
+                self.isRewinding = button.isPressed;
+                if (button.isPressed) {
+                    GB_set_turbo_mode(_gb, false, false);
+                }
+                break;
+            }
+        
+            case JOYButtonUsageL1: GB_set_turbo_mode(_gb, button.isPressed, button.isPressed && self.isRewinding); break;
+
+            case JOYButtonUsageR1: underclockKeyDown = button.isPressed; break;
+            case JOYButtonUsageDPadLeft: GB_set_key_state_for_player(_gb, GB_KEY_LEFT, player, button.isPressed); break;
+            case JOYButtonUsageDPadRight: GB_set_key_state_for_player(_gb, GB_KEY_RIGHT, player, button.isPressed); break;
+            case JOYButtonUsageDPadUp: GB_set_key_state_for_player(_gb, GB_KEY_UP, player, button.isPressed); break;
+            case JOYButtonUsageDPadDown: GB_set_key_state_for_player(_gb, GB_KEY_DOWN, player, button.isPressed); break;
+
+            default:
+                break;
+        }
     }
 }
 
