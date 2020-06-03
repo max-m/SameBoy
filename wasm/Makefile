@@ -1,4 +1,34 @@
+# Make hacks
+.INTERMEDIATE:
+
+# Set target, configuration, version and destination folders
+
+PLATFORM := $(shell uname -s)
+ifneq ($(findstring MINGW,$(PLATFORM)),)
+PLATFORM := windows32
+USE_WINDRES := true
+endif
+
+ifneq ($(findstring MSYS,$(PLATFORM)),)
+PLATFORM := windows32
+endif
+
+ifeq ($(PLATFORM),windows32)
+_ := $(shell chcp 65001)
+endif
+
+DEFAULT := wasm
+default: $(DEFAULT)
+
+ifeq ($(MAKECMDGOALS),)
+MAKECMDGOALS := $(DEFAULT)
+endif
+
 CORE_DIR     += ..
+
+VERSION := 0.11.1
+export VERSION
+CONF ?= debug
 
 BIN := $(CORE_DIR)/build/wasm_bin
 OBJ := $(CORE_DIR)/build/wasm_obj
@@ -11,6 +41,17 @@ endif
 # Set tools
 
 CC := emcc
+
+ifeq ($(PLATFORM),windows32)
+# To force use of the Unix version instead of the Windows version
+MKDIR := $(shell which mkdir)
+else
+MKDIR := mkdir
+endif
+
+ifeq ($(CONF),native_release)
+override CONF := release
+endif
 
 # Set compilation and linkage flags based on target, platform and configuration
 
@@ -37,8 +78,6 @@ endif
 
 # Define our targets
 
-all: bootroms $(BIN)/index.html $(WEB_OBJECTS) $(SHADERS)
-
 bootroms: $(BOOTROMS_DIR)/agb_boot.bin \
           $(BOOTROMS_DIR)/cgb_boot.bin \
           $(BOOTROMS_DIR)/dmg_boot.bin \
@@ -58,6 +97,9 @@ WEB_SOURCES := $(shell ls ressources/.)
 WEB_OBJECTS := $(patsubst %,$(BIN)/ressources/%,$(WEB_SOURCES))
 
 SHADERS := $(shell ls $(CORE_DIR)/Shaders/*.fsh)
+
+wasm: bootroms $(BIN)/index.html $(WEB_OBJECTS) $(SHADERS)
+all: wasm
 
 # Automatic dependency generation
 
