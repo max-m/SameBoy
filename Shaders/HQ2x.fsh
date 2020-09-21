@@ -12,7 +12,7 @@ STATIC vec3 rgb_to_hq_colorspace(vec4 rgb)
 STATIC bool is_different(vec4 a, vec4 b)
 {
     vec3 diff = abs(rgb_to_hq_colorspace(a) - rgb_to_hq_colorspace(b));
-    return diff.x > 0.188 || diff.y > 0.027 || diff.z > 0.031;
+    return diff.x > 0.018 || diff.y > 0.002 || diff.z > 0.005;
 }
 
 #define P(m, r) ((pattern & (m)) == (r))
@@ -31,7 +31,7 @@ STATIC vec4 scale(sampler2D image, vec2 position, vec2 input_resolution, vec2 ou
 {
     // o = offset, the width of a pixel
     vec2 o = 1.0 / input_resolution;
-    
+
     /* We always calculate the top left pixel.  If we need a different pixel, we flip the image */
 
     // p = the position within a pixel [0...1]
@@ -84,7 +84,7 @@ STATIC vec4 scale(sampler2D image, vec2 position, vec2 input_resolution, vec2 ou
         return interp_3px(w4, 2.0, w0, 1.0, w3, 1.0);
     }
     if (P(0x2f,0x2f)) {
-        return interp_3px(w4, 1.04, w3, 1.0, w1, 1.0);
+        return interp_3px(w4, 4.0, w3, 1.0, w1, 1.0);
     }
     if (P(0xbf,0x37) || P(0xdb,0x13)) {
         return interp_3px(w4, 5.0, w1, 2.0, w3, 1.0);
@@ -110,6 +110,6 @@ STATIC vec4 scale(sampler2D image, vec2 position, vec2 input_resolution, vec2 ou
         P(0x3b,0x1b)) {
         return interp_3px(w4, 2.0, w3, 1.0, w1, 1.0);
     }
-    
+
     return interp_3px(w4, 6.0, w3, 1.0, w1, 1.0);
 }

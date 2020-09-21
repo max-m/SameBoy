@@ -109,6 +109,7 @@ configuration_t configuration =
     .model = MODEL_CGB,
     .volume = 100,
     .rumble_mode = GB_RUMBLE_ALL_GAMES,
+    .default_scale = 2,
 };
 
 
@@ -168,6 +169,11 @@ void update_viewport(void)
     else {
         glViewport(rect.x, rect.y, rect.w, rect.h);
     }
+}
+
+static void rescale_window(void)
+{
+    SDL_SetWindowSize(window, GB_get_screen_width(&gb) * configuration.default_scale, GB_get_screen_height(&gb) * configuration.default_scale);
 }
 
 /* Does NOT check for bounds! */
@@ -435,6 +441,12 @@ const char *current_scaling_mode(unsigned index)
         [configuration.scaling_mode];
 }
 
+const char *current_default_scale(unsigned index)
+{
+    return (const char *[]){"1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x"}
+        [configuration.default_scale - 1];
+}
+
 const char *current_color_correction_mode(unsigned index)
 {
     return (const char *[]){"Disabled", "Correct Color Curves", "Emulate Hardware", "Preserve Brightness", "Reduce Contrast"}
@@ -473,6 +485,32 @@ void cycle_scaling_backwards(unsigned index)
     }
     update_viewport();
     render_texture(NULL, NULL);
+}
+
+void cycle_default_scale(unsigned index)
+{
+    if (configuration.default_scale == GB_SDL_DEFAULT_SCALE_MAX) {
+        configuration.default_scale = 1;
+    }
+    else {
+        configuration.default_scale++;
+    }
+
+    rescale_window();
+    update_viewport();
+}
+
+void cycle_default_scale_backwards(unsigned index)
+{
+    if (configuration.default_scale == 1) {
+        configuration.default_scale = GB_SDL_DEFAULT_SCALE_MAX;
+    }
+    else {
+        configuration.default_scale--;
+    }
+
+    rescale_window();
+    update_viewport();
 }
 
 static void cycle_color_correction(unsigned index)
@@ -643,6 +681,7 @@ const char *blending_mode_string(unsigned index)
 
 static const struct menu_item graphics_menu[] = {
     {"Scaling Mode:", cycle_scaling, current_scaling_mode, cycle_scaling_backwards},
+    {"Default Window Scale:", cycle_default_scale, current_default_scale, cycle_default_scale_backwards},
     {"Scaling Filter:", cycle_filter, current_filter_name, cycle_filter_backwards},
     {"Color Correction:", cycle_color_correction, current_color_correction_mode, cycle_color_correction_backwards},
     {"Frame Blending:", cycle_blending_mode, blending_mode_string, cycle_blending_mode_backwards},

@@ -8,6 +8,8 @@
 #include "GBMemoryByteArray.h"
 #include "GBWarningPopover.h"
 #include "GBCheatWindowController.h"
+#include "GBTerminalTextFieldCell.h"
+#include "BigSurToolbar.h"
 
 /* Todo: The general Objective-C coding style conflicts with SameBoy's. This file needs a cleanup. */
 /* Todo: Split into category files! This is so messy!!! */
@@ -45,7 +47,7 @@ enum model {
     bool oamUpdating;
     
     NSMutableData *currentPrinterImageData;
-    enum {GBAccessoryNone, GBAccessoryPrinter} accessory;
+    enum {GBAccessoryNone, GBAccessoryPrinter, GBAccessoryWorkboy} accessory;
     
     bool rom_warning_issued;
     
@@ -134,6 +136,16 @@ static void printImage(GB_gameboy_t *gb, uint32_t *image, uint8_t height,
 {
     Document *self = (__bridge Document *)GB_get_user_data(gb);
     [self printImage:image height:height topMargin:top_margin bottomMargin:bottom_margin exposure:exposure];
+}
+
+static void setWorkboyTime(GB_gameboy_t *gb, time_t t)
+{
+    [[NSUserDefaults standardUserDefaults] setInteger:time(NULL) - t forKey:@"GBWorkboyTimeOffset"];
+}
+
+static time_t getWorkboyTime(GB_gameboy_t *gb)
+{
+    return time(NULL) - [[NSUserDefaults standardUserDefaults] integerForKey:@"GBWorkboyTimeOffset"];
 }
 
 static void audioCallback(GB_gameboy_t *gb, GB_sample_t *sample)
@@ -403,6 +415,7 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
     unsigned time_to_alarm = GB_time_to_alarm(&gb);
     
     if (time_to_alarm) {
+        [NSUserNotificationCenter defaultUserNotificationCenter].delegate = (id)[NSApp delegate];
         NSUserNotification *notification = [[NSUserNotification alloc] init];
         NSString *friendlyName = [[self.fileName lastPathComponent] stringByDeletingPathExtension];
         NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@"\\([^)]+\\)|\\[[^\\]]+\\]" options:0 error:nil];
@@ -546,6 +559,7 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
     self.debuggerSideViewInput.textColor = [NSColor whiteColor];
     self.debuggerSideViewInput.defaultParagraphStyle = paragraph_style;
     [self.debuggerSideViewInput setString:@"registers\nbacktrace\n"];
+    ((GBTerminalTextFieldCell *)self.consoleInput.cell).gb = &gb;
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(updateSideView)
                                                  name:NSTextDidChangeNotification
@@ -563,16 +577,21 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
     self.vramStatusLabel.cell.backgroundStyle = NSBackgroundStyleRaised;
     
     
-    [self.feedSaveButton removeFromSuperview];
     
     self.consoleWindow.title = [NSString stringWithFormat:@"Debug Console – %@", [[self.fileURL path] lastPathComponent]];
     self.debuggerSplitView.dividerColor = [NSColor clearColor];
-    
-    /* contentView.superview.subviews.lastObject is the titlebar view */
-    NSView *titleView = self.printerFeedWindow.contentView.superview.subviews.lastObject;
-    [titleView addSubview: self.feedSaveButton];
-    self.feedSaveButton.frame = (NSRect){{268, 2}, {48, 17}};
-    
+    if (@available(macOS 11.0, *)) {
+        self.memoryWindow.toolbarStyle = NSWindowToolbarStyleExpanded;
+        self.printerFeedWindow.toolbarStyle = NSWindowToolbarStyleUnifiedCompact;
+        [self.printerFeedWindow.toolbar removeItemAtIndex:1];
+        self.printerFeedWindow.toolbar.items.firstObject.image =
+            [NSImage imageWithSystemSymbolName:@"square.and.arrow.down"
+                      accessibilityDescription:@"Save"];
+        self.printerFeedWindow.toolbar.items.lastObject.image =
+            [NSImage imageWithSystemSymbolName:@"printer"
+                      accessibilityDescription:@"Print"];
+    }
+        
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(updateHighpassFilter)
                                                  name:@"GBHighpassFilterChanged"
@@ -645,7 +664,6 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 {
     hex_controller = [[HFController alloc] init];
     [hex_controller setBytesPerColumn:1];
-    [hex_controller setFont:[NSFont userFixedPitchFontOfSize:12]];
     [hex_controller setEditMode:HFOverwriteMode];
     
     [hex_controller setByteArray:[[GBMemoryByteArray alloc] initWithDocument:self]];
@@ -782,6 +800,9 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
     }
     else if ([anItem action] == @selector(connectPrinter:)) {
         [(NSMenuItem*)anItem setState:accessory == GBAccessoryPrinter];
+    }
+    else if ([anItem action] == @selector(connectWorkboy:)) {
+        [(NSMenuItem*)anItem setState:accessory == GBAccessoryWorkboy];
     }
     else if ([anItem action] == @selector(toggleCheats:)) {
         [(NSMenuItem*)anItem setState:GB_cheats_enabled(&gb)];
@@ -1008,6 +1029,9 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
         [debugger_input_queue removeObjectAtIndex:0];
     }
     [has_debugger_input unlockWithCondition:[debugger_input_queue count] != 0];
+    if ((id)input == [NSNull null]) {
+        return NULL;
+    }
     return input? strdup([input UTF8String]): NULL;
 }
 
@@ -1632,13 +1656,24 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
                                                      scale:2.0];
         NSRect frame = self.printerFeedWindow.frame;
         frame.size = self.feedImageView.image.size;
+        [self.printerFeedWindow setContentMaxSize:frame.size];
         frame.size.height += self.printerFeedWindow.frame.size.height - self.printerFeedWindow.contentView.frame.size.height;
-        [self.printerFeedWindow setMaxSize:frame.size];
         [self.printerFeedWindow setFrame:frame display:NO animate: self.printerFeedWindow.isVisible];
         [self.printerFeedWindow orderFront:NULL];
     });
     
 }
+
+- (void)printDocument:(id)sender
+{
+    if (self.feedImageView.image.size.height == 0) {
+        NSBeep(); return;
+    }
+    NSImageView *view = [[NSImageView alloc] initWithFrame:(NSRect){{0,0}, self.feedImageView.image.size}];
+    view.image = self.feedImageView.image;
+    [[NSPrintOperation printOperationWithView:view] runOperationModalForWindow:self.printerFeedWindow delegate:nil didRunSelector:NULL contextInfo:NULL];
+}
+
 - (IBAction)savePrinterFeed:(id)sender
 {
     bool shouldResume = running;
@@ -1674,8 +1709,16 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 - (IBAction)connectPrinter:(id)sender
 {
     [self performAtomicBlock:^{
-            accessory = GBAccessoryPrinter;
+        accessory = GBAccessoryPrinter;
         GB_connect_printer(&gb, printImage);
+    }];
+}
+
+- (IBAction)connectWorkboy:(id)sender
+{
+    [self performAtomicBlock:^{
+        accessory = GBAccessoryWorkboy;
+        GB_connect_workboy(&gb, setWorkboyTime, getWorkboyTime);
     }];
 }
 
