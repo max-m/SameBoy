@@ -67,37 +67,36 @@ typedef struct {
 } configuration_t;
 
 // TODO: There must be a better way to not duplicate this data on the JavaScript side
-static const char *MODELS_STRING[] = {
+const char *MODELS_STRING[] = {
     MODELS(GENERATE_STRING)
 };
 
-static const char *SGB_REVISIONS_STRING[] = {
+const char *SGB_REVISIONS_STRING[] = {
     SGB_REVISIONS(GENERATE_STRING)
 };
 
-static const char** EMSCRIPTEN_KEEPALIVE get_models_string_pointer() {
+const char** EMSCRIPTEN_KEEPALIVE get_models_string_pointer() {
     return MODELS_STRING;
 }
 
-static const size_t EMSCRIPTEN_KEEPALIVE get_models_string_pointer_size() {
+const size_t EMSCRIPTEN_KEEPALIVE get_models_string_pointer_size() {
     return sizeof(*MODELS_STRING);
 }
 
-static const size_t EMSCRIPTEN_KEEPALIVE get_models_string_size() {
+const size_t EMSCRIPTEN_KEEPALIVE get_models_string_size() {
     return sizeof(MODELS_STRING);
 }
 
-static const char** EMSCRIPTEN_KEEPALIVE get_sgb_revisions_string_pointer() {
+const char** EMSCRIPTEN_KEEPALIVE get_sgb_revisions_string_pointer() {
     return SGB_REVISIONS_STRING;
 }
 
-static const size_t EMSCRIPTEN_KEEPALIVE get_sgb_revisions_string_pointer_size() {
+const size_t EMSCRIPTEN_KEEPALIVE get_sgb_revisions_string_pointer_size() {
     return sizeof(*SGB_REVISIONS_STRING);
 }
 
-static const size_t EMSCRIPTEN_KEEPALIVE get_sgb_revisions_string_size() {
+const size_t EMSCRIPTEN_KEEPALIVE get_sgb_revisions_string_size() {
     return sizeof(SGB_REVISIONS_STRING);
 }
-
 
 #endif /* main_h */
