@@ -1,0 +1,67 @@
+name: "Bulidability and Sanity"
+on: push
+
+env:
+  EM_VERSION: 3.1.0
+  EM_CACHE_FOLDER: 'emsdk-cache'
+
+jobs:
+  sanity:
+    strategy:
+      fail-fast: false
+      matrix:
+        #os: [macos-latest, ubuntu-latest, ubuntu-18.04]
+        #cc: [gcc, clang]
+        #include:
+        #- os: macos-latest
+        #  cc: clang
+        #  extra_target: cocoa
+        #exclude:
+        #- os: macos-latest
+        #  cc: gcc
+        os: [ubuntu-latest]
+        cc: [clang]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install deps
+        shell: bash
+        run: |
+          ./.github/actions/install_deps.sh ${{ matrix.os }}
+      - name: Build
+        run: |
+          ${{ matrix.cc }} -v; (make -j sdl tester libretro ${{ matrix.extra_target }} CONF=release CC=${{ matrix.cc }} || (echo "==== Build Failed ==="; make sdl tester libretro ${{ matrix.extra_target }} CONF=release CC=${{ matrix.cc }}))
+      # - name: Upload binaries
+      #   uses: actions/upload-artifact@v1
+      #   with:
+      #     name: sameboy-canary-${{ matrix.os }}-${{ matrix.cc }}
+      #     path: build/bin
+
+  wasm:
+    runs-on: ubuntu-latest
+    needs: sanity
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install deps
+        shell: bash
+        run: |
+          ./.github/actions/install_deps.sh ubuntu
+      - name: Setup emscripten cache
+        id: cache-system-libraries
+        uses: actions/cache@v2
+        with:
+          path: ${{env.EM_CACHE_FOLDER}}
+          key: ${{env.EM_VERSION}}-${{ runner.os }}
+      - name: Setup emscripten
+        uses: mymindstorm/setup-emsdk@v11
+        with:
+          version: ${{env.EM_VERSION}}
+          actions-cache-folder: ${{env.EM_CACHE_FOLDER}}
+      - name: Build WASM
+        run: make -j $(nproc) wasm CONF=native_release
+      - name: Publish WASM binaries
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: build/wasm_bin

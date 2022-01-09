@@ -57,12 +57,14 @@ endif
 CFLAGS += -Werror -Wall -Wno-strict-aliasing -Wno-unknown-warning -Wno-unknown-warning-option -Wno-multichar -Wno-int-in-bool-context -std=gnu11 -D_GNU_SOURCE -DVERSION="$(VERSION)" -I. -D_USE_MATH_DEFINES
 # CFLAGS += -DGB_INTERNAL=1 # get access to internal APIs
 CFLAGS += -I$(CORE_DIR)
-CFLAGS += -s WASM=1 -s USE_SDL=2 --preload-file $(BOOTROMS_DIR)@/BootROMs --preload-file $(CORE_DIR)/Shaders@/Shaders -s "EXPORTED_RUNTIME_METHODS=['ccall', 'cwrap', 'getValue', 'AsciiToString', 'FS']"
-CFLAGS += -s USE_WEBGL2=1
+# CFLAGS += -Wcast-align -Wover-aligned -s SAFE_HEAP=1 -s WARN_UNALIGNED=1
 # -Werror implies -Wpass-failed=transform-warning and for some reason Clang fails to unroll some loops in apu.c
 CFLAGS += -Wno-pass-failed
-# CFLAGS += -Wcast-align -Wover-aligned -s SAFE_HEAP=1 -s WARN_UNALIGNED=1
-WASM_LDFLAGS := -lidbfs.js
+CFLAGS += -s USE_SDL=2
+
+WASM_LDFLAGS := -s WASM=1 -s USE_WEBGL2=1 -lidbfs.js
+WASM_LDFLAGS += --preload-file $(BOOTROMS_DIR)@/BootROMs --preload-file $(CORE_DIR)/Shaders@/Shaders
+WASM_LDFLAGS += -s "EXPORTED_RUNTIME_METHODS=['ccall', 'cwrap', 'getValue', 'AsciiToString', 'FS']"
 
 LDFLAGS += -lc -lm -ldl
 CFLAGS += -Wno-deprecated-declarations
@@ -71,9 +73,8 @@ ifeq ($(CONF),debug)
 CFLAGS += -g -g4
 CFLAGS += --cpuprofiler --memoryprofiler
 else ifeq ($(CONF), release)
-CFLAGS += -O3 -DNDEBUG --emit-symbol-map
-CFLAGS += -flto
-WASM_LDFLAGS += -flto
+CFLAGS += -O3 -flto -DNDEBUG
+WASM_LDFLAGS += -flto --emit-symbol-map
 else
 $(error Invalid value for CONF: $(CONF). Use "debug", "release" or "native_release")
 endif

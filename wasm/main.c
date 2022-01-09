@@ -267,7 +267,6 @@ void init_gb() {
 
     SDL_SetWindowMinimumSize(window, GB_get_screen_width(&gb), GB_get_screen_height(&gb));
 
-    bool error = false;
     const char * const boot_roms[] = {
         "dmg_boot.bin",
         "cgb_boot.bin",
@@ -284,7 +283,9 @@ void init_gb() {
 
     fprintf(stderr, "Loading boot ROM: %s\n", boot_rom_path);
 
-    error = GB_load_boot_rom(&gb, boot_rom_path);
+    if (GB_load_boot_rom(&gb, boot_rom_path) != 0) {
+        fprintf(stderr, "Failed to initialize\n");
+    }
 }
 
 int EMSCRIPTEN_KEEPALIVE init() {
