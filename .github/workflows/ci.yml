@@ -58,7 +58,9 @@ jobs:
           version: ${{env.EM_VERSION}}
           actions-cache-folder: ${{env.EM_CACHE_FOLDER}}
       - name: Build WASM
-        run: make -j $(nproc) wasm CONF=native_release
+        run: |
+          make bootroms
+          make -j $(nproc) wasm CONF=native_release
       - name: Publish WASM binaries
         uses: peaceiris/actions-gh-pages@v3
         with:
