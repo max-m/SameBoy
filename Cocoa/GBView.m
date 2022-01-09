@@ -5,6 +5,7 @@
 #import "GBViewMetal.h"
 #import "GBButtons.h"
 #import "NSString+StringForKey.h"
+#import "Document.h"
 
 #define JOYSTICK_HIGH 0x4000
 #define JOYSTICK_LOW 0x3800
@@ -105,9 +106,9 @@ static const uint8_t workboy_vk_to_key[] = {
 {
     uint32_t *image_buffers[3];
     unsigned char current_buffer;
-    BOOL mouse_hidden;
+    bool mouse_hidden;
     NSTrackingArea *tracking_area;
-    BOOL _mouseHidingEnabled;
+    bool _mouseHidingEnabled;
     bool axisActive[2];
     bool underclockKeyDown;
     double clockMultiplier;
@@ -116,6 +117,8 @@ static const uint8_t workboy_vk_to_key[] = {
     NSEventModifierFlags previousModifiers;
     JOYController *lastController;
     GB_frame_blending_mode_t _frameBlendingMode;
+    bool _turbo;
+    bool _mouseControlEnabled;
 }
 
 + (instancetype)alloc
@@ -141,9 +144,11 @@ static const uint8_t workboy_vk_to_key[] = {
 
 - (void) _init
 {
+    [self registerForDraggedTypes:[NSArray arrayWithObjects: NSFilenamesPboardType, nil]];
+    
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(ratioKeepingChanged) name:@"GBAspectChanged" object:nil];
     tracking_area = [ [NSTrackingArea alloc] initWithRect:(NSRect){}
-                                                  options:NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways | NSTrackingInVisibleRect
+                                                  options:NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways | NSTrackingInVisibleRect | NSTrackingMouseMoved
                                                     owner:self
                                                  userInfo:nil];
     [self addTrackingArea:tracking_area];
@@ -152,6 +157,7 @@ static const uint8_t workboy_vk_to_key[] = {
     [self addSubview:self.internalView];
     self.internalView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [JOYController registerListener:self];
+    _mouseControlEnabled = true;
 }
 
 - (void)screenSizeChanged
@@ -179,7 +185,7 @@ static const uint8_t workboy_vk_to_key[] = {
 - (void) setFrameBlendingMode:(GB_frame_blending_mode_t)frameBlendingMode
 {
     _frameBlendingMode = frameBlendingMode;
-    [self setNeedsDisplay:YES];
+    [self setNeedsDisplay:true];
 }
 
 
@@ -256,20 +262,44 @@ static const uint8_t workboy_vk_to_key[] = {
 - (void) flip
 {
     if (analogClockMultiplierValid && [[NSUserDefaults standardUserDefaults] boolForKey:@"GBAnalogControls"]) {
+        clockMultiplier = 1.0;
         GB_set_clock_multiplier(_gb, analogClockMultiplier);
+        if (self.document.partner) {
+            GB_set_clock_multiplier(self.document.partner.gb, analogClockMultiplier);
+        }
         if (analogClockMultiplier == 1.0) {
             analogClockMultiplierValid = false;
+        }
+        if (analogClockMultiplier < 2.0 && analogClockMultiplier > 1.0) {
+            GB_set_turbo_mode(_gb, false, false);
+            if (self.document.partner) {
+                GB_set_turbo_mode(self.document.partner.gb, false, false);
+            }
         }
     }
     else {
         if (underclockKeyDown && clockMultiplier > 0.5) {
             clockMultiplier -= 1.0/16;
             GB_set_clock_multiplier(_gb, clockMultiplier);
+            if (self.document.partner) {
+                GB_set_clock_multiplier(self.document.partner.gb, clockMultiplier);
+            }
         }
         if (!underclockKeyDown && clockMultiplier < 1.0) {
             clockMultiplier += 1.0/16;
             GB_set_clock_multiplier(_gb, clockMultiplier);
+            if (self.document.partner) {
+                GB_set_clock_multiplier(self.document.partner.gb, clockMultiplier);
+            }
         }
+    }
+    if ((!analogClockMultiplierValid && clockMultiplier > 1) ||
+        _turbo || (analogClockMultiplierValid && analogClockMultiplier > 1)) {
+        [self.osdView displayText:@"Fast forwarding..."];
+    }
+    else if ((!analogClockMultiplierValid && clockMultiplier < 1) ||
+             (analogClockMultiplierValid && analogClockMultiplier < 1)) {
+        [self.osdView displayText:@"Slow motion..."];
     }
     current_buffer = (current_buffer + 1) % self.numberOfBuffers;
 }
@@ -299,6 +329,9 @@ static const uint8_t workboy_vk_to_key[] = {
 
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     unsigned player_count = GB_get_player_count(_gb);
+    if (self.document.partner) {
+        player_count = 2;
+    }
     for (unsigned player = 0; player < player_count; player++) {
         for (GBButton button = 0; button < GBButtonCount; button++) {
             NSNumber *key = [defaults valueForKey:button_to_preference_name(button, player)];
@@ -308,13 +341,22 @@ static const uint8_t workboy_vk_to_key[] = {
                 handled = true;
                 switch (button) {
                     case GBTurbo:
-                        GB_set_turbo_mode(_gb, true, self.isRewinding);
+                        if (self.document.isSlave) {
+                            GB_set_turbo_mode(self.document.partner.gb, true, false);
+                        }
+                        else {
+                            GB_set_turbo_mode(_gb, true, self.isRewinding);
+                        }
+                        _turbo = true;
                         analogClockMultiplierValid = false;
                         break;
                         
                     case GBRewind:
-                        self.isRewinding = true;
-                        GB_set_turbo_mode(_gb, false, false);
+                        if (!self.document.partner) {
+                            self.isRewinding = true;
+                            GB_set_turbo_mode(_gb, false, false);
+                            _turbo = false;
+                        }
                         break;
                         
                     case GBUnderclock:
@@ -323,7 +365,17 @@ static const uint8_t workboy_vk_to_key[] = {
                         break;
                         
                     default:
-                        GB_set_key_state_for_player(_gb, (GB_key_t)button, player, true);
+                        if (self.document.partner) {
+                            if (player == 0) {
+                                GB_set_key_state_for_player(_gb, (GB_key_t)button, 0, true);
+                            }
+                            else {
+                                GB_set_key_state_for_player(self.document.partner.gb, (GB_key_t)button, 0, true);
+                            }
+                        }
+                        else {
+                            GB_set_key_state_for_player(_gb, (GB_key_t)button, player, true);
+                        }
                         break;
                 }
             }
@@ -351,6 +403,9 @@ static const uint8_t workboy_vk_to_key[] = {
 
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     unsigned player_count = GB_get_player_count(_gb);
+    if (self.document.partner) {
+        player_count = 2;
+    }
     for (unsigned player = 0; player < player_count; player++) {
         for (GBButton button = 0; button < GBButtonCount; button++) {
             NSNumber *key = [defaults valueForKey:button_to_preference_name(button, player)];
@@ -360,7 +415,13 @@ static const uint8_t workboy_vk_to_key[] = {
                 handled = true;
                 switch (button) {
                     case GBTurbo:
-                        GB_set_turbo_mode(_gb, false, false);
+                        if (self.document.isSlave) {
+                            GB_set_turbo_mode(self.document.partner.gb, false, false);
+                        }
+                        else {
+                            GB_set_turbo_mode(_gb, false, false);
+                        }
+                        _turbo = false;
                         analogClockMultiplierValid = false;
                         break;
                         
@@ -374,7 +435,17 @@ static const uint8_t workboy_vk_to_key[] = {
                         break;
                         
                     default:
-                        GB_set_key_state_for_player(_gb, (GB_key_t)button, player, false);
+                        if (self.document.partner) {
+                            if (player == 0) {
+                                GB_set_key_state_for_player(_gb, (GB_key_t)button, 0, false);
+                            }
+                            else {
+                                GB_set_key_state_for_player(self.document.partner.gb, (GB_key_t)button, 0, false);
+                            }
+                        }
+                        else {
+                            GB_set_key_state_for_player(_gb, (GB_key_t)button, player, false);
+                        }
                         break;
                 }
             }
@@ -390,8 +461,22 @@ static const uint8_t workboy_vk_to_key[] = {
     [lastController setRumbleAmplitude:amp];
 }
 
+- (bool)shouldControllerUseJoystickForMotion:(JOYController *)controller
+{
+    if (!_gb) return false;
+    if (!GB_has_accelerometer(_gb)) return false;
+    if ([[NSUserDefaults standardUserDefaults] boolForKey:@"GBMBC7JoystickOverride"]) return true;
+    for (JOYAxes3D *axes in controller.axes3D) {
+        if (axes.usage == JOYAxes3DUsageOrientation || axes.usage == JOYAxes3DUsageAcceleration) {
+            return false;
+        }
+    }
+    return true;
+}
+
 - (void)controller:(JOYController *)controller movedAxis:(JOYAxis *)axis
 {
+    if (!_gb) return;
     if (![self.window isMainWindow]) return;
 
     NSDictionary *mapping = [[NSUserDefaults standardUserDefaults] dictionaryForKey:@"JoyKitInstanceMapping"][controller.uniqueID];
@@ -401,27 +486,60 @@ static const uint8_t workboy_vk_to_key[] = {
     
     if ((axis.usage == JOYAxisUsageR1 && !mapping) ||
         axis.uniqueID == [mapping[@"AnalogUnderclock"] unsignedLongValue]){
-        analogClockMultiplier = MIN(MAX(1 - axis.value + 0.2, 1.0 / 3), 1.0);
+        analogClockMultiplier = MIN(MAX(1 - axis.value + 0.05, 1.0 / 3), 1.0);
         analogClockMultiplierValid = true;
     }
     
     else if ((axis.usage == JOYAxisUsageL1 && !mapping) ||
         axis.uniqueID == [mapping[@"AnalogTurbo"] unsignedLongValue]){
-        analogClockMultiplier = MIN(MAX(axis.value * 3 + 0.8, 1.0), 3.0);
+        analogClockMultiplier = MIN(MAX(axis.value * 3 + 0.95, 1.0), 3.0);
         analogClockMultiplierValid = true;
+    }
+}
+
+- (void)controller:(JOYController *)controller movedAxes2D:(JOYAxes2D *)axes
+{
+    if (!_gb) return;
+    if ([self shouldControllerUseJoystickForMotion:controller]) {
+        if (!self.mouseControlsActive) {
+            GB_set_accelerometer_values(_gb, -axes.value.x, -axes.value.y);
+        }
+    }
+}
+
+- (void)controller:(JOYController *)controller movedAxes3D:(JOYAxes3D *)axes
+{
+    if (!_gb) return;
+    if ([[NSUserDefaults standardUserDefaults] boolForKey:@"GBMBC7JoystickOverride"]) return;
+    if (self.mouseControlsActive) return;
+
+    if (axes.usage == JOYAxes3DUsageOrientation) {
+        for (JOYAxes3D *axes in controller.axes3D) {
+            // Only use orientation if there's no acceleration axes
+            if (axes.usage == JOYAxes3DUsageAcceleration) {
+                return;
+            }
+        }
+        JOYPoint3D point = axes.normalizedValue;
+        GB_set_accelerometer_values(_gb, point.x, point.z);
+    }
+    else if (axes.usage == JOYAxes3DUsageAcceleration) {
+        JOYPoint3D point = axes.gUnitsValue;
+        GB_set_accelerometer_values(_gb, point.x, point.z);
     }
 }
 
 - (void)controller:(JOYController *)controller buttonChangedState:(JOYButton *)button
 {
+    if (!_gb) return;
     if (![self.window isMainWindow]) return;
-    if (controller != lastController) {
-        [self setRumble:0];
-        lastController = controller;
-    }
-    
+    _mouseControlEnabled = false;
+    if (button.type == JOYButtonTypeAxes2DEmulated && [self shouldControllerUseJoystickForMotion:controller]) return;
     
     unsigned player_count = GB_get_player_count(_gb);
+    if (self.document.partner) {
+        player_count = 2;
+    }
 
     IOPMAssertionID assertionID;
     IOPMAssertionDeclareUserActivity(CFSTR(""), kIOPMUserActiveLocal, &assertionID);
@@ -435,7 +553,7 @@ static const uint8_t workboy_vk_to_key[] = {
             continue;
         }
         dispatch_async(dispatch_get_main_queue(), ^{
-            [controller setPlayerLEDs:1 << player];
+            [controller setPlayerLEDs:[controller LEDMaskForPlayer:player]];
         });
         NSDictionary *mapping = [[NSUserDefaults standardUserDefaults] dictionaryForKey:@"JoyKitInstanceMapping"][controller.uniqueID];
         if (!mapping) {
@@ -447,33 +565,68 @@ static const uint8_t workboy_vk_to_key[] = {
             usage = (const JOYButtonUsage[]){JOYButtonUsageY, JOYButtonUsageA, JOYButtonUsageB, JOYButtonUsageX}[(usage - JOYButtonUsageGeneric0) & 3];
         }
         
+        GB_gameboy_t *effectiveGB = _gb;
+        unsigned effectivePlayer = player;
+        
+        if (player && self.document.partner) {
+            effectiveGB = self.document.partner.gb;
+            effectivePlayer = 0;
+            if (controller != self.document.partner.view->lastController) {
+                [self setRumble:0];
+                self.document.partner.view->lastController = controller;
+            }
+        }
+        else {
+            if (controller != lastController) {
+                [self setRumble:0];
+                lastController = controller;
+            }
+        }
+        
         switch (usage) {
                 
             case JOYButtonUsageNone: break;
-            case JOYButtonUsageA: GB_set_key_state_for_player(_gb, GB_KEY_A, player, button.isPressed); break;
-            case JOYButtonUsageB: GB_set_key_state_for_player(_gb, GB_KEY_B, player, button.isPressed); break;
+            case JOYButtonUsageA: GB_set_key_state_for_player(effectiveGB, GB_KEY_A, effectivePlayer, button.isPressed); break;
+            case JOYButtonUsageB: GB_set_key_state_for_player(effectiveGB, GB_KEY_B, effectivePlayer, button.isPressed); break;
             case JOYButtonUsageC: break;
             case JOYButtonUsageStart:
-            case JOYButtonUsageX: GB_set_key_state_for_player(_gb, GB_KEY_START, player, button.isPressed); break;
+            case JOYButtonUsageX: GB_set_key_state_for_player(effectiveGB, GB_KEY_START, effectivePlayer, button.isPressed); break;
             case JOYButtonUsageSelect:
-            case JOYButtonUsageY: GB_set_key_state_for_player(_gb, GB_KEY_SELECT, player, button.isPressed); break;
+            case JOYButtonUsageY: GB_set_key_state_for_player(effectiveGB, GB_KEY_SELECT, effectivePlayer, button.isPressed); break;
             case JOYButtonUsageR2:
             case JOYButtonUsageL2:
             case JOYButtonUsageZ: {
                 self.isRewinding = button.isPressed;
                 if (button.isPressed) {
-                    GB_set_turbo_mode(_gb, false, false);
+                    if (self.document.isSlave) {
+                        GB_set_turbo_mode(self.document.partner.gb, false, false);
+                    }
+                    else {
+                        GB_set_turbo_mode(_gb, false, false);
+                    }
+                    _turbo = false;
                 }
                 break;
             }
         
-            case JOYButtonUsageL1: GB_set_turbo_mode(_gb, button.isPressed, button.isPressed && self.isRewinding); break;
+            case JOYButtonUsageL1: {
+                if (!analogClockMultiplierValid || analogClockMultiplier == 1.0 || !button.isPressed) {
+                    if (self.document.isSlave) {
+                        GB_set_turbo_mode(self.document.partner.gb, button.isPressed, false);
+                    }
+                    else {
+                        GB_set_turbo_mode(_gb, button.isPressed, button.isPressed && self.isRewinding);
+                    }
+                    _turbo = button.isPressed;
+                }
+                break;
+            }
 
             case JOYButtonUsageR1: underclockKeyDown = button.isPressed; break;
-            case JOYButtonUsageDPadLeft: GB_set_key_state_for_player(_gb, GB_KEY_LEFT, player, button.isPressed); break;
-            case JOYButtonUsageDPadRight: GB_set_key_state_for_player(_gb, GB_KEY_RIGHT, player, button.isPressed); break;
-            case JOYButtonUsageDPadUp: GB_set_key_state_for_player(_gb, GB_KEY_UP, player, button.isPressed); break;
-            case JOYButtonUsageDPadDown: GB_set_key_state_for_player(_gb, GB_KEY_DOWN, player, button.isPressed); break;
+            case JOYButtonUsageDPadLeft: GB_set_key_state_for_player(effectiveGB, GB_KEY_LEFT, effectivePlayer, button.isPressed); break;
+            case JOYButtonUsageDPadRight: GB_set_key_state_for_player(effectiveGB, GB_KEY_RIGHT, effectivePlayer, button.isPressed); break;
+            case JOYButtonUsageDPadUp: GB_set_key_state_for_player(effectiveGB, GB_KEY_UP, effectivePlayer, button.isPressed); break;
+            case JOYButtonUsageDPadDown: GB_set_key_state_for_player(effectiveGB, GB_KEY_DOWN, effectivePlayer, button.isPressed); break;
 
             default:
                 break;
@@ -483,14 +636,21 @@ static const uint8_t workboy_vk_to_key[] = {
 
 - (BOOL)acceptsFirstResponder
 {
-    return YES;
+    return true;
+}
+
+- (bool)mouseControlsActive
+{
+    return _gb && GB_is_inited(_gb) && GB_has_accelerometer(_gb) &&
+           _mouseControlEnabled && [[NSUserDefaults standardUserDefaults] boolForKey:@"GBMBC7AllowMouse"];
 }
 
 - (void)mouseEntered:(NSEvent *)theEvent
 {
     if (!mouse_hidden) {
         mouse_hidden = true;
-        if (_mouseHidingEnabled) {
+        if (_mouseHidingEnabled &&
+            !self.mouseControlsActive) {
             [NSCursor hide];
         }
     }
@@ -508,7 +668,47 @@ static const uint8_t workboy_vk_to_key[] = {
     [super mouseExited:theEvent];
 }
 
-- (void)setMouseHidingEnabled:(BOOL)mouseHidingEnabled
+- (void)mouseDown:(NSEvent *)event
+{
+    _mouseControlEnabled = true;
+    if (self.mouseControlsActive) {
+        if (event.type == NSEventTypeLeftMouseDown) {
+            GB_set_key_state(_gb, GB_KEY_A, true);
+        }
+    }
+}
+
+- (void)mouseUp:(NSEvent *)event
+{
+    if (self.mouseControlsActive) {
+        if (event.type == NSEventTypeLeftMouseUp) {
+            GB_set_key_state(_gb, GB_KEY_A, false);
+        }
+    }
+}
+
+- (void)mouseMoved:(NSEvent *)event
+{
+    if (self.mouseControlsActive) {
+        NSPoint point = [self convertPoint:[event locationInWindow] toView:nil];
+        
+        point.x /= self.frame.size.width;
+        point.x *= 2;
+        point.x -= 1;
+        
+        point.y /= self.frame.size.height;
+        point.y *= 2;
+        point.y -= 1;
+        
+        if (GB_get_screen_width(_gb) != 160) { // has border
+            point.x *= 256 / 160.0;
+            point.y *= 224 / 114.0;
+        }
+        GB_set_accelerometer_values(_gb, -point.x, point.y);
+    }
+}
+
+- (void)setMouseHidingEnabled:(bool)mouseHidingEnabled
 {
     if (mouseHidingEnabled == _mouseHidingEnabled) return;
 
@@ -523,7 +723,7 @@ static const uint8_t workboy_vk_to_key[] = {
     }
 }
 
-- (BOOL)isMouseHidingEnabled
+- (bool)isMouseHidingEnabled
 {
     return _mouseHidingEnabled;
 }
@@ -550,4 +750,35 @@ static const uint8_t workboy_vk_to_key[] = {
     return image_buffers[(current_buffer + 2) % self.numberOfBuffers];
 }
 
+-(NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender
+{
+    NSPasteboard *pboard = [sender draggingPasteboard];
+    
+    if ( [[pboard types] containsObject:NSURLPboardType] ) {
+        NSURL *fileURL = [NSURL URLFromPasteboard:pboard];
+        if (GB_is_save_state(fileURL.fileSystemRepresentation)) {
+            return NSDragOperationGeneric;
+        }
+    }
+    return NSDragOperationNone;
+}
+
+-(BOOL)performDragOperation:(id<NSDraggingInfo>)sender
+{
+    NSPasteboard *pboard = [sender draggingPasteboard];
+    
+    if ( [[pboard types] containsObject:NSURLPboardType] ) {
+        NSURL *fileURL = [NSURL URLFromPasteboard:pboard];
+        return [_document loadStateFile:fileURL.fileSystemRepresentation noErrorOnNotFound:false];
+    }
+
+    return false;
+}
+
+- (NSImage *)renderToImage;
+{
+    /* Not going to support this on OpenGL, OpenGL is too much of a terrible API for me
+       to bother figuring out how the hell something so trivial can be done. */
+    return nil;
+}
 @end

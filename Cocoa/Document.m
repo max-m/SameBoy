@@ -10,6 +10,9 @@
 #include "GBCheatWindowController.h"
 #include "GBTerminalTextFieldCell.h"
 #include "BigSurToolbar.h"
+#import "GBPaletteEditorController.h"
+
+#define GB_MODEL_PAL_BIT_OLD 0x1000
 
 /* Todo: The general Objective-C coding style conflicts with SameBoy's. This file needs a cleanup. */
 /* Todo: Split into category files! This is so messy!!! */
@@ -20,6 +23,7 @@ enum model {
     MODEL_CGB,
     MODEL_AGB,
     MODEL_SGB,
+    MODEL_MGB,
 };
 
 @interface Document ()
@@ -28,6 +32,7 @@ enum model {
     NSMutableAttributedString *pending_console_output;
     NSRecursiveLock *console_output_lock;
     NSTimer *console_output_timer;
+    NSTimer *hex_timer;
     
     bool fullScreen;
     bool in_sync_input;
@@ -47,7 +52,7 @@ enum model {
     bool oamUpdating;
     
     NSMutableData *currentPrinterImageData;
-    enum {GBAccessoryNone, GBAccessoryPrinter, GBAccessoryWorkboy} accessory;
+    enum {GBAccessoryNone, GBAccessoryPrinter, GBAccessoryWorkboy, GBAccessoryLinkCable} accessory;
     
     bool rom_warning_issued;
     
@@ -64,8 +69,15 @@ enum model {
     size_t audioBufferSize;
     size_t audioBufferPosition;
     size_t audioBufferNeeded;
+    double _volume;
     
     bool borderModeChanged;
+    
+    /* Link cable*/
+    Document *master;
+    Document *slave;
+    signed linkOffset;
+    bool linkCableBit;
 }
 
 @property GBAudioClient *audioClient;
@@ -81,6 +93,10 @@ enum model {
 - (void) gotNewSample:(GB_sample_t *)sample;
 - (void) rumbleChanged:(double)amp;
 - (void) loadBootROM:(GB_boot_rom_t)type;
+- (void)linkCableBitStart:(bool)bit;
+- (bool)linkCableBitEnd;
+- (void)infraredStateChanged:(bool)state;
+
 @end
 
 static void boot_rom_load(GB_gameboy_t *gb, GB_boot_rom_t type)
@@ -160,6 +176,26 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
     [self rumbleChanged:amp];
 }
 
+
+static void linkCableBitStart(GB_gameboy_t *gb, bool bit_to_send)
+{
+    Document *self = (__bridge Document *)GB_get_user_data(gb);
+    [self linkCableBitStart:bit_to_send];
+}
+
+static bool linkCableBitEnd(GB_gameboy_t *gb)
+{
+    Document *self = (__bridge Document *)GB_get_user_data(gb);
+    return [self linkCableBitEnd];
+}
+
+static void infraredStateChanged(GB_gameboy_t *gb, bool on)
+{
+    Document *self = (__bridge Document *)GB_get_user_data(gb);
+    [self infraredStateChanged:on];
+}
+
+
 @implementation Document
 {
     GB_gameboy_t gb;
@@ -177,6 +213,7 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
         debugger_input_queue = [[NSMutableArray alloc] init];
         console_output_lock = [[NSRecursiveLock alloc] init];
         audioLock = [[NSCondition alloc] init];
+        _volume = [[NSUserDefaults standardUserDefaults] doubleForKey:@"GBVolume"];
     }
     return self;
 }
@@ -206,8 +243,16 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
         case MODEL_CGB:
             return (GB_model_t)[[NSUserDefaults standardUserDefaults] integerForKey:@"GBCGBModel"];
             
-        case MODEL_SGB:
-            return (GB_model_t)[[NSUserDefaults standardUserDefaults] integerForKey:@"GBSGBModel"];
+        case MODEL_SGB: {
+            GB_model_t model = (GB_model_t)[[NSUserDefaults standardUserDefaults] integerForKey:@"GBSGBModel"];
+            if (model == (GB_MODEL_SGB | GB_MODEL_PAL_BIT_OLD)) {
+                model = GB_MODEL_SGB_PAL;
+            }
+            return model;
+        }
+        
+        case MODEL_MGB:
+            return GB_MODEL_MGB;
         
         case MODEL_AGB:
             return GB_MODEL_AGB;
@@ -216,23 +261,7 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 
 - (void) updatePalette
 {
-    switch ([[NSUserDefaults standardUserDefaults] integerForKey:@"GBColorPalette"]) {
-        case 1:
-            GB_set_palette(&gb, &GB_PALETTE_DMG);
-            break;
-            
-        case 2:
-            GB_set_palette(&gb, &GB_PALETTE_MGB);
-            break;
-            
-        case 3:
-            GB_set_palette(&gb, &GB_PALETTE_GBL);
-            break;
-            
-        default:
-            GB_set_palette(&gb, &GB_PALETTE_GREY);
-            break;
-    }
+    GB_set_palette(&gb, [GBPaletteEditorController userPalette]);
 }
 
 - (void) updateBorderMode
@@ -255,6 +284,8 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
     GB_set_input_callback(&gb, (GB_input_callback_t) consoleInput);
     GB_set_async_input_callback(&gb, (GB_input_callback_t) asyncConsoleInput);
     GB_set_color_correction_mode(&gb, (GB_color_correction_mode_t) [[NSUserDefaults standardUserDefaults] integerForKey:@"GBColorCorrection"]);
+    GB_set_light_temperature(&gb, [[NSUserDefaults standardUserDefaults] doubleForKey:@"GBLightTemperature"]);
+    GB_set_interference_volume(&gb, [[NSUserDefaults standardUserDefaults] doubleForKey:@"GBInterferenceVolume"]);
     GB_set_border_mode(&gb, (GB_border_mode_t) [[NSUserDefaults standardUserDefaults] integerForKey:@"GBBorderMode"]);
     [self updatePalette];
     GB_set_rgb_encode_callback(&gb, rgbEncode);
@@ -262,8 +293,10 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
     GB_set_camera_update_request_callback(&gb, cameraRequestUpdate);
     GB_set_highpass_filter_mode(&gb, (GB_highpass_mode_t) [[NSUserDefaults standardUserDefaults] integerForKey:@"GBHighpassFilter"]);
     GB_set_rewind_length(&gb, [[NSUserDefaults standardUserDefaults] integerForKey:@"GBRewindLength"]);
+    GB_set_rtc_mode(&gb, [[NSUserDefaults standardUserDefaults] integerForKey:@"GBRTCMode"]);
     GB_apu_set_sample_callback(&gb, audioCallback);
     GB_set_rumble_callback(&gb, rumbleCallback);
+    GB_set_infrared_callback(&gb, infraredStateChanged);
     [self updateRumbleMode];
 }
 
@@ -274,10 +307,16 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
         self.mainWindow.contentView.bounds.size.width < GB_get_screen_height(&gb)) {
         [self.mainWindow zoom:nil];
     }
+    self.osdView.usesSGBScale = GB_get_screen_width(&gb) == 256;
 }
 
 - (void) vblank
 {
+    if (_gbsVisualizer) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [_gbsVisualizer setNeedsDisplay:true];
+        });
+    }
     [self.view flip];
     if (borderModeChanged) {
         dispatch_sync(dispatch_get_main_queue(), ^{
@@ -293,19 +332,23 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
     GB_set_pixels_output(&gb, self.view.pixels);
     if (self.vramWindow.isVisible) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            self.view.mouseHidingEnabled = (self.mainWindow.styleMask & NSFullScreenWindowMask) != 0;
+            self.view.mouseHidingEnabled = (self.mainWindow.styleMask & NSWindowStyleMaskFullScreen) != 0;
             [self reloadVRAMData: nil];
         });
     }
     if (self.view.isRewinding) {
         rewind = true;
+        [self.osdView displayText:@"Rewinding..."];
     }
 }
 
 - (void)gotNewSample:(GB_sample_t *)sample
 {
+    if (_gbsVisualizer) {
+        [_gbsVisualizer addSample:sample];
+    }
     [audioLock lock];
-    if (self.audioClient.isPlaying) {
+    if (_audioClient.isPlaying) {
         if (audioBufferPosition == audioBufferSize) {
             if (audioBufferSize >= 0x4000) {
                 audioBufferPosition = 0;
@@ -321,6 +364,10 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
             }
             audioBuffer = realloc(audioBuffer, sizeof(*sample) * audioBufferSize);
         }
+        if (_volume != 1) {
+            sample->left *= _volume;
+            sample->right *= _volume;
+        }
         audioBuffer[audioBufferPosition++] = *sample;
     }
     if (audioBufferPosition == audioBufferNeeded) {
@@ -335,26 +382,31 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
     [_view setRumble:amp];
 }
 
-- (void) run
+- (void) preRun
 {
-    running = true;
     GB_set_pixels_output(&gb, self.view.pixels);
     GB_set_sample_rate(&gb, 96000);
-    self.audioClient = [[GBAudioClient alloc] initWithRendererBlock:^(UInt32 sampleRate, UInt32 nFrames, GB_sample_t *buffer) {
+    _audioClient = [[GBAudioClient alloc] initWithRendererBlock:^(UInt32 sampleRate, UInt32 nFrames, GB_sample_t *buffer) {
         [audioLock lock];
         
         if (audioBufferPosition < nFrames) {
             audioBufferNeeded = nFrames;
-            [audioLock wait];
+            [audioLock waitUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.125]];
         }
         
-        if (stopping) {
+        if (stopping || GB_debugger_is_stopped(&gb)) {
             memset(buffer, 0, nFrames * sizeof(*buffer));
             [audioLock unlock];
             return;
         }
         
-        if (audioBufferPosition >= nFrames && audioBufferPosition < nFrames + 4800) {
+        if (audioBufferPosition < nFrames) {
+            // Not enough audio
+            memset(buffer, 0, (nFrames - audioBufferPosition) * sizeof(*buffer));
+            memcpy(buffer, audioBuffer, audioBufferPosition * sizeof(*buffer));
+            audioBufferPosition = 0;
+        }
+        else if (audioBufferPosition < nFrames + 4800) {
             memcpy(buffer, audioBuffer, nFrames * sizeof(*buffer));
             memmove(audioBuffer, audioBuffer + nFrames, (audioBufferPosition - nFrames) * sizeof(*buffer));
             audioBufferPosition = audioBufferPosition - nFrames;
@@ -366,83 +418,137 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
         [audioLock unlock];
     } andSampleRate:96000];
     if (![[NSUserDefaults standardUserDefaults] boolForKey:@"Mute"]) {
-        [self.audioClient start];
+        [_audioClient start];
     }
-    NSTimer *hex_timer = [NSTimer timerWithTimeInterval:0.25 target:self selector:@selector(reloadMemoryView) userInfo:nil repeats:YES];
+    hex_timer = [NSTimer timerWithTimeInterval:0.25 target:self selector:@selector(reloadMemoryView) userInfo:nil repeats:true];
     [[NSRunLoop mainRunLoop] addTimer:hex_timer forMode:NSDefaultRunLoopMode];
     
     /* Clear pending alarms, don't play alarms while playing */
     if ([[NSUserDefaults standardUserDefaults] boolForKey:@"GBNotificationsUsed"]) {
         NSUserNotificationCenter *center = [NSUserNotificationCenter defaultUserNotificationCenter];
         for (NSUserNotification *notification in [center scheduledNotifications]) {
-            if ([notification.identifier isEqualToString:self.fileName]) {
+            if ([notification.identifier isEqualToString:self.fileURL.path]) {
                 [center removeScheduledNotification:notification];
                 break;
             }
         }
         
         for (NSUserNotification *notification in [center deliveredNotifications]) {
-            if ([notification.identifier isEqualToString:self.fileName]) {
+            if ([notification.identifier isEqualToString:self.fileURL.path]) {
                 [center removeDeliveredNotification:notification];
                 break;
             }
         }
     }
-    
-    while (running) {
-        if (rewind) {
-            rewind = false;
-            GB_rewind_pop(&gb);
-            if (!GB_rewind_pop(&gb)) {
-                rewind = self.view.isRewinding;
+}
+
+static unsigned *multiplication_table_for_frequency(unsigned frequency)
+{
+    unsigned *ret = malloc(sizeof(*ret) * 0x100);
+    for (unsigned i = 0; i < 0x100; i++) {
+        ret[i] = i * frequency;
+    }
+    return ret;
+}
+
+- (void) run
+{
+    assert(!master);
+    running = true;
+    [self preRun];
+    if (slave) {
+        [slave preRun];
+        unsigned *masterTable = multiplication_table_for_frequency(GB_get_clock_rate(&gb));
+        unsigned *slaveTable = multiplication_table_for_frequency(GB_get_clock_rate(&slave->gb));
+        while (running) {
+            if (linkOffset <= 0) {
+                linkOffset += slaveTable[GB_run(&gb)];
+            }
+            else {
+                linkOffset -= masterTable[GB_run(&slave->gb)];
             }
         }
-        else {
-            GB_run(&gb);
+        free(masterTable);
+        free(slaveTable);
+        [slave postRun];
+    }
+    else {
+        while (running) {
+            if (rewind) {
+                rewind = false;
+                GB_rewind_pop(&gb);
+                if (!GB_rewind_pop(&gb)) {
+                    rewind = self.view.isRewinding;
+                }
+            }
+            else {
+                GB_run(&gb);
+            }
         }
     }
+    [self postRun];
+    stopping = false;
+}
+
+- (void)postRun
+{
     [hex_timer invalidate];
     [audioLock lock];
     memset(audioBuffer, 0, (audioBufferSize - audioBufferPosition) * sizeof(*audioBuffer));
     audioBufferPosition = audioBufferNeeded;
     [audioLock signal];
     [audioLock unlock];
-    [self.audioClient stop];
-    self.audioClient = nil;
-    self.view.mouseHidingEnabled = NO;
-    GB_save_battery(&gb, [[[self.fileName stringByDeletingPathExtension] stringByAppendingPathExtension:@"sav"] UTF8String]);
-    GB_save_cheats(&gb, [[[self.fileName stringByDeletingPathExtension] stringByAppendingPathExtension:@"cht"] UTF8String]);
+    [_audioClient stop];
+    _audioClient = nil;
+    self.view.mouseHidingEnabled = false;
+    GB_save_battery(&gb, [[[self.fileURL URLByDeletingPathExtension] URLByAppendingPathExtension:@"sav"].path UTF8String]);
+    GB_save_cheats(&gb, [[[self.fileURL URLByDeletingPathExtension] URLByAppendingPathExtension:@"cht"].path UTF8String]);
     unsigned time_to_alarm = GB_time_to_alarm(&gb);
     
     if (time_to_alarm) {
         [NSUserNotificationCenter defaultUserNotificationCenter].delegate = (id)[NSApp delegate];
         NSUserNotification *notification = [[NSUserNotification alloc] init];
-        NSString *friendlyName = [[self.fileName lastPathComponent] stringByDeletingPathExtension];
+        NSString *friendlyName = [[self.fileURL lastPathComponent] stringByDeletingPathExtension];
         NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@"\\([^)]+\\)|\\[[^\\]]+\\]" options:0 error:nil];
         friendlyName = [regex stringByReplacingMatchesInString:friendlyName options:0 range:NSMakeRange(0, [friendlyName length]) withTemplate:@""];
         friendlyName = [friendlyName stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-
+        
         notification.title = [NSString stringWithFormat:@"%@ Played an Alarm", friendlyName];
         notification.informativeText = [NSString stringWithFormat:@"%@ requested your attention by playing a scheduled alarm", friendlyName];
-        notification.identifier = self.fileName;
+        notification.identifier = self.fileURL.path;
         notification.deliveryDate = [NSDate dateWithTimeIntervalSinceNow:time_to_alarm];
         notification.soundName = NSUserNotificationDefaultSoundName;
         [[NSUserNotificationCenter defaultUserNotificationCenter] scheduleNotification:notification];
         [[NSUserDefaults standardUserDefaults] setBool:true forKey:@"GBNotificationsUsed"];
     }
     [_view setRumble:0];
-    stopping = false;
 }
 
 - (void) start
 {
+    self.gbsPlayPauseButton.state = true;
+    self.view.mouseHidingEnabled = (self.mainWindow.styleMask & NSWindowStyleMaskFullScreen) != 0;
+    if (master) {
+        [master start];
+        return;
+    }
     if (running) return;
-    self.view.mouseHidingEnabled = (self.mainWindow.styleMask & NSFullScreenWindowMask) != 0;
     [[[NSThread alloc] initWithTarget:self selector:@selector(run) object:nil] start];
 }
 
 - (void) stop
 {
+    self.gbsPlayPauseButton.state = false;
+    if (master) {
+        if (!master->running) return;
+        GB_debugger_set_disabled(&gb, true);
+        if (GB_debugger_is_stopped(&gb)) {
+            [self interruptDebugInputRead];
+        }
+        [master stop];
+        GB_debugger_set_disabled(&gb, false);
+        return;
+    }
     if (!running) return;
     GB_debugger_set_disabled(&gb, true);
     if (GB_debugger_is_stopped(&gb)) {
@@ -464,12 +570,12 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 - (void) loadBootROM: (GB_boot_rom_t)type
 {
     static NSString *const names[] = {
-        [GB_BOOT_ROM_DMG0] = @"dmg0_boot",
+        [GB_BOOT_ROM_DMG_0] = @"dmg0_boot",
         [GB_BOOT_ROM_DMG] = @"dmg_boot",
         [GB_BOOT_ROM_MGB] = @"mgb_boot",
         [GB_BOOT_ROM_SGB] = @"sgb_boot",
         [GB_BOOT_ROM_SGB2] = @"sgb2_boot",
-        [GB_BOOT_ROM_CGB0] = @"cgb0_boot",
+        [GB_BOOT_ROM_CGB_0] = @"cgb0_boot",
         [GB_BOOT_ROM_CGB] = @"cgb_boot",
         [GB_BOOT_ROM_AGB] = @"agb_boot",
     };
@@ -485,12 +591,7 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
         current_model = (enum model)[sender tag];
     }
     
-    if (!modelsChanging && [sender tag] == MODEL_NONE) {
-        GB_reset(&gb);
-    }
-    else {
-        GB_switch_model_and_reset(&gb, [self internalModel]);
-    }
+    GB_switch_model_and_reset(&gb, [self internalModel]);
     
     if (old_width != GB_get_screen_width(&gb)) {
         [self.view screenSizeChanged];
@@ -503,6 +604,7 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
         [[NSUserDefaults standardUserDefaults] setBool:current_model == MODEL_DMG forKey:@"EmulateDMG"];
         [[NSUserDefaults standardUserDefaults] setBool:current_model == MODEL_SGB forKey:@"EmulateSGB"];
         [[NSUserDefaults standardUserDefaults] setBool:current_model == MODEL_AGB forKey:@"EmulateAGB"];
+        [[NSUserDefaults standardUserDefaults] setBool:current_model == MODEL_MGB forKey:@"EmulateMGB"];
     }
     
     /* Reload the ROM, SAV and SYM files */
@@ -515,10 +617,18 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
         [(GBMemoryByteArray *)(hex_controller.byteArray) setSelectedBank:0];
         [self hexUpdateBank:self.memoryBankInput ignoreErrors:true];
     }
+    
+    char title[17];
+    GB_get_rom_title(&gb, title);
+    [self.osdView displayText:[NSString stringWithFormat:@"SameBoy v" GB_VERSION "\n%s\n%08X", title, GB_get_rom_crc32(&gb)]];
 }
 
 - (IBAction)togglePause:(id)sender
 {
+    if (master) {
+        [master togglePause:sender];
+        return;
+    }
     if (running) {
         [self stop];
     }
@@ -573,12 +683,16 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
                                   window_frame.size.width);
     window_frame.size.height = MAX([[NSUserDefaults standardUserDefaults] integerForKey:@"LastWindowHeight"],
                                    window_frame.size.height);
-    [self.mainWindow setFrame:window_frame display:YES];
+    [self.mainWindow setFrame:window_frame display:true];
     self.vramStatusLabel.cell.backgroundStyle = NSBackgroundStyleRaised;
+        
+    NSUInteger height_diff = self.vramWindow.frame.size.height - self.vramWindow.contentView.frame.size.height;
+    CGRect vram_window_rect = self.vramWindow.frame;
+    vram_window_rect.size.height = 384 + height_diff + 48;
+    [self.vramWindow setFrame:vram_window_rect display:true animate:false];
     
     
-    
-    self.consoleWindow.title = [NSString stringWithFormat:@"Debug Console – %@", [[self.fileURL path] lastPathComponent]];
+    self.consoleWindow.title = [NSString stringWithFormat:@"Debug Console – %@", [self.fileURL.path lastPathComponent]];
     self.debuggerSplitView.dividerColor = [NSColor clearColor];
     if (@available(macOS 11.0, *)) {
         self.memoryWindow.toolbarStyle = NSWindowToolbarStyleExpanded;
@@ -600,6 +714,16 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(updateColorCorrectionMode)
                                                  name:@"GBColorCorrectionChanged"
+                                               object:nil];
+    
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(updateLightTemperature)
+                                                 name:@"GBLightTemperatureChanged"
+                                               object:nil];
+    
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(updateInterferenceVolume)
+                                                 name:@"GBInterferenceVolumeChanged"
                                                object:nil];
     
     [[NSNotificationCenter defaultCenter] addObserver:self
@@ -628,6 +752,12 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
                                                object:nil];
     
     [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(updateRTCMode)
+                                                 name:@"GBRTCModeChanged"
+                                               object:nil];
+
+    
+    [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(dmgModelChanged)
                                                  name:@"GBDMGModelChanged"
                                                object:nil];
@@ -642,11 +772,19 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
                                                  name:@"GBCGBModelChanged"
                                                object:nil];
     
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(updateVolume)
+                                                 name:@"GBVolumeChanged"
+                                               object:nil];
+        
     if ([[NSUserDefaults standardUserDefaults] boolForKey:@"EmulateDMG"]) {
         current_model = MODEL_DMG;
     }
     else if ([[NSUserDefaults standardUserDefaults] boolForKey:@"EmulateSGB"]) {
         current_model = MODEL_SGB;
+    }
+    else if ([[NSUserDefaults standardUserDefaults] boolForKey:@"EmulateMGB"]) {
+        current_model = MODEL_MGB;
     }
     else {
         current_model = [[NSUserDefaults standardUserDefaults] boolForKey:@"EmulateAGB"]? MODEL_AGB : MODEL_CGB;
@@ -654,10 +792,17 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
     
     [self initCommon];
     self.view.gb = &gb;
+    self.view.osdView = _osdView;
     [self.view screenSizeChanged];
-    [self loadROM];
-    [self reset:nil];
-
+    if ([self loadROM]) {
+        _mainWindow.alphaValue = 0; // Hack hack ugly hack
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self close];
+        });
+    }
+    else {
+        [self reset:nil];
+    }
 }
 
 - (void) initMemoryView
@@ -708,7 +853,7 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 
 + (BOOL)autosavesInPlace 
 {
-    return YES;
+    return true;
 }
 
 - (NSString *)windowNibName 
@@ -720,39 +865,134 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 
 - (BOOL)readFromFile:(NSString *)fileName ofType:(NSString *)type
 {
-    return YES;
+    return true;
 }
 
-- (void) loadROM
+- (IBAction)changeGBSTrack:(id)sender
 {
-    NSString *rom_warnings = [self captureOutputForBlock:^{
-        GB_debugger_clear_symbols(&gb);
-        if ([[self.fileType pathExtension] isEqualToString:@"isx"]) {
-            GB_load_isx(&gb, [self.fileName UTF8String]);
-            GB_load_battery(&gb, [[[self.fileName stringByDeletingPathExtension] stringByAppendingPathExtension:@"ram"] UTF8String]);
-
+    if (!running) {
+        [self start];
+    }
+    [self performAtomicBlock:^{
+        GB_gbs_switch_track(&gb, self.gbsTracks.indexOfSelectedItem);
+    }];
+}
+- (IBAction)gbsNextPrevPushed:(id)sender
+{
+    if (self.gbsNextPrevButton.selectedSegment == 0) {
+        // Previous
+        if (self.gbsTracks.indexOfSelectedItem == 0) {
+            [self.gbsTracks selectItemAtIndex:self.gbsTracks.numberOfItems - 1];
         }
         else {
-            GB_load_rom(&gb, [self.fileName UTF8String]);
+            [self.gbsTracks selectItemAtIndex:self.gbsTracks.indexOfSelectedItem - 1];
         }
-        GB_load_battery(&gb, [[[self.fileName stringByDeletingPathExtension] stringByAppendingPathExtension:@"sav"] UTF8String]);
-        GB_load_cheats(&gb, [[[self.fileName stringByDeletingPathExtension] stringByAppendingPathExtension:@"cht"] UTF8String]);
+    }
+    else {
+        // Next
+        if (self.gbsTracks.indexOfSelectedItem == self.gbsTracks.numberOfItems - 1) {
+            [self.gbsTracks selectItemAtIndex: 0];
+        }
+        else {
+            [self.gbsTracks selectItemAtIndex:self.gbsTracks.indexOfSelectedItem + 1];
+        }
+    }
+    [self changeGBSTrack:sender];
+}
+
+- (void)prepareGBSInterface: (GB_gbs_info_t *)info
+{
+    GB_set_rendering_disabled(&gb, true);
+    _view = nil;
+    for (NSView *view in [_mainWindow.contentView.subviews copy]) {
+        [view removeFromSuperview];
+    }
+    [[NSBundle mainBundle] loadNibNamed:@"GBS" owner:self topLevelObjects:nil];
+    [_mainWindow setContentSize:self.gbsPlayerView.bounds.size];
+    _mainWindow.styleMask &= ~NSWindowStyleMaskResizable;
+    dispatch_async(dispatch_get_main_queue(), ^{ // Cocoa is weird, no clue why it's needed
+        [_mainWindow standardWindowButton:NSWindowZoomButton].enabled = false;
+    });
+    [_mainWindow.contentView addSubview:self.gbsPlayerView];
+    _mainWindow.movableByWindowBackground = true;
+    [_mainWindow setContentBorderThickness:24 forEdge:NSRectEdgeMinY];
+
+    self.gbsTitle.stringValue = [NSString stringWithCString:info->title encoding:NSISOLatin1StringEncoding] ?: @"GBS Player";
+    self.gbsAuthor.stringValue = [NSString stringWithCString:info->author encoding:NSISOLatin1StringEncoding] ?: @"Unknown Composer";
+    NSString *copyright = [NSString stringWithCString:info->copyright encoding:NSISOLatin1StringEncoding];
+    if (copyright) {
+        copyright = [@"©" stringByAppendingString:copyright];
+    }
+    self.gbsCopyright.stringValue = copyright ?: @"Missing copyright information";
+    for (unsigned i = 0; i < info->track_count; i++) {
+        [self.gbsTracks addItemWithTitle:[NSString stringWithFormat:@"Track %u", i + 1]];
+    }
+    [self.gbsTracks selectItemAtIndex:info->first_track];
+    self.gbsPlayPauseButton.image.template = true;
+    self.gbsPlayPauseButton.alternateImage.template = true;
+    self.gbsRewindButton.image.template = true;
+    for (unsigned i = 0; i < 2; i++) {
+        [self.gbsNextPrevButton imageForSegment:i].template = true;
+    }
+
+    if (!_audioClient.isPlaying) {
+        [_audioClient start];
+    }
+    
+    if (@available(macOS 10.10, *)) {
+        _mainWindow.titlebarAppearsTransparent = true;
+    }
+}
+
+- (int) loadROM
+{
+    __block int ret = 0;
+    NSString *rom_warnings = [self captureOutputForBlock:^{
+        GB_debugger_clear_symbols(&gb);
+        if ([[[self.fileType pathExtension] lowercaseString] isEqualToString:@"isx"]) {
+            ret = GB_load_isx(&gb, self.fileURL.path.UTF8String);
+            GB_load_battery(&gb, [[self.fileURL URLByDeletingPathExtension] URLByAppendingPathExtension:@"ram"].path.UTF8String);
+        }
+        else if ([[[self.fileType pathExtension] lowercaseString] isEqualToString:@"gbs"]) {
+            __block GB_gbs_info_t info;
+            ret = GB_load_gbs(&gb, self.fileURL.path.UTF8String, &info);
+            [self prepareGBSInterface:&info];
+        }
+        else {
+            ret = GB_load_rom(&gb, [self.fileURL.path UTF8String]);
+        }
+        GB_load_battery(&gb, [[self.fileURL URLByDeletingPathExtension] URLByAppendingPathExtension:@"sav"].path.UTF8String);
+        GB_load_cheats(&gb, [[self.fileURL URLByDeletingPathExtension] URLByAppendingPathExtension:@"cht"].path.UTF8String);
         [self.cheatWindowController cheatsUpdated];
         GB_debugger_load_symbol_file(&gb, [[[NSBundle mainBundle] pathForResource:@"registers" ofType:@"sym"] UTF8String]);
-        GB_debugger_load_symbol_file(&gb, [[[self.fileName stringByDeletingPathExtension] stringByAppendingPathExtension:@"sym"] UTF8String]);
+        GB_debugger_load_symbol_file(&gb, [[self.fileURL URLByDeletingPathExtension] URLByAppendingPathExtension:@"sym"].path.UTF8String);
     }];
-    if (rom_warnings && !rom_warning_issued) {
+    if (ret) {
+        NSAlert *alert = [[NSAlert alloc] init];
+        [alert setMessageText:rom_warnings?: @"Could not load ROM"];
+        [alert setAlertStyle:NSAlertStyleCritical];
+        [alert runModal];
+    }
+    else if (rom_warnings && !rom_warning_issued) {
         rom_warning_issued = true;
         [GBWarningPopover popoverWithContents:rom_warnings onWindow:self.mainWindow];
     }
+    return ret;
 }
 
 - (void)close
 {
-    [[NSUserDefaults standardUserDefaults] setInteger:self.mainWindow.frame.size.width forKey:@"LastWindowWidth"];
-    [[NSUserDefaults standardUserDefaults] setInteger:self.mainWindow.frame.size.height forKey:@"LastWindowHeight"];
+    [self disconnectLinkCable];
+    if (!self.gbsPlayerView) {
+        [[NSUserDefaults standardUserDefaults] setInteger:self.mainWindow.frame.size.width forKey:@"LastWindowWidth"];
+        [[NSUserDefaults standardUserDefaults] setInteger:self.mainWindow.frame.size.height forKey:@"LastWindowHeight"];
+    }
     [self stop];
     [self.consoleWindow close];
+    [self.memoryWindow close];
+    [self.vramWindow close];
+    [self.printerFeedWindow close];
+    [self.cheatsWindow close];
     [super close];
 }
 
@@ -760,31 +1000,35 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 {
     [self log:"^C\n"];
     GB_debugger_break(&gb);
-    if (!running) {
-        [self start];
-    }
+    [self start];
     [self.consoleWindow makeKeyAndOrderFront:nil];
     [self.consoleInput becomeFirstResponder];
 }
 
 - (IBAction)mute:(id)sender
 {
-    if (self.audioClient.isPlaying) {
-        [self.audioClient stop];
+    if (_audioClient.isPlaying) {
+        [_audioClient stop];
     }
     else {
-        [self.audioClient start];
+        [_audioClient start];
+        if (_volume == 0) {
+            [GBWarningPopover popoverWithContents:@"Warning: Volume is set to to zero in the preferences panel" onWindow:self.mainWindow];
+        }
     }
-    [[NSUserDefaults standardUserDefaults] setBool:!self.audioClient.isPlaying forKey:@"Mute"];
+    [[NSUserDefaults standardUserDefaults] setBool:!_audioClient.isPlaying forKey:@"Mute"];
 }
 
 - (BOOL)validateUserInterfaceItem:(id<NSValidatedUserInterfaceItem>)anItem
 {
     if ([anItem action] == @selector(mute:)) {
-        [(NSMenuItem*)anItem setState:!self.audioClient.isPlaying];
+        [(NSMenuItem *)anItem setState:!_audioClient.isPlaying];
     }
     else if ([anItem action] == @selector(togglePause:)) {
-        [(NSMenuItem*)anItem setState:(!running) || (GB_debugger_is_stopped(&gb))];
+        if (master) {
+            [(NSMenuItem *)anItem setState:(!master->running) || (GB_debugger_is_stopped(&gb)) || (GB_debugger_is_stopped(&gb))];
+        }
+        [(NSMenuItem *)anItem setState:(!running) || (GB_debugger_is_stopped(&gb))];
         return !GB_debugger_is_stopped(&gb);
     }
     else if ([anItem action] == @selector(reset:) && anItem.tag != MODEL_NONE) {
@@ -804,9 +1048,20 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
     else if ([anItem action] == @selector(connectWorkboy:)) {
         [(NSMenuItem*)anItem setState:accessory == GBAccessoryWorkboy];
     }
+    else if ([anItem action] == @selector(connectLinkCable:)) {
+        [(NSMenuItem*)anItem setState:[(NSMenuItem *)anItem representedObject] == master ||
+                                       [(NSMenuItem *)anItem representedObject] == slave];
+    }
     else if ([anItem action] == @selector(toggleCheats:)) {
         [(NSMenuItem*)anItem setState:GB_cheats_enabled(&gb)];
     }
+    else if ([anItem action] == @selector(toggleDisplayBackground:)) {
+        [(NSMenuItem*)anItem setState:!GB_is_background_rendering_disabled(&gb)];
+    }
+    else if ([anItem action] == @selector(toggleDisplayObjects:)) {
+        [(NSMenuItem*)anItem setState:!GB_is_object_rendering_disabled(&gb)];
+    }
+    
     return [super validateUserInterfaceItem:anItem];
 }
 
@@ -820,7 +1075,7 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 - (void) windowWillExitFullScreen:(NSNotification *)notification
 {
     fullScreen = false;
-    self.view.mouseHidingEnabled = NO;
+    self.view.mouseHidingEnabled = false;
 }
 
 - (NSRect)windowWillUseStandardFrame:(NSWindow *)window defaultFrame:(NSRect)newFrame
@@ -915,14 +1170,14 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
     }
     
     if (![console_output_timer isValid]) {
-        console_output_timer = [NSTimer timerWithTimeInterval:(NSTimeInterval)0.05 target:self selector:@selector(appendPendingOutput) userInfo:nil repeats:NO];
+        console_output_timer = [NSTimer timerWithTimeInterval:(NSTimeInterval)0.05 target:self selector:@selector(appendPendingOutput) userInfo:nil repeats:false];
         [[NSRunLoop mainRunLoop] addTimer:console_output_timer forMode:NSDefaultRunLoopMode];
     }
     
     [console_output_lock unlock];
 
     /* Make sure mouse is not hidden while debugging */
-    self.view.mouseHidingEnabled = NO;
+    self.view.mouseHidingEnabled = false;
 }
 
 - (IBAction)showConsoleWindow:(id)sender
@@ -1000,6 +1255,9 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 
 - (char *) getDebuggerInput
 {
+    [audioLock lock];
+    [audioLock signal];
+    [audioLock unlock];
     [self updateSideView];
     [self log:">"];
     in_sync_input = true;
@@ -1039,28 +1297,47 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 {
     bool __block success = false;
     [self performAtomicBlock:^{
-        success = GB_save_state(&gb, [[[self.fileName stringByDeletingPathExtension] stringByAppendingPathExtension:[NSString stringWithFormat:@"s%ld", (long)[sender tag] ]] UTF8String]) == 0;
+        success = GB_save_state(&gb, [[self.fileURL URLByDeletingPathExtension] URLByAppendingPathExtension:[NSString stringWithFormat:@"s%ld", (long)[sender tag] ]].path.UTF8String) == 0;
     }];
     
     if (!success) {
         [GBWarningPopover popoverWithContents:@"Failed to write save state." onWindow:self.mainWindow];
         NSBeep();
     }
+    else {
+        [self.osdView displayText:@"State saved"];
+    }
+}
+
+- (int)loadStateFile:(const char *)path noErrorOnNotFound:(bool)noErrorOnFileNotFound;
+{
+    int __block result = false;
+    NSString *error =
+    [self captureOutputForBlock:^{
+        result = GB_load_state(&gb, path);
+    }];
+    
+    if (result == ENOENT && noErrorOnFileNotFound) {
+        return ENOENT;
+    }
+    
+    if (result) {
+        NSBeep();
+    }
+    else {
+        [self.osdView displayText:@"State loaded"];
+    }
+    if (error) {
+        [GBWarningPopover popoverWithContents:error onWindow:self.mainWindow];
+    }
+    return result;
 }
 
 - (IBAction)loadState:(id)sender
 {
-    bool __block success = false;
-    NSString *error =
-    [self captureOutputForBlock:^{
-        success = GB_load_state(&gb, [[[self.fileName stringByDeletingPathExtension] stringByAppendingPathExtension:[NSString stringWithFormat:@"s%ld", (long)[sender tag] ]] UTF8String]) == 0;
-    }];
-    
-    if (!success) {
-        if (error) {
-            [GBWarningPopover popoverWithContents:error onWindow:self.mainWindow];
-        }
-        NSBeep();
+    int ret = [self loadStateFile:[[self.fileURL URLByDeletingPathExtension] URLByAppendingPathExtension:[NSString stringWithFormat:@"s%ld", (long)[sender tag]]].path.UTF8String noErrorOnNotFound:true];
+    if (ret == ENOENT) {
+        [self loadStateFile:[[self.fileURL URLByDeletingPathExtension] URLByAppendingPathExtension:[NSString stringWithFormat:@"sn%ld", (long)[sender tag]]].path.UTF8String noErrorOnNotFound:false];
     }
 }
 
@@ -1077,7 +1354,7 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 - (uint8_t) readMemory:(uint16_t)addr
 {
     while (!GB_is_inited(&gb));
-    return GB_read_memory(&gb, addr);
+    return GB_safe_read_memory(&gb, addr);
 }
 
 - (void) writeMemory:(uint16_t)addr value:(uint8_t)value
@@ -1090,6 +1367,9 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 {
     while (!GB_is_inited(&gb));
     bool was_running = running && !GB_debugger_is_stopped(&gb);
+    if (master) {
+        was_running |= master->running;
+    }
     if (was_running) {
         [self stop];
     }
@@ -1124,7 +1404,7 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
                                     bitmapInfo,
                                     provider,
                                     NULL,
-                                    YES,
+                                    true,
                                     renderingIntent);
     CGDataProviderRelease(provider);
     CGColorSpaceRelease(colorSpaceRef);
@@ -1145,6 +1425,7 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 - (IBAction) reloadVRAMData: (id) sender
 {
     if (self.vramWindow.isVisible) {
+        uint8_t *io_regs = GB_get_direct_access(&gb, GB_DIRECT_ACCESS_IO, NULL, NULL);
         switch ([self.vramTabView.tabViewItems indexOfObject:self.vramTabView.selectedTabViewItem]) {
             case 0:
             /* Tileset */
@@ -1183,8 +1464,8 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
                                 (GB_map_type_t) self.tilemapMapButton.indexOfSelectedItem,
                                 (GB_tileset_type_t) self.TilemapSetButton.indexOfSelectedItem);
                 
-                self.tilemapImageView.scrollRect = NSMakeRect(GB_read_memory(&gb, 0xFF00 | GB_IO_SCX),
-                                                              GB_read_memory(&gb, 0xFF00 | GB_IO_SCY),
+                self.tilemapImageView.scrollRect = NSMakeRect(io_regs[GB_IO_SCX],
+                                                              io_regs[GB_IO_SCY],
                                                               160, 144);
                 self.tilemapImageView.image = [Document imageFromData:data width:256 height:256 scale:1.0];
                 self.tilemapImageView.layer.magnificationFilter = kCAFilterNearest;
@@ -1198,7 +1479,7 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
                 dispatch_async(dispatch_get_main_queue(), ^{
                     if (!oamUpdating) {
                         oamUpdating = true;
-                        [self.spritesTableView reloadData];
+                        [self.objectsTableView reloadData];
                         oamUpdating = false;
                     }
                 });
@@ -1332,7 +1613,7 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
     }
     [self.memoryBankInput setStringValue:[NSString stringWithFormat:@"$%x", byteArray.selectedBank]];
     [hex_controller reloadData];
-    [self.memoryView setNeedsDisplay:YES];
+    [self.memoryView setNeedsDisplay:true];
 }
 
 - (GB_gameboy_t *) gameboy
@@ -1342,12 +1623,12 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 
 + (BOOL)canConcurrentlyReadDocumentsOfType:(NSString *)typeName
 {
-    return YES;
+    return true;
 }
 
 - (void)cameraRequestUpdate
 {
-    dispatch_async(dispatch_get_global_queue( DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         @try {
             if (!cameraSession) {
                 if (@available(macOS 10.14, *)) {
@@ -1483,14 +1764,14 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
             window_rect.size.height = 512 + height_diff + 48;
             break;
         case 3:
-            window_rect.size.height = 20 * 16 + height_diff + 24;
+            window_rect.size.height = 20 * 16 + height_diff + 34;
             break;
             
         default:
             break;
     }
     window_rect.origin.y -= window_rect.size.height;
-    [self.vramWindow setFrame:window_rect display:YES animate:YES];
+    [self.vramWindow setFrame:window_rect display:true animate:true];
 }
 
 - (void)mouseDidLeaveImageView:(GBImageView *)view
@@ -1561,7 +1842,7 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
     if (tableView == self.paletteTableView) {
         return 16; /* 8 BG palettes, 8 OBJ palettes*/
     }
-    else if (tableView == self.spritesTableView) {
+    else if (tableView == self.objectsTableView) {
         return oamCount;
     }
     return 0;
@@ -1580,12 +1861,12 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
         uint16_t index = columnIndex - 1 + (row & 7) * 4;
         return @((palette_data[(index << 1) + 1] << 8) | palette_data[(index << 1)]);
     }
-    else if (tableView == self.spritesTableView) {
+    else if (tableView == self.objectsTableView) {
         switch (columnIndex) {
             case 0:
                 return [Document imageFromData:[NSData dataWithBytesNoCopy:oamInfo[row].image
-                                                                    length:64 * 4
-                                                             freeWhenDone:NO]
+                                                                    length:64 * 4 * 2
+                                                             freeWhenDone:false]
                                          width:8
                                         height:oamHeight
                                          scale:16.0/oamHeight];
@@ -1614,7 +1895,7 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
                         oamInfo[row].flags & 0x20? 'X' : '-',
                         oamInfo[row].flags & 0x10? 1 : 0];
             case 7:
-                return oamInfo[row].obscured_by_line_limit? @"Dropped: Too many sprites in line": @"";
+                return oamInfo[row].obscured_by_line_limit? @"Dropped: Too many objects in line": @"";
 
         }
     }
@@ -1623,12 +1904,12 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 
 - (BOOL)tableView:(NSTableView *)tableView shouldSelectRow:(NSInteger)row
 {
-    return tableView == self.spritesTableView;
+    return tableView == self.objectsTableView;
 }
 
 - (BOOL)tableView:(NSTableView *)tableView shouldEditTableColumn:(nullable NSTableColumn *)tableColumn row:(NSInteger)row
 {
-    return NO;
+    return false;
 }
 
 - (IBAction)showVRAMViewer:(id)sender
@@ -1658,7 +1939,7 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
         frame.size = self.feedImageView.image.size;
         [self.printerFeedWindow setContentMaxSize:frame.size];
         frame.size.height += self.printerFeedWindow.frame.size.height - self.printerFeedWindow.contentView.frame.size.height;
-        [self.printerFeedWindow setFrame:frame display:NO animate: self.printerFeedWindow.isVisible];
+        [self.printerFeedWindow setFrame:frame display:false animate: self.printerFeedWindow.isVisible];
         [self.printerFeedWindow orderFront:NULL];
     });
     
@@ -1678,19 +1959,19 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 {
     bool shouldResume = running;
     [self stop];
-    NSSavePanel * savePanel = [NSSavePanel savePanel];
+    NSSavePanel *savePanel = [NSSavePanel savePanel];
     [savePanel setAllowedFileTypes:@[@"png"]];
     [savePanel beginSheetModalForWindow:self.printerFeedWindow completionHandler:^(NSInteger result) {
-        if (result == NSFileHandlingPanelOKButton) {
+        if (result == NSModalResponseOK) {
             [savePanel orderOut:self];
             CGImageRef cgRef = [self.feedImageView.image CGImageForProposedRect:NULL
                                                                         context:nil
                                                                           hints:nil];
             NSBitmapImageRep *imageRep = [[NSBitmapImageRep alloc] initWithCGImage:cgRef];
             [imageRep setSize:(NSSize){160, self.feedImageView.image.size.height / 2}];
-            NSData *data = [imageRep representationUsingType:NSPNGFileType properties:@{}];
-            [data writeToURL:savePanel.URL atomically:NO];
-            [self.printerFeedWindow setIsVisible:NO];
+            NSData *data = [imageRep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+            [data writeToURL:savePanel.URL atomically:false];
+            [self.printerFeedWindow setIsVisible:false];
         }
         if (shouldResume) {
             [self start];
@@ -1700,6 +1981,7 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 
 - (IBAction)disconnectAllAccessories:(id)sender
 {
+    [self disconnectLinkCable];
     [self performAtomicBlock:^{
         accessory = GBAccessoryNone;
         GB_disconnect_serial(&gb);
@@ -1708,6 +1990,7 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 
 - (IBAction)connectPrinter:(id)sender
 {
+    [self disconnectLinkCable];
     [self performAtomicBlock:^{
         accessory = GBAccessoryPrinter;
         GB_connect_printer(&gb, printImage);
@@ -1716,10 +1999,16 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 
 - (IBAction)connectWorkboy:(id)sender
 {
+    [self disconnectLinkCable];
     [self performAtomicBlock:^{
         accessory = GBAccessoryWorkboy;
         GB_connect_workboy(&gb, setWorkboyTime, getWorkboyTime);
     }];
+}
+
+- (void) updateVolume
+{
+    _volume = [[NSUserDefaults standardUserDefaults] doubleForKey:@"GBVolume"];
 }
 
 - (void) updateHighpassFilter
@@ -1736,6 +2025,20 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
     }
 }
 
+- (void) updateLightTemperature
+{
+    if (GB_is_inited(&gb)) {
+        GB_set_light_temperature(&gb, [[NSUserDefaults standardUserDefaults] doubleForKey:@"GBLightTemperature"]);
+    }
+}
+
+- (void) updateInterferenceVolume
+{
+    if (GB_is_inited(&gb)) {
+        GB_set_interference_volume(&gb, [[NSUserDefaults standardUserDefaults] doubleForKey:@"GBInterferenceVolume"]);
+    }
+}
+
 - (void) updateFrameBlendingMode
 {
     self.view.frameBlendingMode = (GB_frame_blending_mode_t) [[NSUserDefaults standardUserDefaults] integerForKey:@"GBFrameBlendingMode"];
@@ -1748,6 +2051,13 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
             GB_set_rewind_length(&gb, [[NSUserDefaults standardUserDefaults] integerForKey:@"GBRewindLength"]);
         }
     }];
+}
+
+- (void) updateRTCMode
+{
+    if (GB_is_inited(&gb)) {
+        GB_set_rtc_mode(&gb, [[NSUserDefaults standardUserDefaults] integerForKey:@"GBRTCMode"]);
+    }
 }
 
 - (void)dmgModelChanged
@@ -1787,9 +2097,9 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 - (BOOL)splitView:(GBSplitView *)splitView canCollapseSubview:(NSView *)subview;
 {
     if ([[splitView arrangedSubviews] lastObject] == subview) {
-        return YES;
+        return true;
     }
-    return NO;
+    return false;
 }
 
 - (CGFloat)splitView:(GBSplitView *)splitView constrainMinCoordinate:(CGFloat)proposedMinimumPosition ofSubviewAt:(NSInteger)dividerIndex
@@ -1805,9 +2115,9 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 - (BOOL)splitView:(GBSplitView *)splitView shouldAdjustSizeOfSubview:(NSView *)view 
 {
     if ([[splitView arrangedSubviews] lastObject] == view) {
-        return NO;
+        return false;
     }
-    return YES;
+    return true;
 }
 
 - (void)splitViewDidResizeSubviews:(NSNotification *)notification
@@ -1832,4 +2142,204 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 {
     GB_set_cheats_enabled(&gb, !GB_cheats_enabled(&gb));
 }
+
+- (void)disconnectLinkCable
+{
+    bool wasRunning = self->running;
+    Document *partner = master ?: slave;
+    if (partner) {
+        [self stop];
+        partner->master = nil;
+        partner->slave = nil;
+        master = nil;
+        slave = nil;
+        if (wasRunning) {
+            [partner start];
+            [self start];
+        }
+        GB_set_turbo_mode(&gb, false, false);
+        GB_set_turbo_mode(&partner->gb, false, false);
+        partner->accessory = GBAccessoryNone;
+        accessory = GBAccessoryNone;
+    }
+}
+
+- (void)connectLinkCable:(NSMenuItem *)sender
+{
+    [self disconnectAllAccessories:sender];
+    Document *partner = [sender representedObject];
+    [partner disconnectAllAccessories:sender];
+    
+    bool wasRunning = self->running;
+    [self stop];
+    [partner stop];
+    GB_set_turbo_mode(&partner->gb, true, true);
+    slave = partner;
+    partner->master = self;
+    linkOffset = 0;
+    partner->accessory = GBAccessoryLinkCable;
+    accessory = GBAccessoryLinkCable;
+    GB_set_serial_transfer_bit_start_callback(&gb, linkCableBitStart);
+    GB_set_serial_transfer_bit_start_callback(&partner->gb, linkCableBitStart);
+    GB_set_serial_transfer_bit_end_callback(&gb, linkCableBitEnd);
+    GB_set_serial_transfer_bit_end_callback(&partner->gb, linkCableBitEnd);
+    if (wasRunning) {
+        [self start];
+    }
+}
+
+- (void)linkCableBitStart:(bool)bit
+{
+    linkCableBit = bit;
+}
+
+-(bool)linkCableBitEnd
+{
+    bool ret = GB_serial_get_data_bit(&self.partner->gb);
+    GB_serial_set_data_bit(&self.partner->gb, linkCableBit);
+    return ret;
+}
+
+- (void)infraredStateChanged:(bool)state
+{
+    if (self.partner) {
+        GB_set_infrared_input(&self.partner->gb, state);
+    }
+}
+
+-(Document *)partner
+{
+    return slave ?: master;
+}
+
+- (bool)isSlave
+{
+    return master;
+}
+
+- (GB_gameboy_t *)gb
+{
+    return &gb;
+}
+
+- (NSImage *)takeScreenshot
+{
+    NSImage *ret = nil;
+    if ([[NSUserDefaults standardUserDefaults] boolForKey:@"GBFilterScreenshots"]) {
+        ret = [_view renderToImage];
+        [ret lockFocus];
+        NSBitmapImageRep *bitmapRep = [[NSBitmapImageRep alloc] initWithFocusedViewRect:NSMakeRect(0, 0,
+                                                                                                   ret.size.width, ret.size.height)];
+        [ret unlockFocus];
+        ret = [[NSImage alloc] initWithSize:ret.size];
+        [ret addRepresentation:bitmapRep];
+    }
+    if (!ret) {
+        ret = [Document imageFromData:[NSData dataWithBytesNoCopy:_view.currentBuffer
+                                                           length:GB_get_screen_width(&gb) * GB_get_screen_height(&gb) * 4
+                                                     freeWhenDone:false]
+                                width:GB_get_screen_width(&gb)
+                               height:GB_get_screen_height(&gb)
+                                scale:1.0];
+    }
+    return ret;
+}
+
+- (NSString *)screenshotFilename
+{
+    NSDate *date = [NSDate date];
+    NSDateFormatter *dateFormatter = [[NSDateFormatter alloc] init];
+    dateFormatter.dateStyle = NSDateFormatterLongStyle;
+    dateFormatter.timeStyle = NSDateFormatterMediumStyle;
+    return [[NSString stringWithFormat:@"%@ – %@.png",
+             self.fileURL.lastPathComponent.stringByDeletingPathExtension,
+             [dateFormatter stringFromDate:date]] stringByReplacingOccurrencesOfString:@":" withString:@"."]; // Gotta love Mac OS Classic
+
+}
+
+- (IBAction)saveScreenshot:(id)sender
+{
+    NSString *folder = [[NSUserDefaults standardUserDefaults] stringForKey:@"GBScreenshotFolder"];
+    BOOL isDirectory = false;
+    if (folder) {
+        [[NSFileManager defaultManager] fileExistsAtPath:folder isDirectory:&isDirectory];
+    }
+    if (!folder) {
+        bool shouldResume = running;
+        [self stop];
+        NSOpenPanel *openPanel = [NSOpenPanel openPanel];
+        openPanel.canChooseFiles = false;
+        openPanel.canChooseDirectories = true;
+        openPanel.message = @"Choose a folder for screenshots";
+        [openPanel beginSheetModalForWindow:self.mainWindow completionHandler:^(NSInteger result) {
+            if (result == NSModalResponseOK) {
+                [[NSUserDefaults standardUserDefaults] setObject:openPanel.URL.path
+                                                          forKey:@"GBScreenshotFolder"];
+                [self saveScreenshot:sender];
+            }
+            if (shouldResume) {
+                [self start];
+            }
+            
+        }];
+        return;
+    }
+    NSImage *image = [self takeScreenshot];
+    NSDateFormatter *dateFormatter = [[NSDateFormatter alloc] init];
+    dateFormatter.dateStyle = NSDateFormatterLongStyle;
+    dateFormatter.timeStyle = NSDateFormatterMediumStyle;
+    NSString *filename = [self screenshotFilename];
+    filename = [folder stringByAppendingPathComponent:filename];
+    unsigned i = 2;
+    while ([[NSFileManager defaultManager] fileExistsAtPath:filename]) {
+        filename = [[filename stringByDeletingPathExtension] stringByAppendingFormat:@" %d.png", i++];
+    }
+    
+    NSBitmapImageRep *imageRep = (NSBitmapImageRep *)image.representations.firstObject;
+    NSData *data = [imageRep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+    [data writeToFile:filename atomically:false];
+    [self.osdView displayText:@"Screenshot saved"];
+}
+
+- (IBAction)saveScreenshotAs:(id)sender
+{
+    bool shouldResume = running;
+    [self stop];
+    NSImage *image = [self takeScreenshot];
+    NSSavePanel *savePanel = [NSSavePanel savePanel];
+    [savePanel setNameFieldStringValue:[self screenshotFilename]];
+    [savePanel beginSheetModalForWindow:self.mainWindow completionHandler:^(NSInteger result) {
+        if (result == NSModalResponseOK) {
+            [savePanel orderOut:self];
+            NSBitmapImageRep *imageRep = (NSBitmapImageRep *)image.representations.firstObject;
+            NSData *data = [imageRep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+            [data writeToURL:savePanel.URL atomically:false];
+            [[NSUserDefaults standardUserDefaults] setObject:savePanel.URL.path.stringByDeletingLastPathComponent
+                                                      forKey:@"GBScreenshotFolder"];
+        }
+        if (shouldResume) {
+            [self start];
+        }
+    }];
+    [self.osdView displayText:@"Screenshot saved"];
+}
+
+- (IBAction)copyScreenshot:(id)sender
+{
+    NSImage *image = [self takeScreenshot];
+    [[NSPasteboard generalPasteboard] clearContents];
+    [[NSPasteboard generalPasteboard] writeObjects:@[image]];
+    [self.osdView displayText:@"Screenshot copied"];
+}
+
+- (IBAction)toggleDisplayBackground:(id)sender
+{
+    GB_set_background_rendering_disabled(&gb, !GB_is_background_rendering_disabled(&gb));
+}
+
+- (IBAction)toggleDisplayObjects:(id)sender
+{
+    GB_set_object_rendering_disabled(&gb, !GB_is_object_rendering_disabled(&gb));
+}
+
 @end

@@ -12,7 +12,7 @@ void GB_update_joyp(GB_gameboy_t *gb)
     previous_state = gb->io_registers[GB_IO_JOYP] & 0xF;
     key_selection = (gb->io_registers[GB_IO_JOYP] >> 4) & 3;
     gb->io_registers[GB_IO_JOYP] &= 0xF0;
-    uint8_t current_player = gb->sgb? (gb->sgb->current_player & (gb->sgb->player_count - 1) & 3) : 0;
+    uint8_t current_player = gb->sgb? gb->sgb->current_player : 0;
     switch (key_selection) {
         case 3:
             if (gb->sgb && gb->sgb->player_count > 1) {
@@ -30,11 +30,13 @@ void GB_update_joyp(GB_gameboy_t *gb)
                 gb->io_registers[GB_IO_JOYP] |= (!gb->keys[current_player][i]) << i;
             }
             /* Forbid pressing two opposing keys, this breaks a lot of games; even if it's somewhat possible. */
-            if (!(gb->io_registers[GB_IO_JOYP] & 1)) {
-                gb->io_registers[GB_IO_JOYP] |= 2;
-            }
-            if (!(gb->io_registers[GB_IO_JOYP] & 4)) {
-                gb->io_registers[GB_IO_JOYP] |= 8;
+            if (likely(!gb->illegal_inputs_allowed)) {
+                if (!(gb->io_registers[GB_IO_JOYP] & 1)) {
+                    gb->io_registers[GB_IO_JOYP] |= 2;
+                }
+                if (!(gb->io_registers[GB_IO_JOYP] & 4)) {
+                    gb->io_registers[GB_IO_JOYP] |= 8;
+                }
             }
             break;
 
@@ -51,8 +53,7 @@ void GB_update_joyp(GB_gameboy_t *gb)
             }
             break;
 
-        default:
-            break;
+        nodefault;
     }
     
     /* Todo: This assumes the keys *always* bounce, which is incorrect when emulating an SGB */
@@ -89,4 +90,49 @@ void GB_set_key_state_for_player(GB_gameboy_t *gb, GB_key_t index, unsigned play
     assert(player < 4);
     gb->keys[player][index] = pressed;
     GB_update_joyp(gb);
+}
+
+void GB_set_key_mask(GB_gameboy_t *gb, GB_key_mask_t mask)
+{
+    memset(gb->keys, 0, sizeof(gb->keys));
+    bool *key = &gb->keys[0][0];
+    while (mask) {
+        if (mask & 1) {
+            *key = true;
+        }
+        mask >>= 1;
+        key++;
+    }
+    
+    GB_update_joyp(gb);
+}
+
+void GB_set_key_mask_for_player(GB_gameboy_t *gb, GB_key_mask_t mask, unsigned player)
+{
+    memset(gb->keys[player], 0, sizeof(gb->keys[player]));
+    bool *key = gb->keys[player];
+    while (mask) {
+        if (mask & 1) {
+            *key = true;
+        }
+        mask >>= 1;
+        key++;
+    }
+    
+    GB_update_joyp(gb);
+}
+
+bool GB_get_joyp_accessed(GB_gameboy_t *gb)
+{
+    return gb->joyp_accessed;
+}
+
+void GB_clear_joyp_accessed(GB_gameboy_t *gb)
+{
+    gb->joyp_accessed = false;
+}
+
+void GB_set_allow_illegal_inputs(GB_gameboy_t *gb, bool allow)
+{
+    gb->illegal_inputs_allowed = allow;
 }

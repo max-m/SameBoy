@@ -34,6 +34,8 @@ const GB_cartridge_t GB_cart_defs[256] = {
     {  GB_MBC5  , GB_STANDARD_MBC, false, false, false, true }, // 1Ch  MBC5+RUMBLE
     {  GB_MBC5  , GB_STANDARD_MBC, true , false, false, true }, // 1Dh  MBC5+RUMBLE+RAM
     {  GB_MBC5  , GB_STANDARD_MBC, true , true , false, true }, // 1Eh  MBC5+RUMBLE+RAM+BATTERY
+    [0x22] =
+    {  GB_MBC7  , GB_STANDARD_MBC, true,  true,  false, false}, // 22h  MBC7+ACCEL+EEPROM
     [0xFC] =
     {  GB_MBC5  , GB_CAMERA      , true , true , false, false}, // FCh  POCKET CAMERA
     {  GB_NO_MBC, GB_STANDARD_MBC, false, false, false, false}, // FDh  BANDAI TAMA5 (Todo: Not supported)
@@ -75,6 +77,7 @@ void GB_update_mbc_mappings(GB_gameboy_t *gb)
                         gb->mbc_rom_bank++;
                     }
                     break;
+                nodefault;
             }
             break;
         case GB_MBC2:
@@ -97,6 +100,9 @@ void GB_update_mbc_mappings(GB_gameboy_t *gb)
             gb->mbc_rom_bank = gb->mbc5.rom_bank_low | (gb->mbc5.rom_bank_high << 8);
             gb->mbc_ram_bank = gb->mbc5.ram_bank;
             break;
+        case GB_MBC7:
+            gb->mbc_rom_bank = gb->mbc7.rom_bank;
+            break;
         case GB_HUC1:
             if (gb->huc1.mode == 0) {
                 gb->mbc_rom_bank = gb->huc1.bank_low | (gb->mbc1.bank_high << 6);
@@ -111,12 +117,25 @@ void GB_update_mbc_mappings(GB_gameboy_t *gb)
             gb->mbc_rom_bank = gb->huc3.rom_bank;
             gb->mbc_ram_bank = gb->huc3.ram_bank;
             break;
+        case GB_TPP1:
+            gb->mbc_rom_bank = gb->tpp1.rom_bank;
+            gb->mbc_ram_bank = gb->tpp1.ram_bank;
+            gb->mbc_ram_enable = (gb->tpp1.mode == 2) || (gb->tpp1.mode == 3);
+            break;
+        nodefault;
     }
 }
 
 void GB_configure_cart(GB_gameboy_t *gb)
 {
     gb->cartridge_type = &GB_cart_defs[gb->rom[0x147]];
+    if (gb->rom[0x147] == 0xbc &&
+        gb->rom[0x149] == 0xc1 &&
+        gb->rom[0x14a] == 0x65) {
+        static const GB_cartridge_t tpp1 = {GB_TPP1, GB_STANDARD_MBC, true, true, true, true};
+        gb->cartridge_type = &tpp1;
+        gb->tpp1.rom_bank = 1;
+    }
     
     if (gb->rom[0x147] == 0 && gb->rom_size > 0x8000) {
         GB_log(gb, "ROM header reports no MBC, but file size is over 32Kb. Assuming cartridge uses MBC3.\n");
@@ -125,10 +144,24 @@ void GB_configure_cart(GB_gameboy_t *gb)
     else if (gb->rom[0x147] != 0 && memcmp(gb->cartridge_type, &GB_cart_defs[0], sizeof(GB_cart_defs[0])) == 0) {
         GB_log(gb, "Cartridge type %02x is not yet supported.\n", gb->rom[0x147]);
     }
+    
+    if (gb->mbc_ram) {
+        free(gb->mbc_ram);
+        gb->mbc_ram = NULL;
+        gb->mbc_ram_size = 0;
+    }
 
     if (gb->cartridge_type->has_ram) {
         if (gb->cartridge_type->mbc_type == GB_MBC2) {
             gb->mbc_ram_size = 0x200;
+        }
+        else if (gb->cartridge_type->mbc_type == GB_MBC7) {
+            gb->mbc_ram_size = 0x100;
+        }
+        else if (gb->cartridge_type->mbc_type == GB_TPP1) {
+            if (gb->rom[0x152] >= 1 && gb->rom[0x152] <= 9) {
+                gb->mbc_ram_size = 0x2000 << (gb->rom[0x152] - 1);
+            }
         }
         else {
             static const unsigned ram_sizes[256] = {0, 0x800, 0x2000, 0x8000, 0x20000, 0x10000};
@@ -139,7 +172,7 @@ void GB_configure_cart(GB_gameboy_t *gb)
             gb->mbc_ram = malloc(gb->mbc_ram_size);
         }
 
-        /* Todo: Some games assume unintialized MBC RAM is 0xFF. It this true for all cartridges types? */
+        /* Todo: Some games assume unintialized MBC RAM is 0xFF. It this true for all cartridge types? */
         memset(gb->mbc_ram, 0xFF, gb->mbc_ram_size);
     }
 
@@ -163,5 +196,13 @@ void GB_configure_cart(GB_gameboy_t *gb)
     /* Set MBC5's bank to 1 correctly */
     if (gb->cartridge_type->mbc_type == GB_MBC5) {
         gb->mbc5.rom_bank_low = 1;
+    }
+    
+    /* Initial MBC7 state */
+    if (gb->cartridge_type->mbc_type == GB_MBC7) {
+        gb->mbc7.x_latch = gb->mbc7.y_latch = 0x8000;
+        gb->mbc7.latch_ready = true;
+        gb->mbc7.read_bits = -1;
+        gb->mbc7.eeprom_do = true;
     }
 }

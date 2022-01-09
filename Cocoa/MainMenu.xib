@@ -12,7 +12,11 @@
         </customObject>
         <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
         <customObject id="-3" userLabel="Application" customClass="NSObject"/>
-        <customObject id="Voe-Tx-rLC" customClass="AppDelegate"/>
+        <customObject id="Voe-Tx-rLC" customClass="AppDelegate">
+            <connections>
+                <outlet property="linkCableMenuItem" destination="V4S-Fo-xJK" id="KL9-3K-64i"/>
+            </connections>
+        </customObject>
         <customObject id="YLy-65-1bz" customClass="NSFontManager"/>
         <menu title="Main Menu" systemMenu="main" id="AYu-sK-qS6">
             <items>
@@ -312,10 +316,33 @@
                                 </menu>
                             </menuItem>
                             <menuItem isSeparatorItem="YES" id="5GS-tt-E0a"/>
+                            <menuItem title="Save Screenshot" keyEquivalent="s" id="0J3-yf-iXs">
+                                <connections>
+                                    <action selector="saveScreenshot:" target="-1" id="gJd-ml-J8p"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Save Screenshot As…" alternate="YES" keyEquivalent="s" id="98X-Fp-Uny">
+                                <modifierMask key="keyEquivalentModifierMask" option="YES" command="YES"/>
+                                <connections>
+                                    <action selector="saveScreenshotAs:" target="-1" id="Cxc-Gx-ql1"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Copy Screenshot" keyEquivalent="S" id="vbX-pB-QC8">
+                                <connections>
+                                    <action selector="copyScreenshot:" target="-1" id="XJC-EB-HNl"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem isSeparatorItem="YES" id="zk7-gf-LXN"/>
                             <menuItem title="Game Boy" tag="1" id="g7C-LA-VAr">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
                                     <action selector="reset:" target="-1" id="rxG-cz-s1S"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Game Boy Pocket/Light" tag="5" id="1bM-CT-hoW">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <connections>
+                                    <action selector="reset:" target="-1" id="U7l-BM-kB1"/>
                                 </connections>
                             </menuItem>
                             <menuItem title="Super Game Boy" tag="4" id="vc7-yy-ARW">
@@ -373,6 +400,17 @@
                                     <action selector="disconnectAllAccessories:" target="-1" id="5hY-9U-nRn"/>
                                 </connections>
                             </menuItem>
+                            <menuItem title="Game Link Cable &amp; Infrared" id="V4S-Fo-xJK">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <menu key="submenu" title="Game Link Cable &amp; Infrared" id="6sJ-Wz-QLj">
+                                    <connections>
+                                        <outlet property="delegate" destination="Voe-Tx-rLC" id="PMY-5j-25T"/>
+                                    </connections>
+                                </menu>
+                                <connections>
+                                    <action selector="nop:" target="Voe-Tx-rLC" id="Bpa-0C-lkN"/>
+                                </connections>
+                            </menuItem>
                             <menuItem title="Game Boy Printer" id="zHR-Ha-pOR">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
@@ -418,6 +456,19 @@
                                 </connections>
                             </menuItem>
                             <menuItem isSeparatorItem="YES" id="M6n-8G-LZS"/>
+                            <menuItem title="Show Background and Window" state="on" id="yfD-Qd-zoz">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <connections>
+                                    <action selector="toggleDisplayBackground:" target="-1" id="p5b-1n-SPR"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Show Objects" state="on" id="OWx-a0-vQk">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <connections>
+                                    <action selector="toggleDisplayObjects:" target="-1" id="8ie-ey-739"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem isSeparatorItem="YES" id="afI-BR-65k"/>
                             <menuItem title="Show Memory" id="UIa-n7-LSa">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>

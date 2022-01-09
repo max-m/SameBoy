@@ -2,7 +2,7 @@
 #define printer_h
 #include <stdint.h>
 #include <stdbool.h>
-#include "gb_struct_def.h"
+#include "defs.h"
 #define GB_PRINTER_MAX_COMMAND_LENGTH 0x280
 #define GB_PRINTER_DATA_SIZE 0x280
 
@@ -48,8 +48,7 @@ typedef struct
     uint8_t image[160 * 200];
     uint16_t image_offset;
     
-    /* TODO: Delete me. */
-    uint64_t padding;
+    uint64_t idle_time;
     
     uint8_t compression_run_lenth;
     bool compression_run_is_compressed;
