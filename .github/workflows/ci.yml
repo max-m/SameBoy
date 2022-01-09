@@ -10,17 +10,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        #os: [macos-latest, ubuntu-latest, ubuntu-18.04]
-        #cc: [gcc, clang]
-        #include:
-        #- os: macos-latest
-        #  cc: clang
-        #  extra_target: cocoa
-        #exclude:
-        #- os: macos-latest
-        #  cc: gcc
-        os: [ubuntu-latest]
-        cc: [clang]
+        os: [macos-latest, ubuntu-latest, ubuntu-18.04]
+        cc: [gcc, clang]
+        include:
+        - os: macos-latest
+          cc: clang
+          extra_target: cocoa
+        exclude:
+        - os: macos-latest
+          cc: gcc
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
