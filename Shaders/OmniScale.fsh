@@ -223,7 +223,7 @@ STATIC vec4 scale(sampler2D image, vec2 position, vec2 input_resolution, vec2 ou
     float dist = p.x + p.y;
     float pixel_size = length(1.0 / (output_resolution / input_resolution));
 
-    if (dist > 0.5 + pixel_size / 2.0)
+    if (dist > 0.5 + pixel_size / 2.0) {
         return w4;
     }
 

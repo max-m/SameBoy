@@ -62,7 +62,13 @@ CFLAGS += -I$(CORE_DIR)
 CFLAGS += -Wno-pass-failed
 CFLAGS += -s USE_SDL=2
 
-WASM_LDFLAGS := -s WASM=1 -s USE_WEBGL2=1 -lidbfs.js
+# Build as library
+WASM_LDFLAGS := --no-entry
+# Enable WASM and a virtual filesystem
+WASM_LDFLAGS += -s WASM=1 -lidbfs.js
+# Enable WebGL 2 support
+WASM_LDFLAGS += -s USE_WEBGL2=1
+
 WASM_LDFLAGS += --preload-file $(BOOTROMS_DIR)@/BootROMs --preload-file $(CORE_DIR)/Shaders@/Shaders
 WASM_LDFLAGS += -s "EXPORTED_RUNTIME_METHODS=['ccall', 'cwrap', 'getValue', 'AsciiToString', 'FS']"
 

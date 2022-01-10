@@ -12,22 +12,6 @@
 #define SGB_VIDEO_HEIGHT 224
 #define SGB_VIDEO_PIXELS (SGB_VIDEO_WIDTH * SGB_VIDEO_HEIGHT)
 
-#define GENERATE_ENUM(ENUM) ENUM,
-#define GENERATE_STRING(STRING) #STRING,
-
-#define MODELS(MODEL) \
-        MODEL(MODEL_DMG) \
-        MODEL(MODEL_CGB) \
-        MODEL(MODEL_AGB) \
-        MODEL(MODEL_SGB) \
-        MODEL(MODEL_MAX)
-
-#define SGB_REVISIONS(REVISION) \
-        REVISION(SGB_NTSC) \
-        REVISION(SGB_PAL)  \
-        REVISION(SGB_2)    \
-        REVISION(SGB_MAX)
-
 typedef enum {
       JOYPAD_AXISES_X,
       JOYPAD_AXISES_Y,
@@ -45,13 +29,22 @@ typedef struct {
     SDL_Scancode keys[9];
     GB_color_correction_mode_t color_correction_mode;
     enum scaling_mode scaling_mode;
-    bool blend_frames;
+    uint8_t blending_mode;
 
     GB_highpass_mode_t highpass_mode;
 
+    bool _deprecated_div_joystick;
+    bool _deprecated_flip_joystick_bit_1;
+    bool _deprecated_swap_joysticks_bits_1_and_2;
+
     char filter[32];
     enum {
-        MODELS(GENERATE_ENUM)
+        MODEL_DMG,
+        MODEL_CGB,
+        MODEL_AGB,
+        MODEL_SGB,
+        MODEL_MGB,
+        MODEL_MAX,
     } model;
 
     /* v0.11 */
@@ -62,41 +55,29 @@ typedef struct {
 
     /* v0.12 */
     enum {
-        SGB_REVISIONS(GENERATE_ENUM)
+        SGB_NTSC,
+        SGB_PAL,
+        SGB_2,
+        SGB_MAX
     } sgb_revision;
+
+    /* v0.13 */
+    uint8_t dmg_palette;
+    GB_border_mode_t border_mode;
+    uint8_t volume;
+    GB_rumble_mode_t rumble_mode;
+
+    uint8_t default_scale;
+
+    /* v0.14 */
+    unsigned padding;
+    uint8_t color_temperature;
+    char bootrom_path[4096];
+    uint8_t interference_volume;
+    GB_rtc_mode_t rtc_mode;
+
+    /* v0.14.4 */
+    bool osd;
 } configuration_t;
-
-// TODO: There must be a better way to not duplicate this data on the JavaScript side
-const char *MODELS_STRING[] = {
-    MODELS(GENERATE_STRING)
-};
-
-const char *SGB_REVISIONS_STRING[] = {
-    SGB_REVISIONS(GENERATE_STRING)
-};
-
-const char** EMSCRIPTEN_KEEPALIVE get_models_string_pointer() {
-    return MODELS_STRING;
-}
-
-const size_t EMSCRIPTEN_KEEPALIVE get_models_string_pointer_size() {
-    return sizeof(*MODELS_STRING);
-}
-
-const size_t EMSCRIPTEN_KEEPALIVE get_models_string_size() {
-    return sizeof(MODELS_STRING);
-}
-
-const char** EMSCRIPTEN_KEEPALIVE get_sgb_revisions_string_pointer() {
-    return SGB_REVISIONS_STRING;
-}
-
-const size_t EMSCRIPTEN_KEEPALIVE get_sgb_revisions_string_pointer_size() {
-    return sizeof(*SGB_REVISIONS_STRING);
-}
-
-const size_t EMSCRIPTEN_KEEPALIVE get_sgb_revisions_string_size() {
-    return sizeof(SGB_REVISIONS_STRING);
-}
 
 #endif /* main_h */

@@ -4,16 +4,14 @@
 #include "shader.h"
 #include "utils.h"
 
-static const char *vertex_shader_100 = "\
-#version 100 \n\
+static const char *vertex_shader_100 = "#version 100 \n\
 attribute vec4 aPosition;\n\
 void main(void) {\n\
 gl_Position = aPosition;\n\
 }\n\
 ";
 
-static const char *vertex_shader_300 = "\
-#version 300 es\n\
+static const char *vertex_shader_300 = "#version 300 es\n\
 in vec4 aPosition;\n\
 void main(void) {\n\
 gl_Position = aPosition;\n\
@@ -23,10 +21,6 @@ gl_Position = aPosition;\n\
 uint16_t get_gl_version() {
     GLint major = 0, minor = 0;
 
-#if defined(GL_MAJOR_VERSION) && defined(GL_MINOR_VERSION)
-    glGetIntegerv(GL_MAJOR_VERSION, &major);
-    glGetIntegerv(GL_MINOR_VERSION, &minor);
-#else
     char *version = (char *) glGetString(GL_VERSION);
 
     int res = sscanf(version, "OpenGL ES %d.%d", &major, &minor);
@@ -40,7 +34,6 @@ uint16_t get_gl_version() {
         major = 0;
         minor = 0;
     }
-#endif
 
     return (uint16_t)(major * 0x100 + minor);
 }
@@ -49,23 +42,40 @@ static GLuint create_shader(const char *source, GLenum type)
 {
     // Create the shader object
     GLuint shader = glCreateShader(type);
+
     // Load the shader source
     glShaderSource(shader, 1, &source, 0);
+
     // Compile the shader
     glCompileShader(shader);
+
     // Check for errors
     GLint status = 0;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
+
     if (status == GL_FALSE) {
-        GLchar messages[1024];
-        glGetShaderInfoLog(shader, sizeof(messages), 0, &messages[0]);
-        fprintf(stderr, "GLSL Shader Error: %s", messages);
+        GLint info_len = 0;
+
+        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &info_len);
+
+        if (info_len > 1) {
+            char* info_log = (char*)malloc(sizeof(char) * info_len);
+
+            glGetShaderInfoLog(shader, info_len, NULL, info_log);
+            fprintf(stderr, "GLSL Shader Error: \n%s\n", info_log);
+
+            free(info_log);
+        }
     }
+
     return shader;
 }
 
 static GLuint create_program(const char *vsh, const char *fsh)
 {
+    fprintf(stderr, "FSH:\n%s\n", vsh);
+    fprintf(stderr, "FSH:\n%s\n", fsh);
+
     // Build shaders
     GLuint vertex_shader = create_shader(vsh, GL_VERTEX_SHADER);
     GLuint fragment_shader = create_shader(fsh, GL_FRAGMENT_SHADER);
@@ -105,6 +115,7 @@ static GLuint create_program(const char *vsh, const char *fsh)
         }
 
         glDeleteProgram(program);
+        program = 0;
     }
 
     // Delete shaders
@@ -144,6 +155,7 @@ bool init_shader_with_name(shader_t *shader, const char *name)
         fread(master_shader_code + header_len, 1, sizeof(master_shader_code) - 1, master_shader_f);
         fclose(master_shader_f);
         filter_token_location = strstr(master_shader_code, "{filter}") - master_shader_code;
+
         if (filter_token_location < 0) {
             master_shader_code[0] = 0;
             return false;
@@ -165,8 +177,6 @@ bool init_shader_with_name(shader_t *shader, const char *name)
     strcat(final_shader_code + filter_token_location,
            master_shader_code + filter_token_location + sizeof("{filter}") - 1);
 
-    fprintf(stderr, "Shader code:\n%s\n", final_shader_code);
-
     if (gl_version >= 0x300) {
         shader->program = create_program(vertex_shader_300, final_shader_code);
     }
@@ -174,10 +184,13 @@ bool init_shader_with_name(shader_t *shader, const char *name)
         shader->program = create_program(vertex_shader_100, final_shader_code);
     }
 
+    if (shader->program == 0) {
+        return false;
+    }
+
     // Attributes
     shader->position_attribute = glGetAttribLocation(shader->program, "aPosition");
     // Uniforms
-    shader->input_resolution_uniform = glGetUniformLocation(shader->program, "input_resolution");
     shader->resolution_uniform = glGetUniformLocation(shader->program, "output_resolution");
     shader->origin_uniform = glGetUniformLocation(shader->program, "origin");
 
@@ -199,7 +212,7 @@ bool init_shader_with_name(shader_t *shader, const char *name)
     glBindTexture(GL_TEXTURE_2D, 0);
     shader->previous_texture_uniform = glGetUniformLocation(shader->program, "previous_image");
 
-    shader->mix_previous_uniform = glGetUniformLocation(shader->program, "mix_previous");
+    shader->blending_mode_uniform = glGetUniformLocation(shader->program, "frame_blending_mode");
 
     // Program
 
@@ -233,17 +246,17 @@ bool init_shader_with_name(shader_t *shader, const char *name)
 
 void render_bitmap_with_shader(shader_t *shader, void *bitmap, void *previous,
                                unsigned source_width, unsigned source_height,
-                               unsigned x, unsigned y, unsigned w, unsigned h)
+                               unsigned x, unsigned y, unsigned w, unsigned h,
+                               GB_frame_blending_mode_t blending_mode)
 {
     glUseProgram(shader->program);
     glUniform2f(shader->origin_uniform, x, y);
-    glUniform2f(shader->input_resolution_uniform, source_width, source_height);
     glUniform2f(shader->resolution_uniform, w, h);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, shader->texture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, source_width, source_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, bitmap);
     glUniform1i(shader->texture_uniform, 0);
-    glUniform1i(shader->mix_previous_uniform, previous != NULL);
+    glUniform1i(shader->blending_mode_uniform, previous? blending_mode : GB_FRAME_BLENDING_MODE_DISABLED);
     if (previous) {
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, shader->previous_texture);

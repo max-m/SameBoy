@@ -37,14 +37,15 @@ struct shader_name {
     {"NearestNeighbor", "Nearest Neighbor"},
     {"Bilinear", "Bilinear"},
     {"SmoothBilinear", "Smooth Bilinear"},
+    {"MonoLCD", "Monochrome LCD"},
     {"LCD", "LCD Display"},
     {"CRT", "CRT Display"},
     {"Scale2x", "Scale2x"},
     {"Scale4x", "Scale4x"},
     {"AAScale2x", "Anti-aliased Scale2x"},
     {"AAScale4x", "Anti-aliased Scale4x"},
-    // {"HQ2x", "HQ2x"}, // requires OpenGL ES 1.30 features
-    // {"OmniScale", "OmniScale"}, // requires OpenGL ES 1.30 features
+    {"HQ2x", "HQ2x"},
+    {"OmniScale", "OmniScale"},
     {"OmniScaleLegacy", "OmniScale Legacy"},
     {"AAOmniScaleLegacy", "AA OmniScale Legacy"},
 };
@@ -87,10 +88,13 @@ configuration_t configuration =
     .color_correction_mode = GB_COLOR_CORRECTION_EMULATE_HARDWARE,
     .highpass_mode = GB_HIGHPASS_ACCURATE,
     .scaling_mode = GB_SDL_SCALING_INTEGER_FACTOR,
-    .blend_frames = true,
+    .blending_mode = GB_FRAME_BLENDING_MODE_ACCURATE,
     .rewind_length = 60 * 2,
     .model = MODEL_CGB,
-    .filter = "OmniScaleLegacy",
+    .volume = 100,
+    .rumble_mode = GB_RUMBLE_ALL_GAMES,
+    .default_scale = 2,
+    .color_temperature = 10,
 };
 
 // Use this function instead of GB_save_battery()
@@ -184,9 +188,22 @@ void render_texture(void *pixels,  void *previous)
         }
         glClearColor(0, 0, 0, 1);
         glClear(GL_COLOR_BUFFER_BIT);
+        GB_frame_blending_mode_t mode = configuration.blending_mode;
+        if (!previous) {
+            mode = GB_FRAME_BLENDING_MODE_DISABLED;
+        }
+        else if (mode == GB_FRAME_BLENDING_MODE_ACCURATE) {
+            if (GB_is_sgb(&gb)) {
+                mode = GB_FRAME_BLENDING_MODE_SIMPLE;
+            }
+            else {
+                mode = GB_is_odd_frame(&gb)? GB_FRAME_BLENDING_MODE_ACCURATE_ODD : GB_FRAME_BLENDING_MODE_ACCURATE_EVEN;
+            }
+        }
         render_bitmap_with_shader(&shader, _pixels, previous,
                                   GB_get_screen_width(&gb), GB_get_screen_height(&gb),
-                                  rect.x, rect.y, rect.w, rect.h);
+                                  rect.x, rect.y, rect.w, rect.h,
+                                  mode);
         SDL_GL_SwapWindow(window);
     }
 }
@@ -196,7 +213,7 @@ static void handle_events(GB_gameboy_t *gb) {
 }
 
 static void vblank(GB_gameboy_t *gb) {
-    if (configuration.blend_frames) {
+    if (configuration.blending_mode) {
         render_texture(active_pixel_buffer, previous_pixel_buffer);
         uint32_t *temp = active_pixel_buffer;
         active_pixel_buffer = previous_pixel_buffer;

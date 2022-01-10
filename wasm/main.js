@@ -130,9 +130,6 @@ document.getElementById('file').addEventListener('change', e => {
 }, false);
 
 Module.onRuntimeInitialized = _ => {
-	console.log(Module.get_models());
-	console.log(Module.get_sgb_revisions());
-
 	FS.mkdir('/persist');
 	FS.mount(IDBFS, { }, '/persist');
 
