@@ -417,6 +417,8 @@ int EMSCRIPTEN_KEEPALIVE load_boot_rom_from_file(char* filename) {
 }
 
 int EMSCRIPTEN_KEEPALIVE load_rom_from_file(char* filename, char* battery_save_path) {
+    init_gb();
+
     int result = GB_load_rom(&gb, filename);
 
     if (result == 0) {

@@ -1,204 +1,211 @@
 <!doctype html>
 <html lang="en-us">
-	<head>
-		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
-		<title>SameBoy</title>
-		<style>
-			body {
-				margin: 0;
-				padding: 0;
-			}
 
-			.center {
-				text-align: center;
-			}
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>SameBoy</title>
+  <style>
+    .emscripten {
+         padding-right: 0;
+         margin-left: auto;
+         margin-right: auto;
+         display: block;
+    }
+    textarea.emscripten {
+         font-family: monospace;
+         width: 80%;
+    }
+    div.emscripten {
+         text-align: center;
+    }
+    div.emscripten_border {
+         border: 1px solid black;
+    }
+    /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
+    canvas.emscripten {
+         border: 0px none;
+         background-color: black;
 
-			.canvas-wrapper {
-				border: 1px solid black;
-				display: inline-block;
-			}
+        image-rendering: optimizeSpeed;
+        image-rendering: -moz-crisp-edges;
+        image-rendering: -o-crisp-edges;
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: optimize-contrast;
+        image-rendering: crisp-edges;
+        image-rendering: pixelated;
+    }
+    .spinner {
+         height: 50px;
+         width: 50px;
+         margin: 0px auto;
+         animation: rotation 0.8s linear infinite;
+         border-left: 10px solid rgb(0,150,240);
+         border-right: 10px solid rgb(0,150,240);
+         border-bottom: 10px solid rgb(0,150,240);
+         border-top: 10px solid rgb(100,0,200);
+         border-radius: 100%;
+         background-color: rgb(200,100,250);
+    }
+    @keyframes rotation {
+         from {
+            transform: rotate(0deg);
+        }
+         to {
+            transform: rotate(360deg);
+        }
+    }
+    </style>
+</head>
 
-			/* the canvas *must not* have any border or padding, or mouse coords will be wrong */
-			.canvas-wrapper > canvas {
-				border: 0px none;
-				background-color: black;
-				display: block;
-			}
+<body>
+  <ul id="demo-roms">
+    <li><a href="ressources/demos/oh.gb">Oh!</a></li>
+    <li><a href="ressources/demos/pocket.gb">Is that a demo in your pocket?</a></li>
+    <li><a href="ressources/demos/gejmboj.gb">Gejmboj</a></li>
+    <li><a href="ressources/demos/video.gbc">GBVP1</a></li>
+    <li><a href="ressources/demos/mezase.gbc">GBVP2</a></li>
+    <li><a href="ressources/demos/pht-mr.gbc">Mental Respirator</a></li>
+    <li><a href="ressources/demos/pht-pz.gbc">It came from planet Zilog</a></li>
+  </ul>
+  <input type="file" id="file" name="file" accept=".gb,.gbc,.bin">
 
-			.crisp {
-				image-rendering: optimizeSpeed;
-				image-rendering: -moz-crisp-edges;
-				image-rendering: -o-crisp-edges;
-				image-rendering: -webkit-optimize-contrast;
-				image-rendering: optimize-contrast;
-				image-rendering: crisp-edges;
-				image-rendering: pixelated;
-				-ms-interpolation-mode: nearest-neighbor;
-			}
+  <hr/>
+  <figure style="overflow:visible;" id="spinner">
+    <div class="spinner"></div>
+    <center style="margin-top:0.5em"><strong>emscripten</strong></center>
+  </figure>
+  <div class="emscripten" id="status">Downloading...</div>
+  <div class="emscripten">
+    <progress value="0" max="100" id="progress" hidden=1></progress>
+  </div>
+  <div class="emscripten_border">
+    <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
+  </div>
+  <hr />
+  <div class="emscripten">
+    <input type="checkbox" id="resize">Resize canvas
+    <input type="checkbox" id="pointerLock" checked>Lock/hide mouse pointer
+    &nbsp;&nbsp;&nbsp;
+    <input type="button" value="Fullscreen" onclick="Module.requestFullscreen(document.getElementById('pointerLock').checked, document.getElementById('resize').checked)">
+  </div>
+  <hr />
+  <textarea class="emscripten" id="output" rows="8"></textarea>
+  <hr>
+  <script type='text/javascript'>
+    var statusElement = document.getElementById('status');
+    var progressElement = document.getElementById('progress');
+    var spinnerElement = document.getElementById('spinner');
 
-			#end {
-				display: none;
-			}
+    var Module = {
+      get_models: function () {
+        const ptr = Module._get_models_string_pointer();
+        const ptr_size = Module._get_models_string_pointer_size();
+        const size = Module._get_models_string_size() - ptr_size; // last element is a end marker
+        const models = [];
 
-			/* if an element has been placed after the end marker it is the CPU profiler */
-			#end + div > div {
-				margin-bottom: 10px;
-				margin-left: 5px;
-				margin-right: 5px;
-				margin-top: 5px;
-			}
+        for (let i = 0; i < size; i += ptr_size) {
+          const key = AsciiToString(getValue(ptr + i, '*'));
 
-			/* if an element has been placed after the CPU profiler it is the memory profiler */
-			#end + div + div > div {
-				margin-bottom: 10px;
-				margin-left: 5px;
-				margin-right: 5px;
-				margin-top: 5px;
-			}
-		</style>
-	</head>
-	<body>
-		<ul id="demo-roms">
-			<li><a href="ressources/demos/oh.gb">Oh!</a></li>
-			<li><a href="ressources/demos/pocket.gb">Is that a demo in your pocket?</a></li>
-			<li><a href="ressources/demos/gejmboj.gb">Gejmboj</a></li>
-			<li><a href="ressources/demos/video.gbc">GBVP1</a></li>
-			<li><a href="ressources/demos/mezase.gbc">GBVP2</a></li>
-			<li><a href="ressources/demos/pht-mr.gbc">Mental Respirator</a></li>
-			<li><a href="ressources/demos/pht-pz.gbc">It came from planet Zilog</a></li>
-		</ul>
-		<input type="file" id="file" name="file" accept=".gb,.gbc,.bin">
+          models.push(key.replace(/^MODEL_/, ''));
+        }
 
-		<hr/>
+        return models
+      },
+      get_sgb_revisions: function () {
+        const ptr = Module._get_sgb_revisions_string_pointer();
+        const ptr_size = Module._get_sgb_revisions_string_pointer_size();
+        const size = Module._get_sgb_revisions_string_size() - ptr_size; // last element is a end marker
+        const revisions = [];
 
-		<div class="center">
-			<div id="status">Downloading...</div>
+        for (let i = 0; i < size; i += ptr_size) {
+          const key = AsciiToString(getValue(ptr + i, '*'));
 
-			<progress value="0" max="100" id="progress" hidden=1></progress>
-		</div>
+          revisions.push(key.replace(/^SGB_/, ''));
+        }
 
-		<div class="center">
-			<div class="canvas-wrapper">
-				<canvas class="crisp" id="canvas" oncontextmenu="event.preventDefault()"></canvas>
-			</div>
-		</div>
+        return revisions
+      },
+      sync_fs: function () {
+        console.log("Syncing file system ...");
 
-		<hr/>
+        FS.syncfs(function (err) {
+          if (!err) {
+            console.log("File system synchronized.")
+          }
+          else {
+            console.error(err);
+          }
+        });
+      },
+      preRun: [],
+      postRun: [],
+      print: (function() {
+        var element = document.getElementById('output');
+        if (element) element.value = ''; // clear browser cache
+        return function(text) {
+          if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+          // These replacements are necessary if you render to raw HTML
+          //text = text.replace(/&/g, "&amp;");
+          //text = text.replace(/</g, "&lt;");
+          //text = text.replace(/>/g, "&gt;");
+          //text = text.replace('\n', '<br>', 'g');
+          console.log(text);
+          if (element) {
+            element.value += text + "\n";
+            element.scrollTop = element.scrollHeight; // focus on bottom
+          }
+        };
+      })(),
+      canvas: (function() {
+        var canvas = document.getElementById('canvas');
 
-		<div class="center">
-			<input type="checkbox" id="resize">Resize canvas
-			<input type="checkbox" id="pointerLock" checked>Lock/hide mouse pointer
-			&nbsp;&nbsp;&nbsp;
-			<input type="button" value="Fullscreen" onclick="Module.requestFullscreen(document.querySelector('#pointerLock').checked, document.querySelector('#resize').checked)">
-		</div>
+        // As a default initial behavior, pop up an alert when webgl context is lost. To make your
+        // application robust, you may want to override this behavior before shipping!
+        // See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
+        canvas.addEventListener("webglcontextlost", function(e) { alert('WebGL context lost. You will need to reload the page.');
+          e.preventDefault(); }, false);
 
-		<script type='text/javascript'>
-			const statusElement = document.querySelector('#status');
-			const progressElement = document.querySelector('#progress');
+        return canvas;
+      })(),
+      setStatus: function(text) {
+        if (!Module.setStatus.last) Module.setStatus.last = { time: Date.now(), text: '' };
+        if (text === Module.setStatus.last.text) return;
+        var m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
+        var now = Date.now();
+        if (m && now - Module.setStatus.last.time < 30) return; // if this is a progress update, skip it if too soon
+        Module.setStatus.last.time = now;
+        Module.setStatus.last.text = text;
+        if (m) {
+          text = m[1];
+          progressElement.value = parseInt(m[2]) * 100;
+          progressElement.max = parseInt(m[4]) * 100;
+          progressElement.hidden = false;
+          spinnerElement.hidden = false;
+        } else {
+          progressElement.value = null;
+          progressElement.max = null;
+          progressElement.hidden = true;
+          if (!text) spinnerElement.hidden = true;
+        }
+        statusElement.innerHTML = text;
+      },
+      totalDependencies: 0,
+      monitorRunDependencies: function(left) {
+        this.totalDependencies = Math.max(this.totalDependencies, left);
+        Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies - left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
+      }
+    };
+    Module.setStatus('Downloading...');
+    window.onerror = function() {
+      Module.setStatus('Exception thrown, see JavaScript console');
+      spinnerElement.style.display = 'none';
+      Module.setStatus = function(text) {
+        if (text) Module.printErr('[post-exception status] ' + text);
+      };
+    };
+  </script>
+  {{{ SCRIPT }}}
+</body>
 
-			var Module = {
-				get_models: function () {
-					const ptr = Module._get_models_string_pointer();
-					const ptr_size = Module._get_models_string_pointer_size();
-					const size = Module._get_models_string_size() - ptr_size; // last element is a end marker
-					const models = [];
-
-					for (let i = 0; i < size; i += ptr_size) {
-						const key = AsciiToString(getValue(ptr + i, '*'));
-
-						models.push(key.replace(/^MODEL_/, ''));
-					}
-
-					return models
-				},
-				get_sgb_revisions: function () {
-					const ptr = Module._get_sgb_revisions_string_pointer();
-					const ptr_size = Module._get_sgb_revisions_string_pointer_size();
-					const size = Module._get_sgb_revisions_string_size() - ptr_size; // last element is a end marker
-					const revisions = [];
-
-					for (let i = 0; i < size; i += ptr_size) {
-						const key = AsciiToString(getValue(ptr + i, '*'));
-
-						revisions.push(key.replace(/^SGB_/, ''));
-					}
-
-					return revisions
-				},
-				sync_fs: function () {
-					console.log("Syncing file system ...");
-
-					FS.syncfs(function (err) {
-						if (!err) {
-							console.log("File system synchronized.")
-						}
-						else {
-							console.error(err);
-						}
-					});
-				},
-				preRun: [],
-				postRun: [],
-				print: function () {
-					const text = Array.prototype.slice.call(arguments).join(' ');
-					console.log(text);
-				},
-				printErr: function() {
-					const text = Array.prototype.slice.call(arguments).join(' ');
-					console.error(text);
-				},
-				canvas: (function() {
-					const canvas = document.querySelector('#canvas');
-
-					// As a default initial behavior, pop up an alert when webgl context is lost. To make your
-					// application robust, you may want to override this behavior before shipping!
-					// See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
-					canvas.addEventListener("webglcontextlost", function(e) { alert('WebGL context lost. You will need to reload the page.'); e.preventDefault(); }, false);
-
-					return canvas;
-				})(),
-				setStatus: function (text) {
-					if (!Module.setStatus.last) Module.setStatus.last = { time: Date.now(), text: '' };
-					if (text === Module.setStatus.last.text) return;
-					const m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
-					const now = Date.now();
-					if (m && now - Module.setStatus.last.time < 30) return; // if this is a progress update, skip it if too soon
-					Module.setStatus.last.time = now;
-					Module.setStatus.last.text = text;
-					if (m) {
-						text = m[1];
-						progressElement.value = parseInt(m[2])*100;
-						progressElement.max = parseInt(m[4])*100;
-						progressElement.hidden = false;
-					}
-					else {
-						progressElement.value = null;
-						progressElement.max = null;
-						progressElement.hidden = true;
-					}
-					statusElement.innerHTML = text;
-				},
-				totalDependencies: 0,
-				monitorRunDependencies: function (left) {
-					this.totalDependencies = Math.max(this.totalDependencies, left);
-					Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
-				}
-			};
-
-			Module.setStatus('Downloading...');
-
-			window.onerror = function() {
-				Module.setStatus('Exception thrown, see JavaScript console');
-
-				Module.setStatus = function(text) {
-					if (text) Module.printErr('[post-exception status] ' + text);
-				};
-			};
-		</script>
-
-		{{{ SCRIPT }}}
-
-		<a href="#bottom" id="end"></a>
-	</body>
 </html>
