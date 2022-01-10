@@ -19,6 +19,15 @@ const stringHash = str => {
 const run_frame = time => {
 	window.requestAnimationFrame(run_frame);
 
+	if (document.visibilityState) {
+		if (document.visibilityState == "hidden") {
+			return;
+		}
+	}
+	else if (document.hidden) {
+		return;
+	}
+
 	const delta = time - last_frame_time;
 
 	if (delta > ms_per_frame) {
@@ -70,7 +79,7 @@ const loadROM = f => {
 	reader.readAsArrayBuffer(f);
 }
 
-const loadRemoteRom = url => {
+const loadRemoteRom = async url => {
 	const request = new Request(url);
 
 	const name = (_ => {
@@ -86,15 +95,13 @@ const loadRemoteRom = url => {
 		return stringHash(url)
 	})()
 
-	return fetch(request).then(response => {
-		if (!response.ok) {
-			throw new Error('HTTP error, status = ' + response.status);
-		}
+	const response = await fetch(request);
+	if (!response.ok) {
+		throw new Error('HTTP error, status = ' + response.status);
+	}
 
-		return response.arrayBuffer();
-	}).then(buf => {
-		loadRomFromMemory(name, buf)
-	})
+	const buf = await response.arrayBuffer();
+	loadRomFromMemory(name, buf);
 }
 
 const handleFileSelect = (evt, files) => {
