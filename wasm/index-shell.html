@@ -90,8 +90,6 @@
     <input type="button" value="Fullscreen" onclick="Module.requestFullscreen(document.getElementById('pointerLock').checked, document.getElementById('resize').checked)">
   </div>
   <hr />
-  <textarea class="emscripten" id="output" rows="8"></textarea>
-  <hr>
   <script type='text/javascript'>
     var statusElement = document.getElementById('status');
     var progressElement = document.getElementById('progress');
@@ -110,25 +108,16 @@
           }
         });
       },
+      logReadFiles: true,
+      printWithColors: true,
       preRun: [],
       postRun: [],
-      print: (function() {
-        var element = document.getElementById('output');
-        if (element) element.value = ''; // clear browser cache
-        return function(text) {
-          if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
-          // These replacements are necessary if you render to raw HTML
-          //text = text.replace(/&/g, "&amp;");
-          //text = text.replace(/</g, "&lt;");
-          //text = text.replace(/>/g, "&gt;");
-          //text = text.replace('\n', '<br>', 'g');
-          console.log(text);
-          if (element) {
-            element.value += text + "\n";
-            element.scrollTop = element.scrollHeight; // focus on bottom
-          }
-        };
-      })(),
+      print: function(text) {
+        console.log.apply(console, arguments);
+      },
+      printErr: function() {
+        console.error.apply(console, arguments);
+      },
       canvas: (function() {
         var canvas = document.getElementById('canvas');
 

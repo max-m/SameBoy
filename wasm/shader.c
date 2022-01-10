@@ -73,9 +73,6 @@ static GLuint create_shader(const char *source, GLenum type)
 
 static GLuint create_program(const char *vsh, const char *fsh)
 {
-    fprintf(stderr, "FSH:\n%s\n", vsh);
-    fprintf(stderr, "FSH:\n%s\n", fsh);
-
     // Build shaders
     GLuint vertex_shader = create_shader(vsh, GL_VERTEX_SHADER);
     GLuint fragment_shader = create_shader(fsh, GL_FRAGMENT_SHADER);
@@ -83,18 +80,18 @@ static GLuint create_program(const char *vsh, const char *fsh)
     // Create program
     GLuint program = glCreateProgram();
 
-    fprintf(stderr, "Creating program...\n");
+    printf("Creating program...\n");
 
     // Attach shaders
     glAttachShader(program, vertex_shader);
     glAttachShader(program, fragment_shader);
 
-    fprintf(stderr, "Linking program...\n");
+    printf("Linking program...\n");
 
     // Link program
     glLinkProgram(program);
 
-    fprintf(stderr, "Checking for errors...\n");
+    printf("Checking for errors...\n");
 
     // Check for errors
     GLint status;
@@ -109,7 +106,9 @@ static GLuint create_program(const char *vsh, const char *fsh)
             char* info_log = (char*)malloc(sizeof(char) * info_len);
 
             glGetProgramInfoLog(program, info_len, NULL, info_log);
-            printf("Error linking program:\n%s\n", info_log);
+            fprintf(stderr, "Error linking program:\n%s\n", info_log);
+            fprintf(stderr, "Vertex Shader:\n%s\n", vsh);
+            fprintf(stderr, "Fragment Shader:\n%s\n", fsh);
 
             free(info_log);
         }

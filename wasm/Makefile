@@ -63,14 +63,15 @@ CFLAGS += -Wno-pass-failed
 CFLAGS += -s USE_SDL=2
 
 # Build as library
-WASM_LDFLAGS := --no-entry
+LDFLAGS += --no-entry
 # Enable WASM and a virtual filesystem
-WASM_LDFLAGS += -s WASM=1 -lidbfs.js
+LDFLAGS += -s WASM=1 -lidbfs.js
+LDFLAGS += -s ALLOW_MEMORY_GROWTH=1
 # Enable WebGL 2 support
-WASM_LDFLAGS += -s USE_WEBGL2=1
+LDFLAGS += -s USE_WEBGL2=1
 
-WASM_LDFLAGS += --preload-file $(BOOTROMS_DIR)@/BootROMs --preload-file $(CORE_DIR)/Shaders@/Shaders
-WASM_LDFLAGS += -s "EXPORTED_RUNTIME_METHODS=['ccall', 'cwrap', 'getValue', 'AsciiToString', 'FS']"
+LDFLAGS += --preload-file $(BOOTROMS_DIR)@/BootROMs --preload-file $(CORE_DIR)/Shaders@/Shaders
+LDFLAGS += -s "EXPORTED_RUNTIME_METHODS=['ccall', 'cwrap', 'getValue', 'AsciiToString', 'FS']"
 
 LDFLAGS += -lc -lm -ldl
 CFLAGS += -Wno-deprecated-declarations
@@ -80,7 +81,7 @@ CFLAGS += -g -g4
 CFLAGS += --cpuprofiler --memoryprofiler
 else ifeq ($(CONF), release)
 CFLAGS += -O3 -flto -DNDEBUG
-WASM_LDFLAGS += -flto --emit-symbol-map
+LDFLAGS += -flto --emit-symbol-map
 else
 $(error Invalid value for CONF: $(CONF). Use "debug", "release" or "native_release")
 endif
@@ -149,8 +150,7 @@ $(BIN)/index.html: $(CORE_OBJECTS) $(WASM_OBJECTS) index-shell.html main.js
 		-o $@ \
 		--shell-file "index-shell.html" \
 		--post-js "main.js" \
-		$(LDFLAGS) \
-		$(WASM_LDFLAGS)
+		$(LDFLAGS)
 ifeq ($(CONF), release)
 endif
 

@@ -1,13 +1,15 @@
+#include <stdbool.h>
+#include <stdlib.h>
+#include <stdio.h>
+
 #include <emscripten.h>
 #include <SDL2/SDL_video.h>
 #include <SDL2/SDL.h>
 
-#include <stdbool.h>
-#include <stdio.h>
+#include "utils.h"
 
 #include <Core/gb.h>
 #include "main.h"
-#include "utils.h"
 #include "shader.h"
 
 #include "SDL/audio/audio.h"
@@ -101,7 +103,7 @@ configuration_t configuration =
 int save_battery(GB_gameboy_t *gb, const char *path) {
     int result = GB_save_battery(gb, path);
 
-    fprintf(stderr, "Saving battery: \"%s\": %d\n", path, result);
+    printf("Saving battery: \"%s\": %d\n", path, result);
 
     EM_ASM(Module.sync_fs());
 
@@ -248,15 +250,15 @@ void init_gb() {
         }[configuration.sgb_revision],
     }[configuration.model];
 
-    fprintf(stderr, "Initializing ...\n");
+    printf("Initializing ...\n");
 
     if (GB_is_inited(&gb)) {
-        fprintf(stderr, "Already initialized, switching model ...\n");
+        printf("Already initialized, switching model ...\n");
 
         GB_switch_model_and_reset(&gb, model);
     }
     else {
-        fprintf(stderr, "Initializing new GB ...\n");
+        printf("Initializing new GB ...\n");
 
         GB_init(&gb, model);
 
@@ -298,7 +300,7 @@ void init_gb() {
 
     const char *boot_rom_path = resource_path(concat("BootROMs/", boot_rom));
 
-    fprintf(stderr, "Loading boot ROM: %s\n", boot_rom_path);
+    printf("Loading boot ROM: %s\n", boot_rom_path);
 
     if (GB_load_boot_rom(&gb, boot_rom_path) != 0) {
         fprintf(stderr, "Failed to initialize\n");
@@ -311,7 +313,7 @@ int EMSCRIPTEN_KEEPALIVE init() {
     pixel_format = (SDL_PixelFormat *) malloc(sizeof(SDL_PixelFormat));
 
     if (!pixel_format) {
-        fprintf(stderr, "Failed to allocate memory\n");
+        fprintf(stderr, "Failed to allocate memory");
         return EXIT_FAILURE;
     }
 
@@ -322,7 +324,7 @@ int EMSCRIPTEN_KEEPALIVE init() {
         return EXIT_FAILURE;
     }
 
-    fprintf(stderr, "SameBoy v" xstr(VERSION) "\n");
+    printf("SameBoy v" xstr(VERSION) "\n");
 
     window = SDL_CreateWindow(
         "SameBoy v" xstr(VERSION),
@@ -334,7 +336,7 @@ int EMSCRIPTEN_KEEPALIVE init() {
     );
 
     if (!window) {
-        printf("Could not create window: %s\n", SDL_GetError());
+        fprintf(stderr, "Could not create window: %s\n", SDL_GetError());
         return EXIT_FAILURE;
     }
 
@@ -354,22 +356,22 @@ int EMSCRIPTEN_KEEPALIVE init() {
     }
 
     if (gl_context == NULL) {
-        fprintf(stderr, "Using software renderer!\n");
+        fprintf(stderr, "Using software renderer!");
         renderer = SDL_CreateRenderer(window, -1, 0);
         texture = SDL_CreateTexture(renderer, SDL_GetWindowPixelFormat(window), SDL_TEXTUREACCESS_STREAMING, 160, 144);
         pixel_format = SDL_AllocFormat(SDL_GetWindowPixelFormat(window));
     }
     else {
-        fprintf(stderr, "Using OpenGL renderer!\n");
+        printf("Using OpenGL renderer!\n");
         pixel_format = SDL_AllocFormat(SDL_PIXELFORMAT_ABGR8888);
 
-        fprintf(stderr, "GLES: %s\n", glGetString(GL_VERSION));
-        fprintf(stderr, "GLSL: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
-        fprintf(stderr, "Parsed GL version: %hu\n", get_gl_version());
+        printf("GLES: %s\n", glGetString(GL_VERSION));
+        printf("GLSL: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
+        printf("Parsed GL version: %hu\n", get_gl_version());
     }
 
     unsigned audio_sample_rate = query_sample_rate_of_audiocontexts();
-    fprintf(stderr, "Sample rate: %u\n", audio_sample_rate);
+    printf("Sample rate: %u\n", audio_sample_rate);
 
     GB_audio_init(audio_sample_rate);
 
@@ -444,7 +446,7 @@ void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_s
 }
 
 void EMSCRIPTEN_KEEPALIVE quit() {
-    fprintf(stderr, "Quitting ...\n");
+    printf("Quitting ...\n");
 
     emscripten_set_main_loop(NULL, 0, false);
 
