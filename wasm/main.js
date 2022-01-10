@@ -40,29 +40,14 @@ const run_frame = time => {
 const loadRomFromMemory = (name, data) => {
 	const pos = name.lastIndexOf('.');
 	const battery_name = name.substr(0, pos < 0 ? name.length : pos) + '.sav';
-
-	try {
-		// try to create the virtual ROM folder
-		FS.mkdir('/rom');
-	} catch (e) { }
-
-	try {
-		// try to delete all previous ROM files
-		for (let file of FS.readdir('/rom').filter(f => f != '.' && f != '..')) {
-			FS.unlink(`/rom/${file}`)
-		}
-	} catch (e) { }
-
-	// create a new virtual file from memory
-	Module['FS_createDataFile']('/rom/', name, new Uint8Array(data), true, true);
-
-	const rom_path = allocate(intArrayFromString(`/rom/${name}`), 'i8', ALLOC_NORMAL);
 	const battery_path = allocate(intArrayFromString(`/persist/${battery_name}`), 'i8', ALLOC_NORMAL);
 
-	Module._load_rom_from_file(rom_path, battery_path);
+	// Copy data into WASM memory
+	const ptr = Module._malloc(data.byteLength);
+	const wasm_buf = new Uint8Array(Module.HEAPU8.buffer, ptr, data.byteLength);
+	wasm_buf.set(new Uint8Array(data));
 
-	// The ROM has been read into memory, we can unlink the file now
-	FS.unlink(`/rom/${name}`)
+	Module._load_rom(wasm_buf.byteOffset, wasm_buf.byteLength, battery_path);
 
 	window.requestAnimationFrame(run_frame)
 }

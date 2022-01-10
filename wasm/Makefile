@@ -89,6 +89,7 @@ endif
 
 bootroms: $(BOOTROMS_DIR)/agb_boot.bin \
           $(BOOTROMS_DIR)/cgb_boot.bin \
+          $(BOOTROMS_DIR)/cgb0_boot.bin \
           $(BOOTROMS_DIR)/dmg_boot.bin \
           $(BOOTROMS_DIR)/sgb_boot.bin \
           $(BOOTROMS_DIR)/sgb2_boot.bin

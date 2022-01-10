@@ -417,8 +417,6 @@ int EMSCRIPTEN_KEEPALIVE init() {
         audio_workaround();
     });
 
-    init_gb();
-
     if (!init_shader_with_name(&shader, configuration.filter)) {
         init_shader_with_name(&shader, "NearestNeighbor");
     }
@@ -433,19 +431,16 @@ int EMSCRIPTEN_KEEPALIVE load_boot_rom_from_file(char* filename) {
     return GB_load_boot_rom(&gb, filename);
 }
 
-int EMSCRIPTEN_KEEPALIVE load_rom_from_file(char* filename, char* battery_save_path) {
+void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_save_path) {
     init_gb();
 
-    int result = GB_load_rom(&gb, filename);
+    GB_load_rom_from_buffer(&gb, buffer, size);
+    free(buffer);
 
-    if (result == 0) {
-        battery_save_path_ptr = battery_save_path;
-        GB_load_battery(&gb, battery_save_path);
+    GB_load_battery(&gb, battery_save_path);
 
-        save_battery(&gb, battery_save_path_ptr);
-    }
-
-    return result;
+    save_battery(&gb, battery_save_path);
+    battery_save_path_ptr = battery_save_path;
 }
 
 void EMSCRIPTEN_KEEPALIVE quit() {
