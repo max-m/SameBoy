@@ -139,17 +139,19 @@ $(OBJ)/%.c.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BIN)/ressources/%:
-	-@$(MKDIR) -p $(dir $@)
-	cp -a $(patsubst $(BIN)/%,%,$@) $@
+	-@$(MKDIR) -p $(dir $(patsubst $(BIN)/ressources/%,$(BIN)/%,$@))
 
-$(BIN)/index.html: $(CORE_OBJECTS) $(WASM_OBJECTS) index-shell.html main.js
+	cp -a $(patsubst $(BIN)/%,%,$@) $(patsubst $(BIN)/ressources/%,$(BIN)/%,$@)
+
+$(BIN)/index.html: $(CORE_OBJECTS) $(WASM_OBJECTS) index-shell.html js/pre.js js/main.js
 	-@$(MKDIR) -p $(dir $@)
 	$(CC) \
 		$(CFLAGS) \
 		$(filter %.o, $^) \
 		-o $@ \
 		--shell-file "index-shell.html" \
-		--post-js "main.js" \
+		--pre-js "js/pre.js" \
+		--post-js "js/main.js" \
 		$(LDFLAGS)
 ifeq ($(CONF), release)
 endif

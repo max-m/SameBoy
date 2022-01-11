@@ -105,7 +105,7 @@ int save_battery(GB_gameboy_t *gb, const char *path) {
 
     printf("Saving battery: \"%s\": %d\n", path, result);
 
-    EM_ASM(Module.sync_fs());
+    EM_ASM(Module.sameboy_syncfs());
 
     return result;
 }
@@ -212,6 +212,18 @@ void render_texture(void *pixels,  void *previous)
 
 static void handle_events(GB_gameboy_t *gb) {
     GB_set_key_state(gb, GB_KEY_START, true);
+
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+        switch (event.type) {
+            case SDL_WINDOWEVENT: {
+                if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+                    update_viewport();
+                }
+                break;
+            }
+        }
+    }
 }
 
 static void vblank(GB_gameboy_t *gb) {
@@ -332,7 +344,7 @@ int EMSCRIPTEN_KEEPALIVE init() {
         SDL_WINDOWPOS_UNDEFINED,
         VIDEO_WIDTH * 2,
         VIDEO_HEIGHT * 2,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS | SDL_WINDOW_ALLOW_HIGHDPI
+        SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_RESIZABLE
     );
 
     if (!window) {

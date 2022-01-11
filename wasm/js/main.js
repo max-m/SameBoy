@@ -2,10 +2,12 @@ const frame_rate = (0x400000 / 70224.0);
 const ms_per_frame = 1000 / frame_rate;
 let last_frame_time = 0;
 
-const stringHash = str => {
+function stringHash(str) {
 	let hash = 0;
 
-	if (str.length === 0) return hash;
+	if (str.length === 0) {
+		return hash;
+	}
 
 	for (let i = 0; i < str.length; i++) {
 		let chr = str.charCodeAt(i);
@@ -16,7 +18,7 @@ const stringHash = str => {
 	return hash;
 }
 
-const run_frame = time => {
+function run_frame(time) {
 	window.requestAnimationFrame(run_frame);
 
 	if (document.visibilityState) {
@@ -37,7 +39,7 @@ const run_frame = time => {
 	}
 }
 
-const loadRomFromMemory = (name, data) => {
+async function loadRomFromMemory(name, data) {
 	const pos = name.lastIndexOf('.');
 	const battery_name = name.substr(0, pos < 0 ? name.length : pos) + '.sav';
 	const battery_path = allocate(intArrayFromString(`/persist/${battery_name}`), 'i8', ALLOC_NORMAL);
@@ -49,19 +51,24 @@ const loadRomFromMemory = (name, data) => {
 
 	Module._load_rom(wasm_buf.byteOffset, wasm_buf.byteLength, battery_path);
 
-	window.requestAnimationFrame(run_frame)
+	window.requestAnimationFrame(run_frame);
 }
 
-const loadROM = f => {
-	const reader = new FileReader();
+async function loadROM(file) {
+	const name = file.name;
 
-	reader.onload = (file => {
-		return event => {
-			loadRomFromMemory(file.name, event.target.result)
-		};
-	})(f);
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
 
-	reader.readAsArrayBuffer(f);
+		reader.onload = () => {
+			resolve(reader.result);
+		}
+
+		reader.onerror = reject;
+
+		reader.readAsArrayBuffer(file);
+	})
+	.then(buffer => loadRomFromMemory(name, buffer));
 }
 
 const loadRemoteRom = async url => {
@@ -86,22 +93,22 @@ const loadRemoteRom = async url => {
 	}
 
 	const buf = await response.arrayBuffer();
-	loadRomFromMemory(name, buf);
+	await loadRomFromMemory(name, buf);
 }
 
-const handleFileSelect = (evt, files) => {
-	evt.stopPropagation();
-	evt.preventDefault();
+async function handleFileSelect(event, files) {
+	event.stopPropagation();
+	event.preventDefault();
 
 	if (files.length) {
-		loadROM(files[0]);
+		await loadROM(files[0]);
 	}
 }
 
-const handleDragOver = evt => {
-	evt.stopPropagation();
-	evt.preventDefault();
-	evt.dataTransfer.dropEffect = 'copy'; // Explicitly show this is a copy.
+function handleDragOver(event) {
+	event.stopPropagation();
+	event.preventDefault();
+	event.dataTransfer.dropEffect = 'copy';
 }
 
 window.addEventListener('dragover', handleDragOver, false);
@@ -114,27 +121,11 @@ document.getElementById('file').addEventListener('change', e => {
 	handleFileSelect(e, e.target.files);
 }, false);
 
-Module.onRuntimeInitialized = _ => {
-	FS.mkdir('/persist');
-	FS.mount(IDBFS, { }, '/persist');
-
-	FS.syncfs(true, function (err) {
-		if (!err) {
-			console.log('Successfully loaded FS from persistent storage')
-		}
-		else {
-			console.error(err)
-		}
-
-		// Call the exported init function
-		Module._init();
-	})
-};
-
-const romClickHandler = event => {
+async function romClickHandler(event) {
 	event.stopPropagation();
 	event.preventDefault();
-	loadRemoteRom(event.target.href);
+
+	await loadRemoteRom(event.target.href);
 }
 
 for (const anchor of document.querySelectorAll('#demo-roms a')) {
