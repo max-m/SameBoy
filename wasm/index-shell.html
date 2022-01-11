@@ -1,41 +1,63 @@
 <!doctype html>
 <html lang="en-us">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width,initial-scale=1">
+		<title>SameBoy</title>
+		<link href="css/main.css" rel="stylesheet">
+	</head>
+	<body>
+		<div id="menu">
+			<ul id="demo-roms">
 
-<head>
-	<meta charset="utf-8">
-	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-	<title>SameBoy</title>
+				<li><a href="demos/oh.gb">Oh! </a></li>
+				<li><a href="demos/pocket.gb">Is that a demo in your pocket?</a></li>
+				<li><a href="demos/gejmboj.gb">Gejmboj </a></li>
+				<li><a href="demos/video.gbc">GBVP1 </a></li>
+				<li><a href="demos/mezase.gbc">GBVP2 </a></li>
+				<li><a href="demos/pht-mr.gbc">Mental Respirator</a></li>
+				<li><a href="demos/pht-pz.gbc">It came from planet Zilog</a></li>
+			</ul>
 
-	<link rel="stylesheet" type="text/css" href="css/main.css">
-</head>
+			<input accept=".gb,.gbc,.bin" id="file" name="file" type="file">
+		</div>
 
-<body>
-	<ul id="demo-roms">
-		<li><a href="demos/oh.gb">Oh!</a></li>
-		<li><a href="demos/pocket.gb">Is that a demo in your pocket?</a></li>
-		<li><a href="demos/gejmboj.gb">Gejmboj</a></li>
-		<li><a href="demos/video.gbc">GBVP1</a></li>
-		<li><a href="demos/mezase.gbc">GBVP2</a></li>
-		<li><a href="demos/pht-mr.gbc">Mental Respirator</a></li>
-		<li><a href="demos/pht-pz.gbc">It came from planet Zilog</a></li>
-	</ul>
-	<input type="file" id="file" name="file" accept=".gb,.gbc,.bin">
+		<div id="system">
+			<div id="display">
+				<figure id="spinner">
+					<div class="spinner"></div>
 
-	<hr/>
-	<figure style="overflow:visible;" id="spinner">
-		<div class="spinner"></div>
-		<center style="margin-top:0.5em"><strong>emscripten</strong></center>
-	</figure>
-	<div class="emscripten" id="status">Downloading...</div>
-	<div class="emscripten">
-		<progress value="0" max="100" id="progress" hidden=1></progress>
-	</div>
+					<div class="info">
+						<div id="status">Downloading...</div>
+						<progress hidden id="progress" max="100" value="0"></progress>
+					</div>
+				</figure>
 
-	<div class="emscripten_border">
-		<canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
-	</div>
+				<canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1" width="320" height="288"></canvas>
+			</div>
 
-	{{{ SCRIPT }}}
-</body>
+			<div id="controls">
+				<div id="dpad">
+					<span id="upButton" class="button"></span>
+					<span id="rightButton" class="button"></span>
+					<span id="downButton" class="button"></span>
+					<span id="leftButton" class="button"></span>
+				</div>
 
+				<span id="startButton" class="button"></span>
+				<span id="selectButton" class="button"></span>
+
+				<span id="aButton" class="button"></span>
+				<span id="bButton" class="button"></span>
+
+				<span id="menuButton" class="button">
+					<span></span>
+					<span></span>
+					<span></span>
+				</span>
+			</div>
+		</div>
+
+		{{{ SCRIPT }}}
+	</body>
 </html>

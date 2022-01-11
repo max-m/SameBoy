@@ -61,6 +61,7 @@ CFLAGS += -I$(CORE_DIR)
 # -Werror implies -Wpass-failed=transform-warning and for some reason Clang fails to unroll some loops in apu.c
 CFLAGS += -Wno-pass-failed
 CFLAGS += -s USE_SDL=2
+CFLAGS += -DGB_DISABLE_TIMEKEEPING -DGB_DISABLE_REWIND -DGB_DISABLE_DEBUGGER -DGB_DISABLE_CHEATS
 
 # Build as library
 LDFLAGS += --no-entry
@@ -69,6 +70,8 @@ LDFLAGS += -s WASM=1 -lidbfs.js
 LDFLAGS += -s ALLOW_MEMORY_GROWTH=1
 # Enable WebGL 2 support
 LDFLAGS += -s USE_WEBGL2=1
+
+LDFLAGS += -s LLD_REPORT_UNDEFINED
 
 LDFLAGS += --preload-file $(BOOTROMS_DIR)@/BootROMs --preload-file $(CORE_DIR)/Shaders@/Shaders
 LDFLAGS += -s "EXPORTED_RUNTIME_METHODS=['ccall', 'cwrap', 'getValue', 'AsciiToString', 'FS']"
@@ -97,7 +100,23 @@ bootroms: $(BOOTROMS_DIR)/agb_boot.bin \
 
 # Get a list of our source files and their respective object file targets
 
-CORE_SOURCES_RAW := $(shell ls $(CORE_DIR)/Core/*.c)
+# CORE_SOURCES_RAW := $(shell ls $(CORE_DIR)/Core/*.c)
+CORE_SOURCES_RAW := $(CORE_DIR)/Core/gb.c \
+               $(CORE_DIR)/Core/sgb.c \
+               $(CORE_DIR)/Core/apu.c \
+               $(CORE_DIR)/Core/memory.c \
+               $(CORE_DIR)/Core/mbc.c \
+               $(CORE_DIR)/Core/timing.c \
+               $(CORE_DIR)/Core/display.c \
+               $(CORE_DIR)/Core/symbol_hash.c \
+               $(CORE_DIR)/Core/camera.c \
+               $(CORE_DIR)/Core/sm83_cpu.c \
+               $(CORE_DIR)/Core/joypad.c \
+               $(CORE_DIR)/Core/save_state.c \
+               $(CORE_DIR)/Core/random.c \
+               $(CORE_DIR)/Core/rumble.c \
+               # $(CORE_DIR)/Core/printer.c
+
 CORE_SOURCES := $(shell realpath --relative-to=$(CORE_DIR) $(CORE_SOURCES_RAW))
 CORE_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(CORE_SOURCES))
 

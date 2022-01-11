@@ -1,17 +1,6 @@
 #ifndef main_h
 #define main_h
 
-#define str(x) #x
-#define xstr(x) str(x)
-
-#define VIDEO_WIDTH 160
-#define VIDEO_HEIGHT 144
-#define VIDEO_PIXELS (VIDEO_WIDTH * VIDEO_HEIGHT)
-
-#define SGB_VIDEO_WIDTH 256
-#define SGB_VIDEO_HEIGHT 224
-#define SGB_VIDEO_PIXELS (SGB_VIDEO_WIDTH * SGB_VIDEO_HEIGHT)
-
 typedef enum {
       JOYPAD_AXISES_X,
       JOYPAD_AXISES_Y,

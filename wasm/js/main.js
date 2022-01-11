@@ -1,6 +1,7 @@
 const frame_rate = (0x400000 / 70224.0);
 const ms_per_frame = 1000 / frame_rate;
 let last_frame_time = 0;
+let running = true;
 
 function stringHash(str) {
 	let hash = 0;
@@ -18,11 +19,20 @@ function stringHash(str) {
 	return hash;
 }
 
-function run_frame(time) {
-	window.requestAnimationFrame(run_frame);
+function simulate_key_event(type, key, which) {
+	const e = new Event(type, { bubbles: true });
 
+	e.code = key;
+	e.key = key;
+	e.keyCode = which;
+	e.which = which;
+
+	Module.canvas.dispatchEvent(e);
+}
+
+function run_frame(time) {
 	if (document.visibilityState) {
-		if (document.visibilityState == "hidden") {
+		if (document.visibilityState == 'hidden') {
 			return;
 		}
 	}
@@ -36,6 +46,13 @@ function run_frame(time) {
 		Module._run_frame();
 
 		last_frame_time = time - (delta % ms_per_frame);
+	}
+
+	if (running) {
+		window.requestAnimationFrame(run_frame);
+	}
+	else {
+		console.log('Stopping the main loop');
 	}
 }
 
@@ -51,7 +68,13 @@ async function loadRomFromMemory(name, data) {
 
 	Module._load_rom(wasm_buf.byteOffset, wasm_buf.byteLength, battery_path);
 
-	window.requestAnimationFrame(run_frame);
+	// Stop the main loop if it was running
+	running = false;
+	window.requestAnimationFrame(() => {
+		// Schedule the main loop to run
+		running = true;
+		window.requestAnimationFrame(run_frame);
+	});
 }
 
 async function loadROM(file) {
@@ -111,16 +134,6 @@ function handleDragOver(event) {
 	event.dataTransfer.dropEffect = 'copy';
 }
 
-window.addEventListener('dragover', handleDragOver, false);
-
-window.addEventListener('drop', e => {
-	handleFileSelect(e, e.dataTransfer.files);
-}, false);
-
-document.getElementById('file').addEventListener('change', e => {
-	handleFileSelect(e, e.target.files);
-}, false);
-
 async function romClickHandler(event) {
 	event.stopPropagation();
 	event.preventDefault();
@@ -128,6 +141,199 @@ async function romClickHandler(event) {
 	await loadRemoteRom(event.target.href);
 }
 
-for (const anchor of document.querySelectorAll('#demo-roms a')) {
-	anchor.addEventListener('click', romClickHandler);
+function setupDpad() {
+	const dpad  = document.getElementById('dpad');
+
+	const up    = document.getElementById('upButton');
+	const down  = document.getElementById('downButton');
+	const left  = document.getElementById('leftButton');
+	const right = document.getElementById('rightButton');
+
+	let isActive = false;
+
+	let isLeft  = false;
+	let isRight = false;
+	let isUp    = false;
+	let isDown  = false;
+
+	function dispatch(button, active) {
+		button.classList[active ? 'add' : 'remove']('active');
+
+		const eventType = active ? 'keydown' : 'keyup';
+
+		switch (button) {
+			case up:
+				simulate_key_event(eventType, 'ArrowUp', 38);
+			break;
+
+			case down:
+				simulate_key_event(eventType, 'ArrowDown', 40);
+			break;
+
+			case left:
+				simulate_key_event(eventType, 'ArrowLeft', 37);
+			break;
+
+			case right:
+				simulate_key_event(eventType, 'ArrowRight', 39);
+			break;
+		}
+	}
+
+	function update(x = 0, y = 0, bounds) {
+		const xRel = x / bounds.width;
+		const yRel = y / bounds.height;
+
+		const isLeftNew  = xRel <= 0.4;
+		const isRightNew = xRel >= 0.6;
+		const isUpNew    = yRel <= 0.4;
+		const isDownNew  = yRel >= 0.6;
+
+		if (isLeft != isLeftNew) {
+			isLeft = isLeftNew;
+			dispatch(left, isLeft);
+		}
+
+		if (isRight != isRightNew) {
+			isRight = isRightNew;
+			dispatch(right, isRight);
+		}
+
+		if (isUp != isUpNew) {
+			isUp = isUpNew;
+			dispatch(up, isUp);
+		}
+
+		if (isDown != isDownNew) {
+			isDown = isDownNew;
+			dispatch(down, isDown);
+		}
+	}
+
+	function activate(event) {
+		event.preventDefault();
+
+		isActive = true;
+
+		const bounds = dpad.getBoundingClientRect();
+		const x = event.clientX - bounds.x;
+		const y = event.clientY - bounds.y;
+		update(x, y, bounds);
+	}
+
+	function deactivate(event) {
+		event.preventDefault();
+
+		isActive = false;
+		isLeft   = false;
+		isRight  = false;
+		isUp     = false;
+		isDown   = false;
+
+		dispatch(left, false);
+		dispatch(right, false);
+		dispatch(up, false);
+		dispatch(down, false);
+	}
+
+	function move(event) {
+		event.preventDefault();
+
+		if (isActive) {
+			const bounds = dpad.getBoundingClientRect();
+			const x = event.clientX - bounds.x;
+			const y = event.clientY - bounds.y;
+			update(x, y, bounds);
+		}
+	}
+
+	dpad.addEventListener('pointerdown',  activate);
+	dpad.addEventListener('pointerup',    deactivate);
+	dpad.addEventListener('pointercancel', deactivate);
+	dpad.addEventListener('pointermove',   move);
+}
+
+function setupSimpleButton(button, key, which) {
+	function activate(event) {
+		event.preventDefault();
+
+		simulate_key_event('keydown', key, which);
+	}
+
+	function deactivate(event) {
+		event.preventDefault();
+
+		simulate_key_event('keyup', key, which);
+	}
+
+	button.addEventListener('pointerdown',  activate);
+	button.addEventListener('pointerup',    deactivate);
+	button.addEventListener('pointercancel', deactivate);
+}
+
+function setupControls() {
+	setupDpad();
+
+	setupSimpleButton(document.getElementById('startButton'), 'Enter', 13);
+	setupSimpleButton(document.getElementById('selectButton'), 'Backspace', 8);
+
+	setupSimpleButton(document.getElementById('aButton'), 'x', 88);
+	setupSimpleButton(document.getElementById('bButton'), 'z', 90);
+}
+
+function startup() {
+	window.addEventListener('dragover', handleDragOver, false);
+
+	window.addEventListener('drop', e => {
+		handleFileSelect(e, e.dataTransfer.files);
+	}, false);
+
+	document.getElementById('file').addEventListener('change', e => {
+		handleFileSelect(e, e.target.files);
+	}, false);
+
+	for (const anchor of document.querySelectorAll('#demo-roms a')) {
+		anchor.addEventListener('click', romClickHandler);
+	}
+
+	document.getElementById('menuButton').addEventListener('click', event => {
+		event.preventDefault();
+		event.stopPropagation();
+
+		const menuButton = event.target;
+		const menu = document.getElementById('menu');
+
+		menuButton.classList.add('active');
+		menu.style.display = 'block';
+
+		function onOutsideClick(event) {
+			let node = event.target;
+
+			while (node) {
+				if (node == menu) {
+					return;
+				}
+
+				node = node.parentElement;
+			}
+
+			menuButton.classList.remove('active');
+			menu.style.display = '';
+
+			document.body.removeEventListener('click', onOutsideClick);
+		}
+
+		document.body.addEventListener('click', onOutsideClick);
+	});
+
+	setupControls();
+}
+
+console.log(document.readyState)
+
+if (document.readyState !== "loading") {
+	setTimeout(startup, 0);
+}
+else {
+	window.addEventListener('DOMContentLoaded', startup);
 }

@@ -6,9 +6,9 @@
 #include <SDL2/SDL_video.h>
 #include <SDL2/SDL.h>
 
-#include "utils.h"
 
 #include <Core/gb.h>
+#include "utils.h"
 #include "main.h"
 #include "shader.h"
 
@@ -97,6 +97,7 @@ configuration_t configuration =
     .rumble_mode = GB_RUMBLE_ALL_GAMES,
     .default_scale = 2,
     .color_temperature = 10,
+    // .border_mode = GB_BORDER_ALWAYS,
 };
 
 // Use this function instead of GB_save_battery()
@@ -145,8 +146,8 @@ void update_viewport(void)
     double y_factor = win_height / (double) GB_get_screen_height(&gb);
 
     if (configuration.scaling_mode == GB_SDL_SCALING_INTEGER_FACTOR) {
-        x_factor = (int)(x_factor);
-        y_factor = (int)(y_factor);
+        x_factor = (unsigned)(x_factor);
+        y_factor = (unsigned)(y_factor);
     }
 
     if (configuration.scaling_mode != GB_SDL_SCALING_ENTIRE_WINDOW) {
@@ -172,12 +173,11 @@ void update_viewport(void)
     }
 }
 
-
 void render_texture(void *pixels,  void *previous)
 {
     if (renderer) {
         if (pixels) {
-            SDL_UpdateTexture(texture, NULL, pixels, 160 * sizeof (uint32_t));
+            SDL_UpdateTexture(texture, NULL, pixels, GB_get_screen_width(&gb) * sizeof (uint32_t));
         }
         SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, texture, NULL, NULL);
@@ -211,8 +211,6 @@ void render_texture(void *pixels,  void *previous)
 }
 
 static void handle_events(GB_gameboy_t *gb) {
-    GB_set_key_state(gb, GB_KEY_START, true);
-
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
@@ -220,6 +218,17 @@ static void handle_events(GB_gameboy_t *gb) {
                 if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
                     update_viewport();
                 }
+                break;
+            }
+
+            case SDL_KEYDOWN:
+            case SDL_KEYUP: {
+                for (unsigned i = 0; i < GB_KEY_MAX; i++) {
+                    if (event.key.keysym.scancode == configuration.keys[i]) {
+                        GB_set_key_state(gb, i, event.type == SDL_KEYDOWN);
+                    }
+                }
+
                 break;
             }
         }
@@ -244,6 +253,40 @@ static void vblank(GB_gameboy_t *gb) {
 static uint32_t rgb_encode(GB_gameboy_t *gb, uint8_t r, uint8_t g, uint8_t b)
 {
     return SDL_MapRGB(pixel_format, r, g, b);
+}
+
+static void screen_size_changed(void)
+{
+    if (GB_get_screen_width(&gb) > 160) {
+        EM_ASM({ document.body.classList.add('hasScreenBorder'); });
+    }
+    else {
+        EM_ASM({ document.body.classList.remove('hasScreenBorder'); });
+    }
+
+    if (renderer) {
+        SDL_DestroyTexture(texture);
+        texture = SDL_CreateTexture(
+            renderer,
+            SDL_GetWindowPixelFormat(window),
+            SDL_TEXTUREACCESS_STREAMING,
+            GB_get_screen_width(&gb),
+            GB_get_screen_height(&gb)
+        );
+    }
+
+    SDL_SetWindowMinimumSize(
+        window,
+        GB_get_screen_width(&gb),
+        GB_get_screen_height(&gb)
+    );
+
+    SDL_SetWindowSize(window,
+        GB_get_screen_width(&gb) * configuration.default_scale,
+        GB_get_screen_height(&gb) * configuration.default_scale
+    );
+
+    update_viewport();
 }
 
 void init_gb() {
@@ -280,23 +323,15 @@ void init_gb() {
         GB_set_sample_rate(&gb, GB_audio_get_sample_rate());
         GB_set_color_correction_mode(&gb, configuration.color_correction_mode);
         GB_set_highpass_filter_mode(&gb, configuration.highpass_mode);
-        GB_set_rewind_length(&gb, 0);
         GB_apu_set_sample_callback(&gb, gb_audio_callback);
+        GB_set_border_mode(&gb, configuration.border_mode);
 
-        GB_set_input_callback(&gb, NULL);
-        GB_set_async_input_callback(&gb, NULL);
+        #ifndef GB_DISABLE_REWIND
+            GB_set_rewind_length(&gb, 0);
+        #endif
     }
 
-    SDL_DestroyTexture(texture);
-    texture = SDL_CreateTexture(
-        renderer,
-        SDL_GetWindowPixelFormat(window),
-        SDL_TEXTUREACCESS_STREAMING,
-        GB_get_screen_width(&gb),
-        GB_get_screen_height(&gb)
-    );
-
-    SDL_SetWindowMinimumSize(window, GB_get_screen_width(&gb), GB_get_screen_height(&gb));
+    screen_size_changed();
 
     const char * const boot_roms[] = {
         "dmg_boot.bin",
@@ -320,8 +355,6 @@ void init_gb() {
 }
 
 int EMSCRIPTEN_KEEPALIVE init() {
-#define str(x) #x
-#define xstr(x) str(x)
     pixel_format = (SDL_PixelFormat *) malloc(sizeof(SDL_PixelFormat));
 
     if (!pixel_format) {
@@ -336,15 +369,15 @@ int EMSCRIPTEN_KEEPALIVE init() {
         return EXIT_FAILURE;
     }
 
-    printf("SameBoy v" xstr(VERSION) "\n");
+    printf("SameBoy v" GB_VERSION "\n");
 
     window = SDL_CreateWindow(
-        "SameBoy v" xstr(VERSION),
+        "SameBoy v" GB_VERSION,
         SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
-        VIDEO_WIDTH * 2,
-        VIDEO_HEIGHT * 2,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_RESIZABLE
+        160 * configuration.default_scale,
+        144 * configuration.default_scale,
+        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_BORDERLESS
     );
 
     if (!window) {
@@ -352,8 +385,7 @@ int EMSCRIPTEN_KEEPALIVE init() {
         return EXIT_FAILURE;
     }
 
-    SDL_SetWindowMinimumSize(window, VIDEO_WIDTH, VIDEO_HEIGHT);
-    SDL_SetWindowMaximumSize(window, VIDEO_WIDTH, VIDEO_HEIGHT);
+    SDL_SetWindowMinimumSize(window, 160, 144);
 
     // Try to get a GLES 3.0 context
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
@@ -370,7 +402,15 @@ int EMSCRIPTEN_KEEPALIVE init() {
     if (gl_context == NULL) {
         fprintf(stderr, "Using software renderer!");
         renderer = SDL_CreateRenderer(window, -1, 0);
-        texture = SDL_CreateTexture(renderer, SDL_GetWindowPixelFormat(window), SDL_TEXTUREACCESS_STREAMING, 160, 144);
+
+        texture = SDL_CreateTexture(
+            renderer,
+            SDL_GetWindowPixelFormat(window),
+            SDL_TEXTUREACCESS_STREAMING,
+            GB_get_screen_width(&gb),
+            GB_get_screen_height(&gb)
+        );
+
         pixel_format = SDL_AllocFormat(SDL_GetWindowPixelFormat(window));
     }
     else {
@@ -455,6 +495,12 @@ void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_s
 
     save_battery(&gb, battery_save_path);
     battery_save_path_ptr = battery_save_path;
+
+    static char title[17];
+    GB_get_rom_title(&gb, title);
+    printf("SameBoy v" GB_VERSION "\n%s\n%08X", title, GB_get_rom_crc32(&gb));
+
+    screen_size_changed();
 }
 
 void EMSCRIPTEN_KEEPALIVE quit() {
@@ -465,8 +511,12 @@ void EMSCRIPTEN_KEEPALIVE quit() {
     GB_free(&gb);
 
     SDL_FreeSurface(screen);
-    SDL_DestroyTexture(texture);
-    SDL_DestroyRenderer(renderer);
+
+    if (renderer) {
+        SDL_DestroyTexture(texture);
+        SDL_DestroyRenderer(renderer);
+    }
+
     SDL_DestroyWindow(window);
     SDL_Quit();
 }
