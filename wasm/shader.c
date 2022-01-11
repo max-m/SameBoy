@@ -41,15 +41,19 @@ uint16_t get_gl_version() {
 static GLuint create_shader(const char *source, GLenum type)
 {
     // Create the shader object
+    printf("Creating shader...\n");
     GLuint shader = glCreateShader(type);
 
     // Load the shader source
     glShaderSource(shader, 1, &source, 0);
 
     // Compile the shader
+    printf("Compiling shader...\n");
     glCompileShader(shader);
 
     // Check for errors
+    printf("Checking for errors...\n");
+
     GLint status = 0;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
 
@@ -66,6 +70,9 @@ static GLuint create_shader(const char *source, GLenum type)
 
             free(info_log);
         }
+
+        glDeleteShader(shader);
+        return 0;
     }
 
     return shader;
@@ -75,7 +82,9 @@ static GLuint create_program(const char *vsh, const char *fsh)
 {
     // Build shaders
     GLuint vertex_shader = create_shader(vsh, GL_VERTEX_SHADER);
+    if (vertex_shader == 0) return 0;
     GLuint fragment_shader = create_shader(fsh, GL_FRAGMENT_SHADER);
+    if (fragment_shader == 0) return 0;
 
     // Create program
     GLuint program = glCreateProgram();
@@ -126,11 +135,12 @@ static GLuint create_program(const char *vsh, const char *fsh)
 
 bool init_shader_with_name(shader_t *shader, const char *name)
 {
+    printf("Initializing shader: %s\n", name);
     uint16_t gl_version = get_gl_version();
 
-    static char master_shader_code[0x801] = {0,};
+    static char master_shader_code[0x1001] = {0,};
     static char shader_code[0x10001] = {0,};
-    static char final_shader_code[0x10801] = {0,};
+    static char final_shader_code[0x1101] = {0,};
     static signed long filter_token_location = 0;
 
     if (!master_shader_code[0]) {
@@ -190,6 +200,10 @@ bool init_shader_with_name(shader_t *shader, const char *name)
     // Attributes
     shader->position_attribute = glGetAttribLocation(shader->program, "aPosition");
     // Uniforms
+    if (gl_version < 0x300) {
+        shader->input_resolution_uniform = glGetUniformLocation(shader->program, "input_resolution");
+    }
+
     shader->resolution_uniform = glGetUniformLocation(shader->program, "output_resolution");
     shader->origin_uniform = glGetUniformLocation(shader->program, "origin");
 

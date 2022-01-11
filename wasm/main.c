@@ -8,6 +8,7 @@
 
 
 #include <Core/gb.h>
+#include <string.h>
 #include "utils.h"
 #include "main.h"
 #include "shader.h"
@@ -354,11 +355,56 @@ void init_gb() {
     }
 }
 
+static void use_software_renderer() {
+    fprintf(stderr, "Using software renderer!\n");
+    renderer = SDL_CreateRenderer(window, -1, 0);
+
+    texture = SDL_CreateTexture(
+        renderer,
+        SDL_GetWindowPixelFormat(window),
+        SDL_TEXTUREACCESS_STREAMING,
+        GB_get_screen_width(&gb),
+        GB_get_screen_height(&gb)
+    );
+
+    pixel_format = SDL_AllocFormat(SDL_GetWindowPixelFormat(window));
+}
+
+bool try_init_shader(shader_t *shader, const char *shader_name) {
+    const char *fallback = "NearestNeighbor";
+    char *name;
+
+    if (shader_name && strlen(shader_name) > 0) {
+        name = (char *)shader_name;
+    }
+    else {
+        name = (char *)fallback;
+    }
+
+    printf("Trying to initialize shader \"%s\".\n", name);
+    if (init_shader_with_name(shader, name)) {
+        return true;
+    }
+
+    printf("Failed to initialize shader \"%s\".\n", name);
+    if (name != fallback) {
+        printf("Trying to initialize fallback shader.\n");
+
+        if (init_shader_with_name(shader, fallback)) {
+            return true;
+        }
+
+        printf("Failed to initialize fallback shader.\n");
+    }
+
+    return false;
+}
+
 int EMSCRIPTEN_KEEPALIVE init() {
     pixel_format = (SDL_PixelFormat *) malloc(sizeof(SDL_PixelFormat));
 
     if (!pixel_format) {
-        fprintf(stderr, "Failed to allocate memory");
+        fprintf(stderr, "Failed to allocate memory\n");
         return EXIT_FAILURE;
     }
 
@@ -400,18 +446,7 @@ int EMSCRIPTEN_KEEPALIVE init() {
     }
 
     if (gl_context == NULL) {
-        fprintf(stderr, "Using software renderer!");
-        renderer = SDL_CreateRenderer(window, -1, 0);
-
-        texture = SDL_CreateTexture(
-            renderer,
-            SDL_GetWindowPixelFormat(window),
-            SDL_TEXTUREACCESS_STREAMING,
-            GB_get_screen_width(&gb),
-            GB_get_screen_height(&gb)
-        );
-
-        pixel_format = SDL_AllocFormat(SDL_GetWindowPixelFormat(window));
+        use_software_renderer();
     }
     else {
         printf("Using OpenGL renderer!\n");
@@ -471,9 +506,14 @@ int EMSCRIPTEN_KEEPALIVE init() {
         audio_workaround();
     });
 
-    if (!init_shader_with_name(&shader, configuration.filter)) {
-        init_shader_with_name(&shader, "NearestNeighbor");
+    if (!try_init_shader(&shader, configuration.filter)) {
+        if (gl_context) {
+            SDL_GL_DeleteContext(gl_context);
+        }
+
+        use_software_renderer();
     }
+
     update_viewport();
 
     GB_audio_set_paused(false);

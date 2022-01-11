@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 typedef struct shader_s {
+    GLuint input_resolution_uniform;
     GLuint resolution_uniform;
     GLuint origin_uniform;
     GLuint texture_uniform;

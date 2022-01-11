@@ -4,6 +4,10 @@ uniform sampler2D image;
 uniform sampler2D previous_image;
 uniform int frame_blending_mode;
 
+#if VERSION < 0x300
+uniform vec2 input_resolution;
+#endif
+
 uniform vec2 output_resolution;
 uniform vec2 origin;
 
@@ -45,9 +49,11 @@ void main()
     vec2 position = gl_FragCoord.xy - origin;
     position /= output_resolution;
     position.y = 1.0 - position.y;
-    vec2 input_resolution = vec2(textureSize(image, 0));
 
     float ratio;
+
+#if VERSION >= 0x300
+    vec2 input_resolution = vec2(textureSize(image, 0));
     switch (frame_blending_mode) {
         default:
         case DISABLED:
@@ -73,8 +79,40 @@ void main()
             }
             break;
     }
+#else
+    if (frame_blending_mode == DISABLED) {
+            FRAG_COLOR = pow(scale(image, position, input_resolution, output_resolution), vec4(1.0 / GAMMA));
+            return;
+    }
+    else if (frame_blending_mode == SIMPLE) {
+            ratio = 0.5;
+    }
+    else if (frame_blending_mode == ACCURATE_EVEN) {
+            // Try to emulate `value & 1`
+            float value = position.y * input_resolution.y;
+            float bit = step(0.5, mod(float(value) / 2.0, 1.0));
+
+            if (bit == 0.0) {
+                ratio = BLEND_BIAS;
+            }
+            else {
+                ratio = 1.0 - BLEND_BIAS;
+            }
+    }
+    else if (frame_blending_mode == ACCURATE_ODD) {
+            // Try to emulate `value & 1`
+            float value = position.y * input_resolution.y;
+            float bit = step(0.5, mod(float(value) / 2.0, 1.0));
+
+            if (bit == 0.0) {
+                ratio = 1.0 - BLEND_BIAS;
+            }
+            else {
+                ratio = BLEND_BIAS;
+            }
+    }
+#endif
 
     FRAG_COLOR = pow(mix(scale(image, position, input_resolution, output_resolution),
                          scale(previous_image, position, input_resolution, output_resolution), ratio), vec4(1.0 / GAMMA));
-
 }
