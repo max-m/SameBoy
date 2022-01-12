@@ -228,10 +228,16 @@ void render_texture(void *pixels,  void *previous)
 static void screen_size_changed(void)
 {
     if (GB_get_screen_width(&gb) > 160) {
-        EM_ASM({ document.body.classList.add('hasScreenBorder'); });
+        EM_ASM({
+            document.getElementById('system')
+                .classList.add('hasScreenBorder');
+        });
     }
     else {
-        EM_ASM({ document.body.classList.remove('hasScreenBorder'); });
+        EM_ASM({
+            document.getElementById('system')
+                .classList.remove('hasScreenBorder');
+        });
     }
 
     if (renderer) {
@@ -726,6 +732,42 @@ void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_s
     printf("SameBoy v" GB_VERSION "\n%s\n%08X", title, GB_get_rom_crc32(&gb));
 
     screen_size_changed();
+
+    EM_ASM({
+        document.getElementById('system')
+            .classList.remove('isDMG', 'isMGB', 'isSGB', 'isCGB', 'isAGB');
+    });
+
+    if (GB_get_model(&gb) == GB_MODEL_AGB) {
+        EM_ASM({
+            document.getElementById('system')
+                .classList.add('isAGB');
+        });
+    }
+    else if (GB_is_sgb(&gb)) {
+        EM_ASM({
+            document.getElementById('system')
+                .classList.add('isSGB');
+        });
+    }
+    else if (GB_is_cgb(&gb)) {
+        EM_ASM({
+            document.getElementById('system')
+                .classList.add('isCGB');
+        });
+    }
+    else if ((GB_get_model(&gb) & GB_MODEL_FAMILY_MASK) == GB_MODEL_DMG_FAMILY) {
+        EM_ASM({
+            document.getElementById('system')
+                .classList.add('isDMG');
+        });
+    }
+    else if ((GB_get_model(&gb) & GB_MODEL_FAMILY_MASK) == GB_MODEL_MGB_FAMILY) {
+        EM_ASM({
+            document.getElementById('system')
+                .classList.add('isMGB');
+        });
+    }
 
     connect_joypad();
 }
