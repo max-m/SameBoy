@@ -75,7 +75,7 @@ Module.sameboy_syncfs = async function (populate = false) {
 	Module.sameboy_syncfs_in_progress = true;
 	console.log("Syncing file system ...");
 
-	new Promise((resolve, reject) => {
+	return await new Promise((resolve, reject) => {
 		FS.syncfs(populate, function (err) {
 			Module.sameboy_syncfs_in_progress = false;
 
@@ -101,8 +101,6 @@ Module.sameboy_syncfs = async function (populate = false) {
 		});
 
 	});
-
-	return Module.sameboy_syncfs_promise;
 };
 
 Module.onRuntimeInitialized = async () => {

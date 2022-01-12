@@ -414,6 +414,26 @@ static void rumble(GB_gameboy_t *gb, double amp)
     SDL_HapticRumblePlay(haptic, amp, 250);
 }
 
+static void load_boot_rom(GB_gameboy_t *gb, GB_boot_rom_t type)
+{
+    static const char *const names[] = {
+        [GB_BOOT_ROM_DMG_0] = "dmg0_boot.bin",
+        [GB_BOOT_ROM_DMG] = "dmg_boot.bin",
+        [GB_BOOT_ROM_MGB] = "mgb_boot.bin",
+        [GB_BOOT_ROM_SGB] = "sgb_boot.bin",
+        [GB_BOOT_ROM_SGB2] = "sgb2_boot.bin",
+        [GB_BOOT_ROM_CGB_0] = "cgb0_boot.bin",
+        [GB_BOOT_ROM_CGB] = "cgb_boot.bin",
+        [GB_BOOT_ROM_AGB] = "agb_boot.bin",
+    };
+
+    const char *path = resource_path(concat("BootROMs/", names[type]));
+
+    printf("Loading boot ROM: %s\n", path);
+
+    GB_load_boot_rom(gb, path);
+}
+
 void init_gb() {
     GB_model_t model;
 
@@ -442,6 +462,7 @@ void init_gb() {
 
         GB_init(&gb, model);
 
+        GB_set_boot_rom_load_callback(&gb, load_boot_rom);
         GB_set_vblank_callback(&gb, (GB_vblank_callback_t) vblank);
         GB_set_pixels_output(&gb, active_pixel_buffer);
         GB_set_rgb_encode_callback(&gb, rgb_encode);
@@ -466,26 +487,6 @@ void init_gb() {
     }
 
     screen_size_changed();
-
-    const char * const boot_roms[] = {
-        "dmg_boot.bin",
-        "cgb_boot.bin",
-        "agb_boot.bin",
-        "sgb_boot.bin"
-    };
-
-    const char *boot_rom = boot_roms[configuration.model];
-    if (configuration.model == GB_MODEL_SGB && configuration.sgb_revision == SGB_2) {
-        boot_rom = "sgb2_boot.bin";
-    }
-
-    const char *boot_rom_path = resource_path(concat("BootROMs/", boot_rom));
-
-    printf("Loading boot ROM: %s\n", boot_rom_path);
-
-    if (GB_load_boot_rom(&gb, boot_rom_path) != 0) {
-        fprintf(stderr, "Failed to initialize\n");
-    }
 }
 
 static bool use_software_renderer() {

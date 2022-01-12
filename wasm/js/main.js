@@ -1,10 +1,10 @@
 const frame_rate = (0x400000 / 70224.0);
 const ms_per_frame = 1000 / frame_rate;
 let last_frame_time = 0;
-let animationFrame = undefined;
+let animation_frame_handle = undefined;
 let running = false;
 
-function stringHash(str) {
+function string_hash(str) {
 	let hash = 0;
 
 	if (str.length === 0) {
@@ -32,8 +32,8 @@ function simulate_key_event(type, key, which) {
 }
 
 function run_frame(time) {
-	if (animationFrame != null) {
-		animationFrame = window.requestAnimationFrame(run_frame);
+	if (animation_frame_handle != null) {
+		animation_frame_handle = window.requestAnimationFrame(run_frame);
 	}
 
 	if (document.visibilityState) {
@@ -68,17 +68,17 @@ async function loadRomFromMemory(name, data) {
 
 	Module._load_rom(wasm_buf.byteOffset, wasm_buf.byteLength, battery_path);
 
-	window.cancelAnimationFrame(animationFrame);
-	animationFrame = null;
+	window.cancelAnimationFrame(animation_frame_handle);
+	animation_frame_handle = null;
 
 	running = true;
-	animationFrame = window.requestAnimationFrame(run_frame);
+	animation_frame_handle = window.requestAnimationFrame(run_frame);
 }
 
 async function loadROM(file) {
 	const name = file.name;
 
-	return new Promise((resolve, reject) => {
+	const buffer = await new Promise((resolve, reject) => {
 		const reader = new FileReader();
 
 		reader.onload = () => {
@@ -88,11 +88,12 @@ async function loadROM(file) {
 		reader.onerror = reject;
 
 		reader.readAsArrayBuffer(file);
-	})
-	.then(buffer => loadRomFromMemory(name, buffer));
+	});
+
+	return await loadRomFromMemory(name, buffer);
 }
 
-const loadRemoteRom = async url => {
+async function loadRemoteRom(url) {
 	const request = new Request(url);
 
 	const name = (_ => {
@@ -105,7 +106,7 @@ const loadRemoteRom = async url => {
 			return `${name}.gb`
 		}
 
-		return stringHash(url)
+		return string_hash(url)
 	})()
 
 	const response = await fetch(request);
@@ -245,8 +246,8 @@ function setupDpad() {
 		}
 	}
 
-	dpad.addEventListener('pointerdown',  activate);
-	dpad.addEventListener('pointerup',    deactivate);
+	dpad.addEventListener('pointerdown',   activate);
+	dpad.addEventListener('pointerup',     deactivate);
 	dpad.addEventListener('pointercancel', deactivate);
 	dpad.addEventListener('pointermove',   move);
 }
@@ -264,8 +265,8 @@ function setupSimpleButton(button, key, which) {
 		simulate_key_event('keyup', key, which);
 	}
 
-	button.addEventListener('pointerdown',  activate);
-	button.addEventListener('pointerup',    deactivate);
+	button.addEventListener('pointerdown',   activate);
+	button.addEventListener('pointerup',     deactivate);
 	button.addEventListener('pointercancel', deactivate);
 }
 
@@ -299,8 +300,8 @@ function startup() {
 		event.stopPropagation();
 
 		if (running) {
-			window.cancelAnimationFrame(animationFrame);
-			animationFrame = null;
+			window.cancelAnimationFrame(animation_frame_handle);
+			animation_frame_handle = null;
 		}
 
 		const menuButton = event.target;
@@ -326,7 +327,7 @@ function startup() {
 			menu.style.display = '';
 
 			if (running) {
-				animationFrame = window.requestAnimationFrame(run_frame);
+				animation_frame_handle = window.requestAnimationFrame(run_frame);
 			}
 		}
 

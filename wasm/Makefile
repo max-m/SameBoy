@@ -24,7 +24,7 @@ ifeq ($(MAKECMDGOALS),)
 MAKECMDGOALS := $(DEFAULT)
 endif
 
-CORE_DIR     += ..
+CORE_DIR += ..
 
 CFLAGS += -DGB_VERSION=\"$(VERSION)\"
 CONF ?= debug
@@ -91,31 +91,32 @@ endif
 
 # Define our targets
 
-bootroms: $(BOOTROMS_DIR)/agb_boot.bin \
-          $(BOOTROMS_DIR)/cgb_boot.bin \
-          $(BOOTROMS_DIR)/cgb0_boot.bin \
-          $(BOOTROMS_DIR)/dmg_boot.bin \
-          $(BOOTROMS_DIR)/sgb_boot.bin \
-          $(BOOTROMS_DIR)/sgb2_boot.bin
+BOOTROM_SOURCES_RAW := $(shell ls $(CORE_DIR)/BootROMs/*_boot.asm)
+BOOTROM_SOURCES := $(shell realpath --relative-to=$(CORE_DIR) $(BOOTROM_SOURCES_RAW))
+BOOTROM_OBJECTS := $(patsubst BootROMs/%.asm,$(BOOTROMS_DIR)/%.bin,$(BOOTROM_SOURCES))
+
+# Incompatible with `make -jN`
+bootroms: $(BOOTROM_OBJECTS)
 
 # Get a list of our source files and their respective object file targets
 
 # CORE_SOURCES_RAW := $(shell ls $(CORE_DIR)/Core/*.c)
-CORE_SOURCES_RAW := $(CORE_DIR)/Core/gb.c \
-               $(CORE_DIR)/Core/sgb.c \
-               $(CORE_DIR)/Core/apu.c \
-               $(CORE_DIR)/Core/memory.c \
-               $(CORE_DIR)/Core/mbc.c \
-               $(CORE_DIR)/Core/timing.c \
-               $(CORE_DIR)/Core/display.c \
-               $(CORE_DIR)/Core/symbol_hash.c \
-               $(CORE_DIR)/Core/camera.c \
-               $(CORE_DIR)/Core/sm83_cpu.c \
-               $(CORE_DIR)/Core/joypad.c \
-               $(CORE_DIR)/Core/save_state.c \
-               $(CORE_DIR)/Core/random.c \
-               $(CORE_DIR)/Core/rumble.c \
-               # $(CORE_DIR)/Core/printer.c
+CORE_SOURCES_RAW := \
+	$(CORE_DIR)/Core/gb.c \
+	$(CORE_DIR)/Core/sgb.c \
+	$(CORE_DIR)/Core/apu.c \
+	$(CORE_DIR)/Core/memory.c \
+	$(CORE_DIR)/Core/mbc.c \
+	$(CORE_DIR)/Core/timing.c \
+	$(CORE_DIR)/Core/display.c \
+	$(CORE_DIR)/Core/symbol_hash.c \
+	$(CORE_DIR)/Core/camera.c \
+	$(CORE_DIR)/Core/sm83_cpu.c \
+	$(CORE_DIR)/Core/joypad.c \
+	$(CORE_DIR)/Core/save_state.c \
+	$(CORE_DIR)/Core/random.c \
+	$(CORE_DIR)/Core/rumble.c \
+	# $(CORE_DIR)/Core/printer.c
 
 CORE_SOURCES := $(shell realpath --relative-to=$(CORE_DIR) $(CORE_SOURCES_RAW))
 CORE_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(CORE_SOURCES))
