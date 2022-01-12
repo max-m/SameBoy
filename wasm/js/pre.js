@@ -84,9 +84,10 @@ Module.sameboy_syncfs = async function (populate = false) {
 			}
 			else if (Module.sameboy_syncfs_needs_sync) {
 				console.log("A sync was requested while syncing, syncing again.");
+				const populate = Module.sameboy_syncfs_needs_sync.populate;
 				Module.sameboy_syncfs_needs_sync = undefined;
 
-				Module.sameboy_syncfs(Module.sameboy_syncfs_needs_sync.populate)
+				Module.sameboy_syncfs(populate)
 					.then(resolve)
 					.catch(reject);
 

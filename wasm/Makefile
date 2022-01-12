@@ -172,8 +172,6 @@ $(BIN)/index.html: $(CORE_OBJECTS) $(WASM_OBJECTS) index-shell.html js/pre.js js
 		--pre-js "js/pre.js" \
 		--post-js "js/main.js" \
 		$(LDFLAGS)
-ifeq ($(CONF), release)
-endif
 
 $(CORE_DIR)/build/bin/BootROMs/%_boot.bin:
 	$(MAKE) -C $(CORE_DIR) $(patsubst $(CORE_DIR)/%,%,$@)

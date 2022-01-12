@@ -30,7 +30,7 @@ static unsigned factor;
 static uint32_t pixel_buffer_1[256 * 224], pixel_buffer_2[256 * 224];
 static uint32_t *active_pixel_buffer = pixel_buffer_1;
 static uint32_t *previous_pixel_buffer = pixel_buffer_2;
-static char *battery_save_path_ptr;
+static char *battery_save_path_ptr = NULL;
 
 struct shader_name {
     const char *file_name;
@@ -102,12 +102,20 @@ configuration_t configuration =
 };
 
 // Use this function instead of GB_save_battery()
-int save_battery(GB_gameboy_t *gb, const char *path) {
-    int result = GB_save_battery(gb, path);
+int EMSCRIPTEN_KEEPALIVE save_battery() {
+    if (!GB_is_inited(&gb) || battery_save_path_ptr == NULL) {
+        return 0;
+    }
 
-    printf("Saving battery: \"%s\": %d\n", path, result);
+    printf("Saving battery: \"%s\"\n", battery_save_path_ptr);
+    int result = GB_save_battery(&gb, battery_save_path_ptr);
 
-    EM_ASM(Module.sameboy_syncfs());
+    if (result == 0) {
+        EM_ASM(Module.sameboy_syncfs());
+    }
+    else {
+        printf("Failed to save battery file.\n");
+    }
 
     return result;
 }
@@ -330,6 +338,8 @@ void init_gb() {
         #ifndef GB_DISABLE_REWIND
             GB_set_rewind_length(&gb, 0);
         #endif
+
+        battery_save_path_ptr = NULL;
     }
 
     screen_size_changed();
@@ -355,7 +365,7 @@ void init_gb() {
     }
 }
 
-static void use_software_renderer() {
+static bool use_software_renderer() {
     fprintf(stderr, "Using software renderer!\n");
     renderer = SDL_CreateRenderer(window, -1, 0);
 
@@ -368,6 +378,13 @@ static void use_software_renderer() {
     );
 
     pixel_format = SDL_AllocFormat(SDL_GetWindowPixelFormat(window));
+
+    if (!pixel_format) {
+        fprintf(stderr, "SDL_AllocFormat failed: %s\n", SDL_GetError());
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
 }
 
 bool try_init_shader(shader_t *shader, const char *shader_name) {
@@ -401,15 +418,6 @@ bool try_init_shader(shader_t *shader, const char *shader_name) {
 }
 
 int EMSCRIPTEN_KEEPALIVE init() {
-    pixel_format = (SDL_PixelFormat *) malloc(sizeof(SDL_PixelFormat));
-
-    if (!pixel_format) {
-        fprintf(stderr, "Failed to allocate memory\n");
-        return EXIT_FAILURE;
-    }
-
-    // emscripten_sample_gamepad_data();
-
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
         fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
         return EXIT_FAILURE;
@@ -446,11 +454,18 @@ int EMSCRIPTEN_KEEPALIVE init() {
     }
 
     if (gl_context == NULL) {
-        use_software_renderer();
+        if (use_software_renderer()) {
+            return EXIT_FAILURE;
+        }
     }
     else {
         printf("Using OpenGL renderer!\n");
         pixel_format = SDL_AllocFormat(SDL_PIXELFORMAT_ABGR8888);
+
+        if (!pixel_format) {
+            fprintf(stderr, "SDL_AllocFormat failed: %s\n", SDL_GetError());
+            return EXIT_FAILURE;
+        }
 
         printf("GLES: %s\n", glGetString(GL_VERSION));
         printf("GLSL: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
@@ -511,7 +526,9 @@ int EMSCRIPTEN_KEEPALIVE init() {
             SDL_GL_DeleteContext(gl_context);
         }
 
-        use_software_renderer();
+        if (use_software_renderer()) {
+            return EXIT_FAILURE;
+        }
     }
 
     update_viewport();
@@ -526,6 +543,9 @@ int EMSCRIPTEN_KEEPALIVE load_boot_rom_from_file(char* filename) {
 }
 
 void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_save_path) {
+    // There might be a previous session that needs to be saved
+    save_battery();
+
     init_gb();
 
     GB_load_rom_from_buffer(&gb, buffer, size);
@@ -533,8 +553,8 @@ void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_s
 
     GB_load_battery(&gb, battery_save_path);
 
-    save_battery(&gb, battery_save_path);
     battery_save_path_ptr = battery_save_path;
+    save_battery();
 
     static char title[17];
     GB_get_rom_title(&gb, title);
@@ -545,6 +565,9 @@ void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_s
 
 void EMSCRIPTEN_KEEPALIVE quit() {
     printf("Quitting ...\n");
+
+    save_battery();
+    battery_save_path_ptr = NULL;
 
     emscripten_set_main_loop(NULL, 0, false);
 

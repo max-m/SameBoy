@@ -1,7 +1,8 @@
 const frame_rate = (0x400000 / 70224.0);
 const ms_per_frame = 1000 / frame_rate;
 let last_frame_time = 0;
-let running = true;
+let animationFrame = undefined;
+let running = false;
 
 function stringHash(str) {
 	let hash = 0;
@@ -31,6 +32,10 @@ function simulate_key_event(type, key, which) {
 }
 
 function run_frame(time) {
+	if (animationFrame != null) {
+		animationFrame = window.requestAnimationFrame(run_frame);
+	}
+
 	if (document.visibilityState) {
 		if (document.visibilityState == 'hidden') {
 			return;
@@ -47,13 +52,6 @@ function run_frame(time) {
 
 		last_frame_time = time - (delta % ms_per_frame);
 	}
-
-	if (running) {
-		window.requestAnimationFrame(run_frame);
-	}
-	else {
-		console.log('Stopping the main loop');
-	}
 }
 
 async function loadRomFromMemory(name, data) {
@@ -68,13 +66,11 @@ async function loadRomFromMemory(name, data) {
 
 	Module._load_rom(wasm_buf.byteOffset, wasm_buf.byteLength, battery_path);
 
-	// Stop the main loop if it was running
-	running = false;
-	window.requestAnimationFrame(() => {
-		// Schedule the main loop to run
-		running = true;
-		window.requestAnimationFrame(run_frame);
-	});
+	window.cancelAnimationFrame(animationFrame);
+	animationFrame = null;
+
+	running = true;
+	animationFrame = window.requestAnimationFrame(run_frame);
 }
 
 async function loadROM(file) {
@@ -296,9 +292,14 @@ function startup() {
 		anchor.addEventListener('click', romClickHandler);
 	}
 
-	document.getElementById('menuButton').addEventListener('click', event => {
+	document.getElementById('menuButton').addEventListener('click', async event => {
 		event.preventDefault();
 		event.stopPropagation();
+
+		if (running) {
+			window.cancelAnimationFrame(animationFrame);
+			animationFrame = null;
+		}
 
 		const menuButton = event.target;
 		const menu = document.getElementById('menu');
@@ -317,21 +318,42 @@ function startup() {
 				node = node.parentElement;
 			}
 
+			document.body.removeEventListener('click', onOutsideClick);
+
 			menuButton.classList.remove('active');
 			menu.style.display = '';
 
-			document.body.removeEventListener('click', onOutsideClick);
+			if (running) {
+				animationFrame = window.requestAnimationFrame(run_frame);
+			}
 		}
 
 		document.body.addEventListener('click', onOutsideClick);
+
+		Module._save_battery();
+		await Module.sameboy_syncfs();
+	});
+
+	document.getElementById('synchronize').addEventListener('click', async event => {
+		event.preventDefault();
+
+		Module._save_battery();
+		await Module.sameboy_syncfs();
 	});
 
 	setupControls();
+
+	document.addEventListener('visibilitychange', async () => {
+		Module._save_battery();
+		await Module.sameboy_syncfs();
+	});
+
+	window.addEventListener('unload', Module._quit());
 }
 
 console.log(document.readyState)
 
-if (document.readyState !== "loading") {
+if (document.readyState !== 'loading') {
 	setTimeout(startup, 0);
 }
 else {
