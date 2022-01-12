@@ -98,11 +98,11 @@ configuration_t configuration =
     .blending_mode = GB_FRAME_BLENDING_MODE_ACCURATE,
     .rewind_length = 60 * 2,
     .model = MODEL_CGB,
+    .sgb_revision = SGB_2,
     .volume = 100,
     .rumble_mode = GB_RUMBLE_ALL_GAMES,
     .default_scale = 2,
     .color_temperature = 10,
-    // .border_mode = GB_BORDER_ALWAYS,
 };
 
 // Use this function instead of GB_save_battery()
