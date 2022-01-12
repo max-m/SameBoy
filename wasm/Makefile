@@ -178,4 +178,4 @@ $(CORE_DIR)/build/bin/BootROMs/%_boot.bin:
 	$(MAKE) -C $(CORE_DIR) $(patsubst $(CORE_DIR)/%,%,$@)
 
 clean:
-	rm -f $(WASM_OBJECTS) $(BIN)/SameBoy.js $(BIN)/SameBoy.wasm
+	rm -rf $(BIN) $(OBJ) $(BOOTROMS_DIR)

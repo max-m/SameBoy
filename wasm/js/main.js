@@ -183,10 +183,10 @@ function setupDpad() {
 		const xRel = x / bounds.width;
 		const yRel = y / bounds.height;
 
-		const isLeftNew  = xRel <= 0.4;
-		const isRightNew = xRel >= 0.6;
-		const isUpNew    = yRel <= 0.4;
-		const isDownNew  = yRel >= 0.6;
+		const isLeftNew  = xRel <= 0.3;
+		const isRightNew = xRel >= 0.7;
+		const isUpNew    = yRel <= 0.3;
+		const isDownNew  = yRel >= 0.7;
 
 		if (isLeft != isLeftNew) {
 			isLeft = isLeftNew;
@@ -211,6 +211,7 @@ function setupDpad() {
 
 	function activate(event) {
 		event.preventDefault();
+		dpad.setPointerCapture(event.pointerId);
 
 		isActive = true;
 
@@ -222,6 +223,7 @@ function setupDpad() {
 
 	function deactivate(event) {
 		event.preventDefault();
+		dpad.releasePointerCapture(event.pointerId);
 
 		isActive = false;
 		isLeft   = false;
@@ -250,24 +252,36 @@ function setupDpad() {
 	dpad.addEventListener('pointerup',     deactivate);
 	dpad.addEventListener('pointercancel', deactivate);
 	dpad.addEventListener('pointermove',   move);
+
+	[ dpad, up, down, left, right ].forEach(button => {
+		button.setAttribute('draggable', 'false');
+		button.setAttribute('unselectable', 'on');
+	});
 }
 
 function setupSimpleButton(button, key, which) {
 	function activate(event) {
 		event.preventDefault();
+		button.setPointerCapture(event.pointerId);
 
+		button.classList.add('active');
 		simulate_key_event('keydown', key, which);
 	}
 
 	function deactivate(event) {
 		event.preventDefault();
+		button.releasePointerCapture(event.pointerId);
 
+		button.classList.remove('active');
 		simulate_key_event('keyup', key, which);
 	}
 
 	button.addEventListener('pointerdown',   activate);
 	button.addEventListener('pointerup',     deactivate);
 	button.addEventListener('pointercancel', deactivate);
+
+	button.setAttribute('draggable', 'false');
+	button.setAttribute('unselectable', 'on');
 }
 
 function setupControls() {

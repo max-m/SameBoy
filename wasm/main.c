@@ -106,7 +106,8 @@ configuration_t configuration =
 };
 
 // Use this function instead of GB_save_battery()
-int EMSCRIPTEN_KEEPALIVE save_battery() {
+int EMSCRIPTEN_KEEPALIVE save_battery()
+{
     if (!GB_is_inited(&gb) || battery_save_path_ptr == NULL) {
         return 0;
     }
@@ -124,7 +125,8 @@ int EMSCRIPTEN_KEEPALIVE save_battery() {
     return result;
 }
 
-unsigned query_sample_rate_of_audiocontexts() {
+unsigned query_sample_rate_of_audiocontexts()
+{
     return EM_ASM_INT({
         if (!Module.SDL2 || !Module.SDL2.audioContext) {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -257,7 +259,8 @@ static void screen_size_changed(void)
     update_viewport();
 }
 
-void EMSCRIPTEN_KEEPALIVE quit() {
+void EMSCRIPTEN_KEEPALIVE quit()
+{
     printf("Quitting ...\n");
 
     save_battery();
@@ -296,7 +299,8 @@ static joypad_axis_t get_joypad_axis(uint8_t physical_axis)
     return JOYPAD_AXISES_MAX;
 }
 
-static void handle_events(GB_gameboy_t *gb) {
+static void handle_events(GB_gameboy_t *gb)
+{
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
@@ -389,7 +393,8 @@ static void handle_events(GB_gameboy_t *gb) {
     }
 }
 
-static void vblank(GB_gameboy_t *gb) {
+static void vblank(GB_gameboy_t *gb)
+{
     if (configuration.blending_mode) {
         render_texture(active_pixel_buffer, previous_pixel_buffer);
         uint32_t *temp = active_pixel_buffer;
@@ -434,7 +439,8 @@ static void load_boot_rom(GB_gameboy_t *gb, GB_boot_rom_t type)
     GB_load_boot_rom(gb, path);
 }
 
-void init_gb() {
+void init_gb()
+{
     GB_model_t model;
 
     model = (GB_model_t [])
@@ -489,7 +495,8 @@ void init_gb() {
     screen_size_changed();
 }
 
-static bool use_software_renderer() {
+static bool use_software_renderer()
+{
     fprintf(stderr, "Using software renderer!\n");
     renderer = SDL_CreateRenderer(window, -1, 0);
 
@@ -511,7 +518,8 @@ static bool use_software_renderer() {
     return EXIT_SUCCESS;
 }
 
-bool try_init_shader(shader_t *shader, const char *shader_name) {
+bool try_init_shader(shader_t *shader, const char *shader_name)
+{
     const char *fallback = "NearestNeighbor";
     char *name;
 
@@ -567,7 +575,8 @@ void connect_joypad(void)
     }
 }
 
-int EMSCRIPTEN_KEEPALIVE init() {
+int EMSCRIPTEN_KEEPALIVE init()
+{
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
         fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
         return EXIT_FAILURE;
@@ -697,11 +706,8 @@ int EMSCRIPTEN_KEEPALIVE init() {
     return EXIT_SUCCESS;
 }
 
-int EMSCRIPTEN_KEEPALIVE load_boot_rom_from_file(char* filename) {
-    return GB_load_boot_rom(&gb, filename);
-}
-
-void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_save_path) {
+void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_save_path)
+{
     // There might be a previous session that needs to be saved
     save_battery();
 
@@ -724,6 +730,7 @@ void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_s
     connect_joypad();
 }
 
-void EMSCRIPTEN_KEEPALIVE run_frame() {
+void EMSCRIPTEN_KEEPALIVE run_frame()
+{
     GB_run_frame(&gb);
 }
