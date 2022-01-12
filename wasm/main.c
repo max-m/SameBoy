@@ -17,11 +17,15 @@
 
 GB_gameboy_t gb;
 
-SDL_Window *window;
-SDL_Renderer *renderer;
-SDL_Surface *screen;
-SDL_Texture *texture;
-SDL_PixelFormat *pixel_format;
+static SDL_Window *window;
+static SDL_Renderer *renderer;
+static SDL_Surface *screen;
+static SDL_Texture *texture;
+static SDL_PixelFormat *pixel_format;
+
+static SDL_Joystick *joystick = NULL;
+static SDL_GameController *controller = NULL;
+static SDL_Haptic *haptic = NULL;
 
 shader_t shader;
 
@@ -219,6 +223,40 @@ void render_texture(void *pixels,  void *previous)
     }
 }
 
+static void screen_size_changed(void)
+{
+    if (GB_get_screen_width(&gb) > 160) {
+        EM_ASM({ document.body.classList.add('hasScreenBorder'); });
+    }
+    else {
+        EM_ASM({ document.body.classList.remove('hasScreenBorder'); });
+    }
+
+    if (renderer) {
+        SDL_DestroyTexture(texture);
+        texture = SDL_CreateTexture(
+            renderer,
+            SDL_GetWindowPixelFormat(window),
+            SDL_TEXTUREACCESS_STREAMING,
+            GB_get_screen_width(&gb),
+            GB_get_screen_height(&gb)
+        );
+    }
+
+    SDL_SetWindowMinimumSize(
+        window,
+        GB_get_screen_width(&gb),
+        GB_get_screen_height(&gb)
+    );
+
+    SDL_SetWindowSize(window,
+        GB_get_screen_width(&gb) * configuration.default_scale,
+        GB_get_screen_height(&gb) * configuration.default_scale
+    );
+
+    update_viewport();
+}
+
 void EMSCRIPTEN_KEEPALIVE quit() {
     printf("Quitting ...\n");
 
@@ -238,6 +276,26 @@ void EMSCRIPTEN_KEEPALIVE quit() {
     SDL_Quit();
 }
 
+static joypad_button_t get_joypad_button(uint8_t physical_button)
+{
+    for (unsigned i = 0; i < JOYPAD_BUTTONS_MAX; i++) {
+        if (configuration.joypad_configuration[i] == physical_button) {
+            return i;
+        }
+    }
+    return JOYPAD_BUTTONS_MAX;
+}
+
+static joypad_axis_t get_joypad_axis(uint8_t physical_axis)
+{
+    for (unsigned i = 0; i < JOYPAD_AXISES_MAX; i++) {
+        if (configuration.joypad_axises[i] == physical_axis) {
+            return i;
+        }
+    }
+    return JOYPAD_AXISES_MAX;
+}
+
 static void handle_events(GB_gameboy_t *gb) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -251,6 +309,69 @@ static void handle_events(GB_gameboy_t *gb) {
                 if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
                     update_viewport();
                 }
+                break;
+            }
+
+            case SDL_JOYBUTTONUP:
+            case SDL_JOYBUTTONDOWN: {
+                joypad_button_t button = get_joypad_button(event.jbutton.button);
+                if ((GB_key_t) button < GB_KEY_MAX) {
+                    GB_set_key_state(gb, (GB_key_t) button, event.type == SDL_JOYBUTTONDOWN);
+                }
+                break;
+            }
+
+            case SDL_JOYAXISMOTION: {
+                static bool axis_active[2] = {false, false};
+                joypad_axis_t axis = get_joypad_axis(event.jaxis.axis);
+                if (axis == JOYPAD_AXISES_X) {
+                    if (event.jaxis.value > JOYSTICK_HIGH) {
+                        axis_active[0] = true;
+                        GB_set_key_state(gb, GB_KEY_RIGHT, true);
+                        GB_set_key_state(gb, GB_KEY_LEFT, false);
+                    }
+                    else if (event.jaxis.value < -JOYSTICK_HIGH) {
+                        axis_active[0] = true;
+                        GB_set_key_state(gb, GB_KEY_RIGHT, false);
+                        GB_set_key_state(gb, GB_KEY_LEFT, true);
+                    }
+                    else if (axis_active[0] && event.jaxis.value < JOYSTICK_LOW && event.jaxis.value > -JOYSTICK_LOW) {
+                        axis_active[0] = false;
+                        GB_set_key_state(gb, GB_KEY_RIGHT, false);
+                        GB_set_key_state(gb, GB_KEY_LEFT, false);
+                    }
+                }
+                else if (axis == JOYPAD_AXISES_Y) {
+                    if (event.jaxis.value > JOYSTICK_HIGH) {
+                        axis_active[1] = true;
+                        GB_set_key_state(gb, GB_KEY_DOWN, true);
+                        GB_set_key_state(gb, GB_KEY_UP, false);
+                    }
+                    else if (event.jaxis.value < -JOYSTICK_HIGH) {
+                        axis_active[1] = true;
+                        GB_set_key_state(gb, GB_KEY_DOWN, false);
+                        GB_set_key_state(gb, GB_KEY_UP, true);
+                    }
+                    else if (axis_active[1] && event.jaxis.value < JOYSTICK_LOW && event.jaxis.value > -JOYSTICK_LOW) {
+                        axis_active[1] = false;
+                        GB_set_key_state(gb, GB_KEY_DOWN, false);
+                        GB_set_key_state(gb, GB_KEY_UP, false);
+                    }
+                }
+                break;
+            }
+
+            case SDL_JOYHATMOTION: {
+                uint8_t value = event.jhat.value;
+                int8_t updown =
+                value == SDL_HAT_LEFTUP || value == SDL_HAT_UP || value == SDL_HAT_RIGHTUP ? -1 : (value == SDL_HAT_LEFTDOWN || value == SDL_HAT_DOWN || value == SDL_HAT_RIGHTDOWN ? 1 : 0);
+                int8_t leftright =
+                value == SDL_HAT_LEFTUP || value == SDL_HAT_LEFT || value == SDL_HAT_LEFTDOWN ? -1 : (value == SDL_HAT_RIGHTUP || value == SDL_HAT_RIGHT || value == SDL_HAT_RIGHTDOWN ? 1 : 0);
+
+                GB_set_key_state(gb, GB_KEY_LEFT, leftright == -1);
+                GB_set_key_state(gb, GB_KEY_RIGHT, leftright == 1);
+                GB_set_key_state(gb, GB_KEY_UP, updown == -1);
+                GB_set_key_state(gb, GB_KEY_DOWN, updown == 1);
                 break;
             }
 
@@ -288,38 +409,9 @@ static uint32_t rgb_encode(GB_gameboy_t *gb, uint8_t r, uint8_t g, uint8_t b)
     return SDL_MapRGB(pixel_format, r, g, b);
 }
 
-static void screen_size_changed(void)
+static void rumble(GB_gameboy_t *gb, double amp)
 {
-    if (GB_get_screen_width(&gb) > 160) {
-        EM_ASM({ document.body.classList.add('hasScreenBorder'); });
-    }
-    else {
-        EM_ASM({ document.body.classList.remove('hasScreenBorder'); });
-    }
-
-    if (renderer) {
-        SDL_DestroyTexture(texture);
-        texture = SDL_CreateTexture(
-            renderer,
-            SDL_GetWindowPixelFormat(window),
-            SDL_TEXTUREACCESS_STREAMING,
-            GB_get_screen_width(&gb),
-            GB_get_screen_height(&gb)
-        );
-    }
-
-    SDL_SetWindowMinimumSize(
-        window,
-        GB_get_screen_width(&gb),
-        GB_get_screen_height(&gb)
-    );
-
-    SDL_SetWindowSize(window,
-        GB_get_screen_width(&gb) * configuration.default_scale,
-        GB_get_screen_height(&gb) * configuration.default_scale
-    );
-
-    update_viewport();
+    SDL_HapticRumblePlay(haptic, amp, 250);
 }
 
 void init_gb() {
@@ -353,11 +445,18 @@ void init_gb() {
         GB_set_vblank_callback(&gb, (GB_vblank_callback_t) vblank);
         GB_set_pixels_output(&gb, active_pixel_buffer);
         GB_set_rgb_encode_callback(&gb, rgb_encode);
+        GB_set_rumble_callback(&gb, rumble);
+        GB_set_rumble_mode(&gb, configuration.rumble_mode);
         GB_set_sample_rate(&gb, GB_audio_get_sample_rate());
         GB_set_color_correction_mode(&gb, configuration.color_correction_mode);
-        GB_set_highpass_filter_mode(&gb, configuration.highpass_mode);
-        GB_apu_set_sample_callback(&gb, gb_audio_callback);
+        GB_set_light_temperature(&gb, (configuration.color_temperature - 10.0) / 10.0);
+        GB_set_interference_volume(&gb, configuration.interference_volume / 100.0);
         GB_set_border_mode(&gb, configuration.border_mode);
+        GB_set_highpass_filter_mode(&gb, configuration.highpass_mode);
+        // GB_set_rewind_length(&gb, configuration.rewind_length);
+        GB_set_rtc_mode(&gb, configuration.rtc_mode);
+        GB_set_update_input_hint_callback(&gb, handle_events);
+        GB_apu_set_sample_callback(&gb, gb_audio_callback);
 
         #ifndef GB_DISABLE_REWIND
             GB_set_rewind_length(&gb, 0);
@@ -441,10 +540,44 @@ bool try_init_shader(shader_t *shader, const char *shader_name) {
     return false;
 }
 
+void connect_joypad(void)
+{
+    if (joystick && !SDL_NumJoysticks()) {
+        if (controller) {
+            SDL_GameControllerClose(controller);
+            controller = NULL;
+            joystick = NULL;
+        }
+        else {
+            SDL_JoystickClose(joystick);
+            joystick = NULL;
+        }
+    }
+    else if (!joystick && SDL_NumJoysticks()) {
+        if ((controller = SDL_GameControllerOpen(0))) {
+            joystick = SDL_GameControllerGetJoystick(controller);
+        }
+        else {
+            joystick = SDL_JoystickOpen(0);
+        }
+    }
+    if (joystick) {
+        haptic = SDL_HapticOpenFromJoystick(joystick);
+    }
+}
+
 int EMSCRIPTEN_KEEPALIVE init() {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
         fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
         return EXIT_FAILURE;
+    }
+
+    if (SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER) != 0) {
+        fprintf(stderr, "Failed to init the game controller interface:\nError: %s\n", SDL_GetError());
+    }
+
+    if (SDL_InitSubSystem(SDL_INIT_HAPTIC) != 0) {
+        fprintf(stderr, "Failed to init force feedback:\nError: %s\n", SDL_GetError());
     }
 
     printf("SameBoy v" GB_VERSION "\n");
@@ -556,6 +689,7 @@ int EMSCRIPTEN_KEEPALIVE init() {
     }
 
     update_viewport();
+    connect_joypad();
 
     GB_audio_set_paused(false);
 
@@ -585,6 +719,8 @@ void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_s
     printf("SameBoy v" GB_VERSION "\n%s\n%08X", title, GB_get_rom_crc32(&gb));
 
     screen_size_changed();
+
+    connect_joypad();
 }
 
 void EMSCRIPTEN_KEEPALIVE run_frame() {

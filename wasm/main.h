@@ -1,18 +1,37 @@
 #ifndef main_h
 #define main_h
 
-typedef enum {
-      JOYPAD_AXISES_X,
-      JOYPAD_AXISES_Y,
-      JOYPAD_AXISES_MAX
-} joypad_axis_t;
-
 enum scaling_mode {
     GB_SDL_SCALING_ENTIRE_WINDOW,
     GB_SDL_SCALING_KEEP_RATIO,
     GB_SDL_SCALING_INTEGER_FACTOR,
     GB_SDL_SCALING_MAX,
 };
+
+typedef enum {
+    JOYPAD_BUTTON_RIGHT,
+    JOYPAD_BUTTON_LEFT,
+    JOYPAD_BUTTON_UP,
+    JOYPAD_BUTTON_DOWN,
+    JOYPAD_BUTTON_A,
+    JOYPAD_BUTTON_B,
+    JOYPAD_BUTTON_SELECT,
+    JOYPAD_BUTTON_START,
+    JOYPAD_BUTTON_MENU,
+    JOYPAD_BUTTON_TURBO,
+    JOYPAD_BUTTON_REWIND,
+    JOYPAD_BUTTON_SLOW_MOTION,
+    JOYPAD_BUTTONS_MAX
+} joypad_button_t;
+
+typedef enum {
+      JOYPAD_AXISES_X,
+      JOYPAD_AXISES_Y,
+      JOYPAD_AXISES_MAX
+} joypad_axis_t;
+
+#define JOYSTICK_HIGH 0x4000
+#define JOYSTICK_LOW 0x3800
 
 typedef struct {
     SDL_Scancode keys[9];
