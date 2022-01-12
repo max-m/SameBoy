@@ -219,10 +219,34 @@ void render_texture(void *pixels,  void *previous)
     }
 }
 
+void EMSCRIPTEN_KEEPALIVE quit() {
+    printf("Quitting ...\n");
+
+    save_battery();
+    battery_save_path_ptr = NULL;
+
+    GB_free(&gb);
+
+    SDL_FreeSurface(screen);
+
+    if (renderer) {
+        SDL_DestroyTexture(texture);
+        SDL_DestroyRenderer(renderer);
+    }
+
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+}
+
 static void handle_events(GB_gameboy_t *gb) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
+            case SDL_QUIT: {
+                quit();
+                return;
+            }
+
             case SDL_WINDOWEVENT: {
                 if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
                     update_viewport();
@@ -561,27 +585,6 @@ void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_s
     printf("SameBoy v" GB_VERSION "\n%s\n%08X", title, GB_get_rom_crc32(&gb));
 
     screen_size_changed();
-}
-
-void EMSCRIPTEN_KEEPALIVE quit() {
-    printf("Quitting ...\n");
-
-    save_battery();
-    battery_save_path_ptr = NULL;
-
-    emscripten_set_main_loop(NULL, 0, false);
-
-    GB_free(&gb);
-
-    SDL_FreeSurface(screen);
-
-    if (renderer) {
-        SDL_DestroyTexture(texture);
-        SDL_DestroyRenderer(renderer);
-    }
-
-    SDL_DestroyWindow(window);
-    SDL_Quit();
 }
 
 void EMSCRIPTEN_KEEPALIVE run_frame() {

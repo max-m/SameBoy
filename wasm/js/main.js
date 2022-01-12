@@ -55,6 +55,8 @@ function run_frame(time) {
 }
 
 async function loadRomFromMemory(name, data) {
+	document.body.dispatchEvent(new Event('click'));
+
 	const pos = name.lastIndexOf('.');
 	const battery_name = name.substr(0, pos < 0 ? name.length : pos) + '.sav';
 	const battery_path = allocate(intArrayFromString(`/persist/${battery_name}`), 'i8', ALLOC_NORMAL);
@@ -347,11 +349,7 @@ function startup() {
 		Module._save_battery();
 		await Module.sameboy_syncfs();
 	});
-
-	window.addEventListener('unload', Module._quit());
 }
-
-console.log(document.readyState)
 
 if (document.readyState !== 'loading') {
 	setTimeout(startup, 0);

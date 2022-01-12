@@ -3,6 +3,7 @@ html, body {
   margin: 0;
   padding: 0;
   background: #fff;
+  font-family: "Raleway", sans-serif;
 }
 
 canvas {
@@ -16,6 +17,14 @@ canvas {
   image-rendering: optimize-contrast;
   image-rendering: crisp-edges;
   image-rendering: pixelated;
+}
+
+#demo-roms a {
+    text-decoration: none;
+}
+
+#demo-roms > li:not(:last-child) {
+    margin-bottom: 0.25rem;
 }
 
 #spinner {
@@ -177,7 +186,7 @@ canvas {
 }
 #system #controls #menuButton > span {
   display: block;
-  background-color: rgba(0, 0, 0, 0.3);
+  background-color: rgba(0, 0, 0, 0.8);
   margin: auto;
   width: 65%;
   height: 1vmin;
@@ -191,6 +200,14 @@ canvas {
 }
 
 @media (max-width: 719px) and (orientation: portrait) {
+  #demo-roms {
+      font-size: 1.3rem;
+  }
+
+  #demo-roms a {
+    color: #fff;
+  }
+
   #system {
     background-color: #ac2744;
   }
@@ -285,6 +302,14 @@ canvas {
   }
 }
 @media (max-height: 719px) and (orientation: landscape) {
+  #demo-roms {
+    font-size: 1.3rem;
+  }
+
+  #demo-roms a {
+    color: #fff;
+  }
+
   #system {
     background-color: #ac2744;
   }
