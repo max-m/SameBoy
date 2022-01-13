@@ -125,9 +125,22 @@ typedef struct {
     bool osd;
 } configuration_t;
 
+typedef struct {
+    SDL_Event event;
+    unsigned width;
+    unsigned height;
+    unsigned x_offset;
+    unsigned y_offset;
+    bool should_render;
+
+    uint32_t *pixels;
+} menu_state_t;
+
 extern configuration_t configuration;
 
 void update_viewport(void);
+menu_state_t init_gui(bool is_running);
+bool run_gui_iteration(bool is_running, menu_state_t *state);
 void run_gui(bool is_running);
 void render_texture(void *pixels, void *previous);
 void connect_joypad(void);

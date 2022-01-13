@@ -268,14 +268,17 @@ canvas {
     flex: 1 1 50vh;
   }
   #system #display #canvas {
+    /*
+    height: auto !important;
+    width: 100% !important;
+    */
+    max-width: 50vh;
+
     display: block;
     margin: auto;
-    width: 100% !important;
-    max-width: 50vh;
     position: relative;
     top: 50%;
     transform: translate(0, -50%);
-    height: auto !important;
   }
   #system #controls {
     flex: 1 1 50vh;

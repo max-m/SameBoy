@@ -2,7 +2,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include "shader.h"
-#include "utils.h"
+#include "wasm_utils.h"
+
+extern bool uses_gl(void);
 
 static const char *vertex_shader_100 = "#version 100 \n\
 attribute vec4 aPosition;\n\
@@ -140,7 +142,7 @@ bool init_shader_with_name(shader_t *shader, const char *name)
 
     static char master_shader_code[0x1001] = {0,};
     static char shader_code[0x10001] = {0,};
-    static char final_shader_code[0x1101] = {0,};
+    static char final_shader_code[0x11002] = {0,};
     static signed long filter_token_location = 0;
 
     if (!master_shader_code[0]) {
@@ -281,6 +283,8 @@ void render_bitmap_with_shader(shader_t *shader, void *bitmap, void *previous,
 
 void free_shader(shader_t *shader)
 {
+    printf("Freeing shader\n");
+
     glDeleteProgram(shader->program);
     glDeleteTextures(1, &shader->texture);
     glDeleteTextures(1, &shader->previous_texture);

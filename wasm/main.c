@@ -1,112 +1,46 @@
+#include <errno.h>
 #include <stdbool.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include <emscripten.h>
 #include <SDL2/SDL_video.h>
 #include <SDL2/SDL.h>
 
-
-#include <Core/gb.h>
-#include <string.h>
-#include "utils.h"
-#include "main.h"
+#include "wasm_utils.h"
 #include "shader.h"
+#include <Core/gb.h>
 
 #include "SDL/audio/audio.h"
+#include "SDL/gui.h"
 
 GB_gameboy_t gb;
 
-static SDL_Window *window;
-static SDL_Renderer *renderer;
-static SDL_Surface *screen;
-static SDL_Texture *texture;
-static SDL_PixelFormat *pixel_format;
+const char *PREFS_PATH = "/persist/prefs.bin";
 
-static SDL_Joystick *joystick = NULL;
-static SDL_GameController *controller = NULL;
-static SDL_Haptic *haptic = NULL;
+static bool is_running = false;
+static bool paused = false;
 
-shader_t shader;
-
-static SDL_Rect rect;
-static unsigned factor;
 static uint32_t pixel_buffer_1[256 * 224], pixel_buffer_2[256 * 224];
 static uint32_t *active_pixel_buffer = pixel_buffer_1;
 static uint32_t *previous_pixel_buffer = pixel_buffer_2;
 static char *battery_save_path_ptr = NULL;
 
-struct shader_name {
-    const char *file_name;
-    const char *display_name;
-} shaders[] =
-{
-    {"NearestNeighbor", "Nearest Neighbor"},
-    {"Bilinear", "Bilinear"},
-    {"SmoothBilinear", "Smooth Bilinear"},
-    {"MonoLCD", "Monochrome LCD"},
-    {"LCD", "LCD Display"},
-    {"CRT", "CRT Display"},
-    {"Scale2x", "Scale2x"},
-    {"Scale4x", "Scale4x"},
-    {"AAScale2x", "Anti-aliased Scale2x"},
-    {"AAScale4x", "Anti-aliased Scale4x"},
-    {"HQ2x", "HQ2x"},
-    {"OmniScale", "OmniScale"},
-    {"OmniScaleLegacy", "OmniScale Legacy"},
-    {"AAOmniScaleLegacy", "AA OmniScale Legacy"},
-};
+static SDL_GLContext gl_context = NULL;
 
-configuration_t configuration =
+static menu_state_t menu_state;
+static bool had_audio_playing = false;
+static bool render_menu = false;
+static size_t previous_width = 0;
+
+bool uses_gl(void)
 {
-    .keys = {
-        SDL_SCANCODE_RIGHT,
-        SDL_SCANCODE_LEFT,
-        SDL_SCANCODE_UP,
-        SDL_SCANCODE_DOWN,
-        SDL_SCANCODE_X,
-        SDL_SCANCODE_Z,
-        SDL_SCANCODE_BACKSPACE,
-        SDL_SCANCODE_RETURN,
-        SDL_SCANCODE_SPACE
-    },
-    .keys_2 = {
-        SDL_SCANCODE_TAB,
-        SDL_SCANCODE_LSHIFT,
-    },
-    .joypad_configuration = {
-        13,
-        14,
-        11,
-        12,
-        0,
-        1,
-        9,
-        8,
-        10,
-        4,
-        -1,
-        5,
-    },
-    .joypad_axises = {
-        0,
-        1,
-    },
-    .color_correction_mode = GB_COLOR_CORRECTION_EMULATE_HARDWARE,
-    .highpass_mode = GB_HIGHPASS_ACCURATE,
-    .scaling_mode = GB_SDL_SCALING_INTEGER_FACTOR,
-    .blending_mode = GB_FRAME_BLENDING_MODE_ACCURATE,
-    .rewind_length = 60 * 2,
-    .model = MODEL_CGB,
-    .sgb_revision = SGB_2,
-    .volume = 100,
-    .rumble_mode = GB_RUMBLE_ALL_GAMES,
-    .default_scale = 2,
-    .color_temperature = 10,
-};
+    return gl_context;
+}
 
 // Use this function instead of GB_save_battery()
-int EMSCRIPTEN_KEEPALIVE save_battery()
+int EMSCRIPTEN_KEEPALIVE save_battery(void)
 {
     if (!GB_is_inited(&gb) || battery_save_path_ptr == NULL) {
         return 0;
@@ -125,7 +59,17 @@ int EMSCRIPTEN_KEEPALIVE save_battery()
     return result;
 }
 
-static unsigned query_sample_rate_of_audiocontexts()
+static void save_configuration(void)
+{
+    FILE *prefs_file = fopen(PREFS_PATH, "wb");
+    if (prefs_file) {
+        printf("Saving configuration\n");
+        fwrite(&configuration, 1, sizeof(configuration), prefs_file);
+        fclose(prefs_file);
+    }
+}
+
+static unsigned query_sample_rate_of_audiocontexts(void)
 {
     return EM_ASM_INT({
         if (!Module.SDL2 || !Module.SDL2.audioContext) {
@@ -140,7 +84,27 @@ static unsigned query_sample_rate_of_audiocontexts()
     });
 }
 
-static void set_model_class()
+static void update_palette(void)
+{
+    switch (configuration.dmg_palette) {
+        case 1:
+            GB_set_palette(&gb, &GB_PALETTE_DMG);
+            break;
+
+        case 2:
+            GB_set_palette(&gb, &GB_PALETTE_MGB);
+            break;
+
+        case 3:
+            GB_set_palette(&gb, &GB_PALETTE_GBL);
+            break;
+
+        default:
+            GB_set_palette(&gb, &GB_PALETTE_GREY);
+    }
+}
+
+static void set_model_class(void)
 {
     EM_ASM({
         document.getElementById('system')
@@ -188,82 +152,6 @@ static void gb_audio_callback(GB_gameboy_t *gb, GB_sample_t *sample)
     GB_audio_queue_sample(sample);
 }
 
-static void update_viewport(void)
-{
-    int win_width, win_height;
-    SDL_GL_GetDrawableSize(window, &win_width, &win_height);
-    int logical_width, logical_height;
-    SDL_GetWindowSize(window, &logical_width, &logical_height);
-    factor = win_width / logical_width;
-
-    double x_factor = win_width / (double) GB_get_screen_width(&gb);
-    double y_factor = win_height / (double) GB_get_screen_height(&gb);
-
-    if (configuration.scaling_mode == GB_SDL_SCALING_INTEGER_FACTOR) {
-        x_factor = (unsigned)(x_factor);
-        y_factor = (unsigned)(y_factor);
-    }
-
-    if (configuration.scaling_mode != GB_SDL_SCALING_ENTIRE_WINDOW) {
-        if (x_factor > y_factor) {
-            x_factor = y_factor;
-        }
-        else {
-            y_factor = x_factor;
-        }
-    }
-
-    unsigned new_width = x_factor * GB_get_screen_width(&gb);
-    unsigned new_height = y_factor * GB_get_screen_height(&gb);
-
-    rect = (SDL_Rect){(win_width  - new_width) / 2, (win_height - new_height) / 2,
-        new_width, new_height};
-
-    if (renderer) {
-        SDL_RenderSetViewport(renderer, &rect);
-    }
-    else {
-        glViewport(rect.x, rect.y, rect.w, rect.h);
-    }
-}
-
-static void render_texture(void *pixels,  void *previous)
-{
-    if (renderer) {
-        if (pixels) {
-            SDL_UpdateTexture(texture, NULL, pixels, GB_get_screen_width(&gb) * sizeof (uint32_t));
-        }
-        SDL_RenderClear(renderer);
-        SDL_RenderCopy(renderer, texture, NULL, NULL);
-        SDL_RenderPresent(renderer);
-    }
-    else {
-        static void *_pixels = NULL;
-        if (pixels) {
-            _pixels = pixels;
-        }
-        glClearColor(0, 0, 0, 1);
-        glClear(GL_COLOR_BUFFER_BIT);
-        GB_frame_blending_mode_t mode = configuration.blending_mode;
-        if (!previous) {
-            mode = GB_FRAME_BLENDING_MODE_DISABLED;
-        }
-        else if (mode == GB_FRAME_BLENDING_MODE_ACCURATE) {
-            if (GB_is_sgb(&gb)) {
-                mode = GB_FRAME_BLENDING_MODE_SIMPLE;
-            }
-            else {
-                mode = GB_is_odd_frame(&gb)? GB_FRAME_BLENDING_MODE_ACCURATE_ODD : GB_FRAME_BLENDING_MODE_ACCURATE_EVEN;
-            }
-        }
-        render_bitmap_with_shader(&shader, _pixels, previous,
-                                  GB_get_screen_width(&gb), GB_get_screen_height(&gb),
-                                  rect.x, rect.y, rect.w, rect.h,
-                                  mode);
-        SDL_GL_SwapWindow(window);
-    }
-}
-
 static void screen_size_changed(void)
 {
     if (GB_get_screen_width(&gb) > 160) {
@@ -304,7 +192,7 @@ static void screen_size_changed(void)
     update_viewport();
 }
 
-void EMSCRIPTEN_KEEPALIVE quit()
+void EMSCRIPTEN_KEEPALIVE quit(void)
 {
     printf("Quitting ...\n");
 
@@ -312,8 +200,6 @@ void EMSCRIPTEN_KEEPALIVE quit()
     battery_save_path_ptr = NULL;
 
     GB_free(&gb);
-
-    SDL_FreeSurface(screen);
 
     if (renderer) {
         SDL_DestroyTexture(texture);
@@ -324,24 +210,94 @@ void EMSCRIPTEN_KEEPALIVE quit()
     SDL_Quit();
 }
 
-static joypad_button_t get_joypad_button(uint8_t physical_button)
+static void open_menu(void)
 {
-    for (unsigned i = 0; i < JOYPAD_BUTTONS_MAX; i++) {
-        if (configuration.joypad_configuration[i] == physical_button) {
-            return i;
-        }
+    had_audio_playing = GB_audio_is_playing();
+    if (had_audio_playing) {
+        GB_audio_set_paused(true);
     }
-    return JOYPAD_BUTTONS_MAX;
+    previous_width = GB_get_screen_width(&gb);
+
+    menu_state = init_gui(is_running);
+    render_menu = true;
 }
 
-static joypad_axis_t get_joypad_axis(uint8_t physical_axis)
+static void close_menu(void)
 {
-    for (unsigned i = 0; i < JOYPAD_AXISES_MAX; i++) {
-        if (configuration.joypad_axises[i] == physical_axis) {
-            return i;
-        }
+    if (!render_menu) return;
+
+    if (had_audio_playing) {
+        GB_audio_set_paused(false);
     }
-    return JOYPAD_AXISES_MAX;
+    GB_set_color_correction_mode(&gb, configuration.color_correction_mode);
+    GB_set_light_temperature(&gb, (configuration.color_temperature - 10.0) / 10.0);
+    GB_set_interference_volume(&gb, configuration.interference_volume / 100.0);
+    GB_set_border_mode(&gb, configuration.border_mode);
+    update_palette();
+    GB_set_highpass_filter_mode(&gb, configuration.highpass_mode);
+    #ifndef GB_DISABLE_REWIND
+        GB_set_rewind_length(&gb, configuration.rewind_length);
+    #endif
+    GB_set_rtc_mode(&gb, configuration.rtc_mode);
+    if (previous_width != GB_get_screen_width(&gb)) {
+        screen_size_changed();
+    }
+
+    render_menu = false;
+
+    save_configuration();
+    save_battery();
+}
+
+static bool handle_pending_command(void)
+{
+    switch (pending_command) {
+        case GB_SDL_LOAD_STATE_COMMAND:
+        case GB_SDL_SAVE_STATE_COMMAND: {
+            char save_path[strlen(battery_save_path_ptr) + 5];
+            char save_extension[] = ".s0";
+            save_extension[2] += command_parameter;
+            replace_extension(battery_save_path_ptr, strlen(battery_save_path_ptr), save_path, save_extension);
+
+            bool success;
+            if (pending_command == GB_SDL_LOAD_STATE_COMMAND) {
+                int result = GB_load_state(&gb, save_path);
+                if (result == ENOENT) {
+                    char save_extension[] = ".sn0";
+                    save_extension[3] += command_parameter;
+                    replace_extension(battery_save_path_ptr, strlen(battery_save_path_ptr), save_path, save_extension);
+                    result = GB_load_state(&gb, save_path);
+                }
+                success = result == 0;
+            }
+            else {
+                success = GB_save_state(&gb, save_path) == 0;
+            }
+
+            if (success) {
+                show_osd_text(pending_command == GB_SDL_LOAD_STATE_COMMAND? "State loaded" : "State saved");
+            }
+            return false;
+        }
+
+        case GB_SDL_LOAD_STATE_FROM_FILE_COMMAND:
+            return false;
+
+        case GB_SDL_NO_COMMAND:
+            return false;
+
+        case GB_SDL_RESET_COMMAND:
+        case GB_SDL_NEW_FILE_COMMAND:
+            save_configuration();
+            save_battery();
+            return true;
+
+        case GB_SDL_QUIT_COMMAND:
+            save_configuration();
+            save_battery();
+            exit(0);
+    }
+    return false;
 }
 
 static void handle_events(GB_gameboy_t *gb)
@@ -425,6 +381,47 @@ static void handle_events(GB_gameboy_t *gb)
             }
 
             case SDL_KEYDOWN:
+                switch (event_hotkey_code(&event)) {
+                    case SDL_SCANCODE_ESCAPE: {
+                        open_menu();
+                        break;
+                    }
+
+                    case SDL_SCANCODE_R:
+                        if (event.key.keysym.mod & MODIFIER) {
+                            pending_command = GB_SDL_RESET_COMMAND;
+                        }
+                        break;
+
+                    case SDL_SCANCODE_P:
+                        if (event.key.keysym.mod & MODIFIER) {
+                            paused = !paused;
+                        }
+                        break;
+
+                    case SDL_SCANCODE_M:
+                        if (event.key.keysym.mod & MODIFIER) {
+                            GB_audio_set_paused(GB_audio_is_playing());
+                        }
+                        break;
+
+                    default:
+                        /* Save states */
+                        if (event.key.keysym.scancode >= SDL_SCANCODE_1 && event.key.keysym.scancode <= SDL_SCANCODE_0) {
+                            if (event.key.keysym.mod & MODIFIER) {
+                                command_parameter = (event.key.keysym.scancode - SDL_SCANCODE_1 + 1) % 10;
+
+                                if (event.key.keysym.mod & KMOD_SHIFT) {
+                                    pending_command = GB_SDL_LOAD_STATE_COMMAND;
+                                }
+                                else {
+                                    pending_command = GB_SDL_SAVE_STATE_COMMAND;
+                                }
+                            }
+                        }
+                        break;
+                }
+                // Fall through
             case SDL_KEYUP: {
                 for (unsigned i = 0; i < GB_KEY_MAX; i++) {
                     if (event.key.keysym.scancode == configuration.keys[i]) {
@@ -484,8 +481,9 @@ static void load_boot_rom(GB_gameboy_t *gb, GB_boot_rom_t type)
     GB_load_boot_rom(gb, path);
 }
 
-static void init_gb()
+static void init_gb(void)
 {
+    pending_command = GB_SDL_NO_COMMAND;
     GB_model_t model;
 
     model = (GB_model_t [])
@@ -493,6 +491,7 @@ static void init_gb()
         [MODEL_DMG] = GB_MODEL_DMG_B,
         [MODEL_CGB] = GB_MODEL_CGB_E,
         [MODEL_AGB] = GB_MODEL_AGB,
+        [MODEL_MGB] = GB_MODEL_MGB,
         [MODEL_SGB] = (GB_model_t [])
         {
             [SGB_NTSC] = GB_MODEL_SGB_NTSC,
@@ -525,24 +524,29 @@ static void init_gb()
         GB_set_interference_volume(&gb, configuration.interference_volume / 100.0);
         GB_set_border_mode(&gb, configuration.border_mode);
         GB_set_highpass_filter_mode(&gb, configuration.highpass_mode);
-        // GB_set_rewind_length(&gb, configuration.rewind_length);
+        #ifndef GB_DISABLE_REWIND
+            GB_set_rewind_length(&gb, configuration.rewind_length);
+        #endif
         GB_set_rtc_mode(&gb, configuration.rtc_mode);
         GB_set_update_input_hint_callback(&gb, handle_events);
         GB_apu_set_sample_callback(&gb, gb_audio_callback);
-
-        #ifndef GB_DISABLE_REWIND
-            GB_set_rewind_length(&gb, 0);
-        #endif
 
         battery_save_path_ptr = NULL;
     }
 
     screen_size_changed();
+    set_model_class();
 }
 
-static bool use_software_renderer()
+static bool use_software_renderer(void)
 {
     fprintf(stderr, "Using software renderer!\n");
+
+    if (gl_context) {
+        SDL_GL_DeleteContext(gl_context);
+        gl_context = NULL;
+    }
+
     renderer = SDL_CreateRenderer(window, -1, 0);
 
     texture = SDL_CreateTexture(
@@ -563,64 +567,78 @@ static bool use_software_renderer()
     return EXIT_SUCCESS;
 }
 
-static bool try_init_shader(shader_t *shader, const char *shader_name)
+// Makes sure, that the fallback shader is valid,
+// then tries to load the configured shader
+static bool try_init_shaders(void)
 {
-    const char *fallback = "NearestNeighbor";
-    char *name;
+    if (!uses_gl()) return false;
 
-    if (shader_name && strlen(shader_name) > 0) {
-        name = (char *)shader_name;
+    const char *fallback = "NearestNeighbor";
+
+    char *name;
+    if (strlen(configuration.filter) > 0) {
+        name = (char *)configuration.filter;
     }
     else {
         name = (char *)fallback;
     }
 
-    printf("Trying to initialize shader \"%s\".\n", name);
-    if (init_shader_with_name(shader, name)) {
-        return true;
-    }
+    printf("Trying to initialize fallback shader \"%s\".\n", fallback);
+    bool fallback_supported = init_shader_with_name(&shader, fallback);
 
-    printf("Failed to initialize shader \"%s\".\n", name);
-    if (name != fallback) {
-        printf("Trying to initialize fallback shader.\n");
+    if (strcmp(name, fallback) != 0) {
+        free_shader(&shader);
 
-        if (init_shader_with_name(shader, fallback)) {
+        printf("Trying to initialize shader \"%s\".\n", name);
+        if (init_shader_with_name(&shader, name)) {
             return true;
         }
 
-        printf("Failed to initialize fallback shader.\n");
+        printf("Failed to initialize shader \"%s\".\n", name);
+        free_shader(&shader);
+
+        if (fallback_supported) {
+            printf("Using fallback shader.\n");
+
+            if (init_shader_with_name(&shader, fallback)) {
+                return true;
+            }
+
+            // This should not happen, initializing this shader worked at the start of this function ...
+            printf("Failed to initialize fallback shader.\n");
+        }
     }
 
-    return false;
+    return fallback_supported;
 }
 
-static void connect_joypad(void)
+void EMSCRIPTEN_KEEPALIVE run_frame(void)
 {
-    if (joystick && !SDL_NumJoysticks()) {
-        if (controller) {
-            SDL_GameControllerClose(controller);
-            controller = NULL;
-            joystick = NULL;
+    if (render_menu) {
+        if (SDL_PollEvent(&menu_state.event)) {
+            if (run_gui_iteration(is_running, &menu_state)) {
+                close_menu();
+            }
         }
-        else {
-            SDL_JoystickClose(joystick);
-            joystick = NULL;
-        }
+        return;
     }
-    else if (!joystick && SDL_NumJoysticks()) {
-        if ((controller = SDL_GameControllerOpen(0))) {
-            joystick = SDL_GameControllerGetJoystick(controller);
-        }
-        else {
-            joystick = SDL_JoystickOpen(0);
-        }
+
+    if (paused) {
+        handle_events(&gb);
     }
-    if (joystick) {
-        haptic = SDL_HapticOpenFromJoystick(joystick);
+    else {
+        GB_run_frame(&gb);
     }
+
+    /* These commands can't run in the handle_event function, because they're not safe in a vblank context. */
+    if (handle_pending_command()) {
+        pending_command = GB_SDL_NO_COMMAND;
+        init_gb();
+    }
+    pending_command = GB_SDL_NO_COMMAND;
 }
 
-int EMSCRIPTEN_KEEPALIVE init()
+int EMSCRIPTEN_KEEPALIVE init(void)
 {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
         fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
@@ -636,6 +654,35 @@ int EMSCRIPTEN_KEEPALIVE init()
     }
 
     printf("SameBoy v" GB_VERSION "\n");
+
+    FILE *prefs_file = fopen(PREFS_PATH, "rb");
+    if (prefs_file) {
+        printf("Loading configuration\n");
+        fread(&configuration, 1, sizeof(configuration), prefs_file);
+        fclose(prefs_file);
+
+        /* Sanitize for stability */
+        configuration.color_correction_mode %= GB_COLOR_CORRECTION_LOW_CONTRAST +1;
+        configuration.scaling_mode %= GB_SDL_SCALING_MAX;
+        configuration.default_scale %= GB_SDL_DEFAULT_SCALE_MAX + 1;
+        configuration.blending_mode %= GB_FRAME_BLENDING_MODE_ACCURATE + 1;
+        configuration.highpass_mode %= GB_HIGHPASS_MAX;
+        configuration.model %= MODEL_MAX;
+        configuration.sgb_revision %= SGB_MAX;
+        configuration.dmg_palette %= 3;
+        configuration.border_mode %= GB_BORDER_ALWAYS + 1;
+        configuration.rumble_mode %= GB_RUMBLE_ALL_GAMES + 1;
+        configuration.color_temperature %= 21;
+        configuration.bootrom_path[sizeof(configuration.bootrom_path) - 1] = 0;
+    }
+
+    if (configuration.model >= MODEL_MAX) {
+        configuration.model = MODEL_CGB;
+    }
+
+    if (configuration.default_scale == 0) {
+        configuration.default_scale = 2;
+    }
 
     window = SDL_CreateWindow(
         "SameBoy v" GB_VERSION,
@@ -656,7 +703,7 @@ int EMSCRIPTEN_KEEPALIVE init()
     // Try to get a GLES 3.0 context
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-    SDL_GLContext gl_context = SDL_GL_CreateContext(window);
+    gl_context = SDL_GL_CreateContext(window);
 
     if (gl_context == NULL) {
         // Try to get a GLES 2.0 context
@@ -672,6 +719,9 @@ int EMSCRIPTEN_KEEPALIVE init()
     }
     else {
         printf("Using OpenGL renderer!\n");
+        printf("GLES: %s\n", glGetString(GL_VERSION));
+        printf("GLSL: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
+
         pixel_format = SDL_AllocFormat(SDL_PIXELFORMAT_ABGR8888);
 
         if (!pixel_format) {
@@ -679,15 +729,19 @@ int EMSCRIPTEN_KEEPALIVE init()
             return EXIT_FAILURE;
         }
 
-        printf("GLES: %s\n", glGetString(GL_VERSION));
-        printf("GLSL: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
-        printf("Parsed GL version: %hu\n", get_gl_version());
+        if (!try_init_shaders()) {
+            if (use_software_renderer()) {
+                return EXIT_FAILURE;
+            }
+        }
     }
 
     unsigned audio_sample_rate = query_sample_rate_of_audiocontexts();
     printf("Sample rate: %u\n", audio_sample_rate);
 
     GB_audio_init(audio_sample_rate);
+    GB_audio_set_paused(false);
+    init_gb();
 
     EM_ASM({
         function audio_workaround(e) {
@@ -733,26 +787,21 @@ int EMSCRIPTEN_KEEPALIVE init()
         audio_workaround();
     });
 
-    if (!try_init_shader(&shader, configuration.filter)) {
-        if (gl_context) {
-            SDL_GL_DeleteContext(gl_context);
-        }
-
-        if (use_software_renderer()) {
-            return EXIT_FAILURE;
-        }
-    }
-
     update_viewport();
-    connect_joypad();
 
-    GB_audio_set_paused(false);
+    is_running = false;
+    menu_state = init_gui(is_running);
+    open_menu();
+
+    emscripten_set_main_loop(run_frame, -1, false);
 
     return EXIT_SUCCESS;
 }
 
 void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_save_path)
 {
+    close_menu();
+
     // There might be a previous session that needs to be saved
     save_battery();
 
@@ -772,12 +821,15 @@ void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_s
 
     screen_size_changed();
 
-    set_model_class();
-
     connect_joypad();
+
+    is_running = true;
 }
 
-void EMSCRIPTEN_KEEPALIVE run_frame()
-{
-    GB_run_frame(&gb);
+void EMSCRIPTEN_KEEPALIVE pause(void) {
+    emscripten_pause_main_loop();
+}
+
+void EMSCRIPTEN_KEEPALIVE resume(void) {
+    emscripten_resume_main_loop();
 }

@@ -26,6 +26,8 @@ endif
 
 CORE_DIR += ..
 
+include $(CORE_DIR)/version.mk
+
 CFLAGS += -DGB_VERSION=\"$(VERSION)\"
 CONF ?= debug
 
@@ -61,6 +63,7 @@ CFLAGS += -I$(CORE_DIR)
 # -Werror implies -Wpass-failed=transform-warning and for some reason Clang fails to unroll some loops in apu.c
 CFLAGS += -Wno-pass-failed
 CFLAGS += -s USE_SDL=2
+CFLAGS += -DWASM=1
 CFLAGS += -DGB_DISABLE_TIMEKEEPING -DGB_DISABLE_REWIND -DGB_DISABLE_DEBUGGER -DGB_DISABLE_CHEATS
 
 # Build as library
@@ -73,15 +76,18 @@ LDFLAGS += -s USE_WEBGL2=1
 
 LDFLAGS += -s LLD_REPORT_UNDEFINED
 
-LDFLAGS += --preload-file $(BOOTROMS_DIR)@/BootROMs --preload-file $(CORE_DIR)/Shaders@/Shaders
+LDFLAGS += --preload-file $(BOOTROMS_DIR)@/BootROMs
+LDFLAGS += --preload-file $(CORE_DIR)/Shaders@/Shaders
+LDFLAGS += --preload-file $(CORE_DIR)/SDL/background.bmp@/background.bmp
 LDFLAGS += -s "EXPORTED_RUNTIME_METHODS=['ccall', 'cwrap', 'getValue', 'AsciiToString', 'FS']"
 
 LDFLAGS += -lc -lm -ldl
 CFLAGS += -Wno-deprecated-declarations
 
 ifeq ($(CONF),debug)
-CFLAGS += -g -g4
-CFLAGS += --cpuprofiler --memoryprofiler
+CFLAGS += -g -gseparate-dwarf
+#LDFLAGS += --cpuprofiler --memoryprofiler
+LDFLAGS += --emit-symbol-map --source-map-base ./
 else ifeq ($(CONF), release)
 CFLAGS += -O3 -flto -DNDEBUG
 LDFLAGS += -flto --emit-symbol-map
@@ -121,7 +127,12 @@ CORE_SOURCES_RAW := \
 CORE_SOURCES := $(shell realpath --relative-to=$(CORE_DIR) $(CORE_SOURCES_RAW))
 CORE_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(CORE_SOURCES))
 
-WASM_SOURCES := $(shell ls *.c) $(CORE_DIR)/SDL/audio/sdl.c
+WASM_SOURCES := \
+	$(shell ls *.c) \
+	$(CORE_DIR)/SDL/audio/sdl.c \
+	$(CORE_DIR)/SDL/font.c \
+	$(CORE_DIR)/SDL/gui.c \
+	$(CORE_DIR)/SDL/utils.c
 WASM_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(WASM_SOURCES))
 
 WEB_SOURCES := $(shell ls ressources/.)

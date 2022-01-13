@@ -2,7 +2,6 @@ const frame_rate = (0x400000 / 70224.0);
 const ms_per_frame = 1000 / frame_rate;
 let last_frame_time = 0;
 let animation_frame_handle = undefined;
-let running = false;
 
 function string_hash(str) {
 	let hash = 0;
@@ -31,35 +30,12 @@ function simulate_key_event(type, key, which) {
 	Module.canvas.dispatchEvent(e);
 }
 
-function run_frame(time) {
-	if (animation_frame_handle != null) {
-		animation_frame_handle = window.requestAnimationFrame(run_frame);
-	}
-
-	if (document.visibilityState) {
-		if (document.visibilityState == 'hidden') {
-			return;
-		}
-	}
-	else if (document.hidden) {
-		return;
-	}
-
-	const delta = time - last_frame_time;
-
-	if (delta > ms_per_frame) {
-		Module._run_frame();
-
-		last_frame_time = time - (delta % ms_per_frame);
-	}
-}
-
 async function loadRomFromMemory(name, data) {
 	document.body.dispatchEvent(new Event('click'));
 
 	const pos = name.lastIndexOf('.');
 	const battery_name = name.substr(0, pos < 0 ? name.length : pos) + '.sav';
-	const battery_path = allocate(intArrayFromString(`/persist/${battery_name}`), 'i8', ALLOC_NORMAL);
+	const battery_path = allocate(intArrayFromString(`/persist/${battery_name}`), ALLOC_NORMAL);
 
 	// Copy data into WASM memory
 	const ptr = Module._malloc(data.byteLength);
@@ -67,12 +43,6 @@ async function loadRomFromMemory(name, data) {
 	wasm_buf.set(new Uint8Array(data));
 
 	Module._load_rom(wasm_buf.byteOffset, wasm_buf.byteLength, battery_path);
-
-	window.cancelAnimationFrame(animation_frame_handle);
-	animation_frame_handle = null;
-
-	running = true;
-	animation_frame_handle = window.requestAnimationFrame(run_frame);
 }
 
 async function loadROM(file) {
@@ -313,10 +283,7 @@ function startup() {
 		event.preventDefault();
 		event.stopPropagation();
 
-		if (running) {
-			window.cancelAnimationFrame(animation_frame_handle);
-			animation_frame_handle = null;
-		}
+		Module._pause();
 
 		const menuButton = event.target;
 		const menu = document.getElementById('menu');
@@ -340,9 +307,7 @@ function startup() {
 			menuButton.classList.remove('active');
 			menu.style.display = '';
 
-			if (running) {
-				animation_frame_handle = window.requestAnimationFrame(run_frame);
-			}
+			Module._resume();
 		}
 
 		document.body.addEventListener('click', onOutsideClick);

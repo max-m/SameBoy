@@ -4,17 +4,18 @@
 #include <stdbool.h>
 
 typedef struct shader_s {
-    GLuint input_resolution_uniform;
     GLuint resolution_uniform;
     GLuint origin_uniform;
     GLuint texture_uniform;
     GLuint previous_texture_uniform;
     GLuint blending_mode_uniform;
-
+    
     GLuint position_attribute;
     GLuint texture;
     GLuint previous_texture;
     GLuint program;
+
+    GLuint input_resolution_uniform;
 } shader_t;
 
 typedef enum {
@@ -24,8 +25,6 @@ typedef enum {
     GB_FRAME_BLENDING_MODE_ACCURATE_EVEN = GB_FRAME_BLENDING_MODE_ACCURATE,
     GB_FRAME_BLENDING_MODE_ACCURATE_ODD,
 } GB_frame_blending_mode_t;
-
-uint16_t get_gl_version();
 
 bool init_shader_with_name(shader_t *shader, const char *name);
 void render_bitmap_with_shader(shader_t *shader, void *bitmap, void *previous,
