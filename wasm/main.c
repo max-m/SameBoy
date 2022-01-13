@@ -29,7 +29,6 @@ static char *battery_save_path_ptr = NULL;
 
 static SDL_GLContext gl_context = NULL;
 
-static menu_state_t menu_state;
 static bool had_audio_playing = false;
 static bool render_menu = false;
 static size_t previous_width = 0;
@@ -218,7 +217,7 @@ static void open_menu(void)
     }
     previous_width = GB_get_screen_width(&gb);
 
-    menu_state = init_gui(is_running);
+    init_gui(is_running);
     render_menu = true;
 }
 
@@ -616,7 +615,7 @@ void EMSCRIPTEN_KEEPALIVE run_frame(void)
 {
     if (render_menu) {
         if (SDL_PollEvent(&menu_state.event)) {
-            if (run_gui_iteration(is_running, &menu_state)) {
+            if (run_gui_iteration(is_running)) {
                 close_menu();
             }
         }
@@ -790,7 +789,7 @@ int EMSCRIPTEN_KEEPALIVE init(void)
     update_viewport();
 
     is_running = false;
-    menu_state = init_gui(is_running);
+    init_gui(is_running);
     open_menu();
 
     emscripten_set_main_loop(run_frame, -1, false);

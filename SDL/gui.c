@@ -27,6 +27,7 @@ char *dropped_state_file = NULL;
 #endif
 
 shader_t shader;
+menu_state_t menu_state = {0,};
 static SDL_Rect rect;
 static unsigned factor;
 
@@ -1181,7 +1182,7 @@ void connect_joypad(void)
     }
 }
 
-menu_state_t init_gui(bool is_running)
+void init_gui(bool is_running)
 {
     SDL_ShowCursor(SDL_ENABLE);
     connect_joypad();
@@ -1189,62 +1190,63 @@ menu_state_t init_gui(bool is_running)
     unsigned width = GB_get_screen_width(&gb);
     unsigned height = GB_get_screen_height(&gb);
 
-    uint32_t *pixels = (uint32_t *)malloc(width * height * sizeof(uint32_t));
+    if (!menu_state.pixels || width * height != menu_state.width * menu_state.height) {
+        if (menu_state.pixels) {
+            free(menu_state.pixels);
+        }
 
-    if (!pixels) {
-        fprintf(stderr, "Failed to allocate memory");
-        abort();
-    }
+        menu_state.pixels = (uint32_t *)malloc(width * height * sizeof(uint32_t));
 
-    if (width != 160 || height != 144) {
-        for (unsigned i = 0; i < width * height; i++) {
-            pixels[i] = gui_palette_native[0];
+        if (!menu_state.pixels) {
+            fprintf(stderr, "Failed to allocate memory");
+            abort();
+        }
+
+        if (width != 160 || height != 144) {
+            for (unsigned i = 0; i < width * height; i++) {
+                menu_state.pixels[i] = gui_palette_native[0];
+            }
         }
     }
 
-    menu_state_t state = {
-        .width = width,
-        .height = height,
-        .x_offset = (width - 160) / 2,
-        .y_offset = (height - 144) / 2,
-        .event = {0,},
-        .should_render = true,
-        .pixels = pixels,
-    };
+    menu_state.event = (SDL_Event){0,};
+    menu_state.width = width;
+    menu_state.height = height;
+    menu_state.x_offset = (width - 160) / 2;
+    menu_state.y_offset = (height - 144) / 2;
+    menu_state.should_render = true;
 
     gui_state = is_running? SHOWING_MENU : SHOWING_DROP_MESSAGE;
     current_menu = root_menu = is_running? paused_menu : nonpaused_menu;
     recalculate_menu_height();
     current_selection = 0;
     scroll = 0;
-
-    return state;
 }
 
-bool run_gui_iteration(bool is_running, menu_state_t *state) {
-    unsigned width = state->width;
-    unsigned height = state->height;
-    unsigned x_offset = state->x_offset;
-    unsigned y_offset = state->y_offset;
+bool run_gui_iteration(bool is_running) {
+    unsigned width = menu_state.width;
+    unsigned height = menu_state.height;
+    unsigned x_offset = menu_state.x_offset;
+    unsigned y_offset = menu_state.y_offset;
 
     /* Convert Joypad and mouse events (We only generate down events) */
     if (gui_state != WAITING_FOR_KEY && gui_state != WAITING_FOR_JBUTTON) {
-        switch (state->event.type) {
+        switch (menu_state.event.type) {
             case SDL_WINDOWEVENT:
-                state->should_render = true;
+                menu_state.should_render = true;
                 break;
             case SDL_MOUSEBUTTONDOWN:
                 if (gui_state == SHOWING_HELP) {
-                    state->event.type = SDL_KEYDOWN;
-                    state->event.key.keysym.scancode = SDL_SCANCODE_RETURN;
+                    menu_state.event.type = SDL_KEYDOWN;
+                    menu_state.event.key.keysym.scancode = SDL_SCANCODE_RETURN;
                 }
                 else if (gui_state == SHOWING_DROP_MESSAGE) {
-                    state->event.type = SDL_KEYDOWN;
-                    state->event.key.keysym.scancode = SDL_SCANCODE_ESCAPE;
+                    menu_state.event.type = SDL_KEYDOWN;
+                    menu_state.event.key.keysym.scancode = SDL_SCANCODE_ESCAPE;
                 }
                 else if (gui_state == SHOWING_MENU) {
-                    signed x = (state->event.button.x - rect.x / factor) * width / (rect.w / factor) - x_offset;
-                    signed y = (state->event.button.y - rect.y / factor) * height / (rect.h / factor) - y_offset;
+                    signed x = (menu_state.event.button.x - rect.x / factor) * width / (rect.w / factor) - x_offset;
+                    signed y = (menu_state.event.button.y - rect.y / factor) * height / (rect.h / factor) - y_offset;
                     
                     if (strcmp("CRT", configuration.filter) == 0) {
                         y = y * 8 / 7;
@@ -1276,33 +1278,33 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
                     if (!current_menu[index].string) return false;
                     
                     current_selection = index;
-                    state->event.type = SDL_KEYDOWN;
+                    menu_state.event.type = SDL_KEYDOWN;
                     if (current_menu[index].backwards_handler) {
-                        state->event.key.keysym.scancode = x < 80? SDL_SCANCODE_LEFT : SDL_SCANCODE_RIGHT;
+                        menu_state.event.key.keysym.scancode = x < 80? SDL_SCANCODE_LEFT : SDL_SCANCODE_RIGHT;
                     }
                     else {
-                        state->event.key.keysym.scancode = SDL_SCANCODE_RETURN;
+                        menu_state.event.key.keysym.scancode = SDL_SCANCODE_RETURN;
                     }
 
                 }
                 break;
             case SDL_JOYBUTTONDOWN:
-                state->event.type = SDL_KEYDOWN;
-                joypad_button_t button = get_joypad_button(state->event.jbutton.button);
+                menu_state.event.type = SDL_KEYDOWN;
+                joypad_button_t button = get_joypad_button(menu_state.event.jbutton.button);
                 if (button == JOYPAD_BUTTON_A) {
-                    state->event.key.keysym.scancode = SDL_SCANCODE_RETURN;
+                    menu_state.event.key.keysym.scancode = SDL_SCANCODE_RETURN;
                 }
                 else if (button == JOYPAD_BUTTON_MENU) {
-                    state->event.key.keysym.scancode = SDL_SCANCODE_ESCAPE;
+                    menu_state.event.key.keysym.scancode = SDL_SCANCODE_ESCAPE;
                 }
-                else if (button == JOYPAD_BUTTON_UP) state->event.key.keysym.scancode = SDL_SCANCODE_UP;
-                else if (button == JOYPAD_BUTTON_DOWN) state->event.key.keysym.scancode = SDL_SCANCODE_DOWN;
-                else if (button == JOYPAD_BUTTON_LEFT) state->event.key.keysym.scancode = SDL_SCANCODE_LEFT;
-                else if (button == JOYPAD_BUTTON_RIGHT) state->event.key.keysym.scancode = SDL_SCANCODE_RIGHT;
+                else if (button == JOYPAD_BUTTON_UP) menu_state.event.key.keysym.scancode = SDL_SCANCODE_UP;
+                else if (button == JOYPAD_BUTTON_DOWN) menu_state.event.key.keysym.scancode = SDL_SCANCODE_DOWN;
+                else if (button == JOYPAD_BUTTON_LEFT) menu_state.event.key.keysym.scancode = SDL_SCANCODE_LEFT;
+                else if (button == JOYPAD_BUTTON_RIGHT) menu_state.event.key.keysym.scancode = SDL_SCANCODE_RIGHT;
                 break;
 
             case SDL_JOYHATMOTION: {
-                uint8_t value = state->event.jhat.value;
+                uint8_t value = menu_state.event.jhat.value;
                 if (value != 0) {
                     uint32_t scancode =
                         value == SDL_HAT_UP ? SDL_SCANCODE_UP
@@ -1312,8 +1314,8 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
                         : 0;
 
                     if (scancode != 0) {
-                        state->event.type = SDL_KEYDOWN;
-                        state->event.key.keysym.scancode = scancode;
+                        menu_state.event.type = SDL_KEYDOWN;
+                        menu_state.event.key.keysym.scancode = scancode;
                     }
                 }
                 break;
@@ -1321,42 +1323,42 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
                 
             case SDL_JOYAXISMOTION: {
                 static bool axis_active[2] = {false, false};
-                joypad_axis_t axis = get_joypad_axis(state->event.jaxis.axis);
+                joypad_axis_t axis = get_joypad_axis(menu_state.event.jaxis.axis);
                 if (axis == JOYPAD_AXISES_X) {
-                    if (!axis_active[0] && state->event.jaxis.value > JOYSTICK_HIGH) {
+                    if (!axis_active[0] && menu_state.event.jaxis.value > JOYSTICK_HIGH) {
                         axis_active[0] = true;
-                        state->event.type = SDL_KEYDOWN;
-                        state->event.key.keysym.scancode = SDL_SCANCODE_RIGHT;
+                        menu_state.event.type = SDL_KEYDOWN;
+                        menu_state.event.key.keysym.scancode = SDL_SCANCODE_RIGHT;
                     }
-                    else if (!axis_active[0] && state->event.jaxis.value < -JOYSTICK_HIGH) {
+                    else if (!axis_active[0] && menu_state.event.jaxis.value < -JOYSTICK_HIGH) {
                         axis_active[0] = true;
-                        state->event.type = SDL_KEYDOWN;
-                        state->event.key.keysym.scancode = SDL_SCANCODE_LEFT;
+                        menu_state.event.type = SDL_KEYDOWN;
+                        menu_state.event.key.keysym.scancode = SDL_SCANCODE_LEFT;
                         
                     }
-                    else if (axis_active[0] && state->event.jaxis.value < JOYSTICK_LOW && state->event.jaxis.value > -JOYSTICK_LOW) {
+                    else if (axis_active[0] && menu_state.event.jaxis.value < JOYSTICK_LOW && menu_state.event.jaxis.value > -JOYSTICK_LOW) {
                         axis_active[0] = false;
                     }
                 }
                 else if (axis == JOYPAD_AXISES_Y) {
-                    if (!axis_active[1] && state->event.jaxis.value > JOYSTICK_HIGH) {
+                    if (!axis_active[1] && menu_state.event.jaxis.value > JOYSTICK_HIGH) {
                         axis_active[1] = true;
-                        state->event.type = SDL_KEYDOWN;
-                        state->event.key.keysym.scancode = SDL_SCANCODE_DOWN;
+                        menu_state.event.type = SDL_KEYDOWN;
+                        menu_state.event.key.keysym.scancode = SDL_SCANCODE_DOWN;
                     }
-                    else if (!axis_active[1] && state->event.jaxis.value < -JOYSTICK_HIGH) {
+                    else if (!axis_active[1] && menu_state.event.jaxis.value < -JOYSTICK_HIGH) {
                         axis_active[1] = true;
-                        state->event.type = SDL_KEYDOWN;
-                        state->event.key.keysym.scancode = SDL_SCANCODE_UP;
+                        menu_state.event.type = SDL_KEYDOWN;
+                        menu_state.event.key.keysym.scancode = SDL_SCANCODE_UP;
                     }
-                    else if (axis_active[1] && state->event.jaxis.value < JOYSTICK_LOW && state->event.jaxis.value > -JOYSTICK_LOW) {
+                    else if (axis_active[1] && menu_state.event.jaxis.value < JOYSTICK_LOW && menu_state.event.jaxis.value > -JOYSTICK_LOW) {
                         axis_active[1] = false;
                     }
                 }
             }
         }
     }
-    switch (state->event.type) {
+    switch (menu_state.event.type) {
         case SDL_QUIT: {
             if (!is_running) {
                 exit(0);
@@ -1368,7 +1370,7 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
             
         }
         case SDL_WINDOWEVENT: {
-            if (state->event.window.event == SDL_WINDOWEVENT_RESIZED) {
+            if (menu_state.event.window.event == SDL_WINDOWEVENT_RESIZED) {
                 update_viewport();
                 render_texture(NULL, NULL);
             }
@@ -1376,18 +1378,18 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
         }
 #ifndef WASM
         case SDL_DROPFILE: {
-            if (GB_is_save_state(state->event.drop.file)) {
+            if (GB_is_save_state(menu_state.event.drop.file)) {
                 if (GB_is_inited(&gb)) {
-                    dropped_state_file = state->event.drop.file;
+                    dropped_state_file = menu_state.event.drop.file;
                     pending_command = GB_SDL_LOAD_STATE_FROM_FILE_COMMAND;
                 }
                 else {
-                    SDL_free(state->event.drop.file);
+                    SDL_free(menu_state.event.drop.file);
                 }
                 break;
             }
             else {
-                set_filename(state->event.drop.file, SDL_free);
+                set_filename(menu_state.event.drop.file, SDL_free);
                 pending_command = GB_SDL_NEW_FILE_COMMAND;
                 return true;
             }
@@ -1396,8 +1398,8 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
         case SDL_JOYBUTTONDOWN:
         {
             if (gui_state == WAITING_FOR_JBUTTON && joypad_configuration_progress != JOYPAD_BUTTONS_MAX) {
-                state->should_render = true;
-                configuration.joypad_configuration[joypad_configuration_progress++] = state->event.jbutton.button;
+                menu_state.should_render = true;
+                configuration.joypad_configuration[joypad_configuration_progress++] = menu_state.event.jbutton.button;
             }
             break;
         }
@@ -1405,22 +1407,22 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
         case SDL_JOYAXISMOTION: {
             if (gui_state == WAITING_FOR_JBUTTON &&
                 joypad_configuration_progress == JOYPAD_BUTTONS_MAX &&
-                abs(state->event.jaxis.value) >= 0x4000) {
+                abs(menu_state.event.jaxis.value) >= 0x4000) {
                 if (joypad_axis_temp == (uint8_t)-1) {
-                    joypad_axis_temp = state->event.jaxis.axis;
+                    joypad_axis_temp = menu_state.event.jaxis.axis;
                 }
-                else if (joypad_axis_temp != state->event.jaxis.axis) {
-                    if (joypad_axis_temp < state->event.jaxis.axis) {
+                else if (joypad_axis_temp != menu_state.event.jaxis.axis) {
+                    if (joypad_axis_temp < menu_state.event.jaxis.axis) {
                         configuration.joypad_axises[JOYPAD_AXISES_X] = joypad_axis_temp;
-                        configuration.joypad_axises[JOYPAD_AXISES_Y] = state->event.jaxis.axis;
+                        configuration.joypad_axises[JOYPAD_AXISES_Y] = menu_state.event.jaxis.axis;
                     }
                     else {
                         configuration.joypad_axises[JOYPAD_AXISES_Y] = joypad_axis_temp;
-                        configuration.joypad_axises[JOYPAD_AXISES_X] = state->event.jaxis.axis;
+                        configuration.joypad_axises[JOYPAD_AXISES_X] = menu_state.event.jaxis.axis;
                     }
                     
                     gui_state = SHOWING_MENU;
-                    state->should_render = true;
+                    menu_state.should_render = true;
                 }
             }
             break;
@@ -1428,7 +1430,7 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
             
         case SDL_MOUSEWHEEL: {
             if (menu_height > 144) {
-                scroll -= state->event.wheel.y;
+                scroll -= menu_state.event.wheel.y;
                 if (scroll < 0) {
                     scroll = 0;
                 }
@@ -1437,7 +1439,7 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
                 }
 
                 mouse_scroling = true;
-                state->should_render = true;
+                menu_state.should_render = true;
             }
             break;
         }
@@ -1446,15 +1448,15 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
         case SDL_KEYDOWN:
             if (gui_state == WAITING_FOR_KEY) {
                 if (current_selection > 8) {
-                    configuration.keys_2[current_selection - 9] = state->event.key.keysym.scancode;
+                    configuration.keys_2[current_selection - 9] = menu_state.event.key.keysym.scancode;
                 }
                 else {
-                    configuration.keys[current_selection] = state->event.key.keysym.scancode;
+                    configuration.keys[current_selection] = menu_state.event.key.keysym.scancode;
                 }
                 gui_state = SHOWING_MENU;
-                state->should_render = true;
+                menu_state.should_render = true;
             }
-            else if (event_hotkey_code(&state->event) == SDL_SCANCODE_F && state->event.key.keysym.mod & MODIFIER) {
+            else if (event_hotkey_code(&menu_state.event) == SDL_SCANCODE_F && menu_state.event.key.keysym.mod & MODIFIER) {
                 if ((SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN_DESKTOP) == false) {
                     SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
                 }
@@ -1464,8 +1466,8 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
                 update_viewport();
             }
 #ifndef WASM
-            else if (event_hotkey_code(&state->event) == SDL_SCANCODE_O) {
-                if (state->event.key.keysym.mod & MODIFIER) {
+            else if (event_hotkey_code(&menu_state.event) == SDL_SCANCODE_O) {
+                if (menu_state.event.key.keysym.mod & MODIFIER) {
                     char *filename = do_open_rom_dialog();
                     if (filename) {
                         set_filename(filename, free);
@@ -1475,8 +1477,8 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
                 }
             }
 #endif
-            else if (state->event.key.keysym.scancode == SDL_SCANCODE_RETURN && gui_state == WAITING_FOR_JBUTTON) {
-                state->should_render = true;
+            else if (menu_state.event.key.keysym.scancode == SDL_SCANCODE_RETURN && gui_state == WAITING_FOR_JBUTTON) {
+                menu_state.should_render = true;
                 if (joypad_configuration_progress != JOYPAD_BUTTONS_MAX) {
                     configuration.joypad_configuration[joypad_configuration_progress] = -1;
                 }
@@ -1490,10 +1492,10 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
                     gui_state = SHOWING_MENU;
                 }
             }
-            else if (state->event.key.keysym.scancode == SDL_SCANCODE_ESCAPE) {
+            else if (menu_state.event.key.keysym.scancode == SDL_SCANCODE_ESCAPE) {
                 if (gui_state == SHOWING_MENU && current_menu != root_menu) {
                     return_to_root_menu(0);
-                    state->should_render = true;
+                    menu_state.should_render = true;
                 }
                 else if (is_running) {
                     return true;
@@ -1510,21 +1512,21 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
                     scroll = 0;
                     current_menu = root_menu;
                     recalculate_menu_height();
-                    state->should_render = true;
+                    menu_state.should_render = true;
                 }
             }
             else if (gui_state == SHOWING_MENU) {
-                if (state->event.key.keysym.scancode == SDL_SCANCODE_DOWN && current_menu[current_selection + 1].string) {
+                if (menu_state.event.key.keysym.scancode == SDL_SCANCODE_DOWN && current_menu[current_selection + 1].string) {
                     current_selection++;
                     mouse_scroling = false;
-                    state->should_render = true;
+                    menu_state.should_render = true;
                 }
-                else if (state->event.key.keysym.scancode == SDL_SCANCODE_UP && current_selection) {
+                else if (menu_state.event.key.keysym.scancode == SDL_SCANCODE_UP && current_selection) {
                     current_selection--;
                     mouse_scroling = false;
-                    state->should_render = true;
+                    menu_state.should_render = true;
                 }
-                else if (state->event.key.keysym.scancode == SDL_SCANCODE_RETURN  && !current_menu[current_selection].backwards_handler) {
+                else if (menu_state.event.key.keysym.scancode == SDL_SCANCODE_RETURN  && !current_menu[current_selection].backwards_handler) {
                     if (current_menu[current_selection].handler) {
                         current_menu[current_selection].handler(current_selection);
                         if (pending_command == GB_SDL_RESET_COMMAND && !is_running) {
@@ -1536,19 +1538,19 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
                             }
                             return true;
                         }
-                        state->should_render = true;
+                        menu_state.should_render = true;
                     }
                     else {
                         return true;
                     }
                 }
-                else if (state->event.key.keysym.scancode == SDL_SCANCODE_RIGHT && current_menu[current_selection].backwards_handler) {
+                else if (menu_state.event.key.keysym.scancode == SDL_SCANCODE_RIGHT && current_menu[current_selection].backwards_handler) {
                     current_menu[current_selection].handler(current_selection);
-                    state->should_render = true;
+                    menu_state.should_render = true;
                 }
-                else if (state->event.key.keysym.scancode == SDL_SCANCODE_LEFT && current_menu[current_selection].backwards_handler) {
+                else if (menu_state.event.key.keysym.scancode == SDL_SCANCODE_LEFT && current_menu[current_selection].backwards_handler) {
                     current_menu[current_selection].backwards_handler(current_selection);
-                    state->should_render = true;
+                    menu_state.should_render = true;
                 }
             }
             else if (gui_state == SHOWING_HELP) {
@@ -1556,12 +1558,12 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
                 if (current_help_page == sizeof(help) / sizeof(help[0])) {
                     gui_state = SHOWING_MENU;
                 }
-                state->should_render = true;
+                menu_state.should_render = true;
             }
             break;
     }
     
-    if (state->should_render) {
+    if (menu_state.should_render) {
         /* Draw the background screen */
         static SDL_Surface *converted_background = NULL;
         if (!converted_background) {
@@ -1582,25 +1584,25 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
             }
         }
 
-        state->should_render = false;
+        menu_state.should_render = false;
         rerender:
         if (width == 160 && height == 144) {
-            memcpy(state->pixels, converted_background->pixels, sizeof(uint32_t) * width * height);
+            memcpy(menu_state.pixels, converted_background->pixels, sizeof(uint32_t) * width * height);
         }
         else {
             for (unsigned y = 0; y < 144; y++) {
-                memcpy(state->pixels + x_offset + width * (y + y_offset), ((uint32_t *)converted_background->pixels) + 160 * y, 160 * 4);
+                memcpy(menu_state.pixels + x_offset + width * (y + y_offset), ((uint32_t *)converted_background->pixels) + 160 * y, 160 * 4);
             }
         }
         
         switch (gui_state) {
             case SHOWING_DROP_MESSAGE:
-                draw_text_centered(state->pixels, width, height, 8 + y_offset, "Press ESC for menu", gui_palette_native[3], gui_palette_native[0], false);
-                draw_text_centered(state->pixels, width, height, 116 + y_offset, "Drop a GB or GBC", gui_palette_native[3], gui_palette_native[0], false);
-                draw_text_centered(state->pixels, width, height, 128 + y_offset, "file to play", gui_palette_native[3], gui_palette_native[0], false);
+                draw_text_centered(menu_state.pixels, width, height, 8 + y_offset, "Press ESC for menu", gui_palette_native[3], gui_palette_native[0], false);
+                draw_text_centered(menu_state.pixels, width, height, 116 + y_offset, "Drop a GB or GBC", gui_palette_native[3], gui_palette_native[0], false);
+                draw_text_centered(menu_state.pixels, width, height, 128 + y_offset, "file to play", gui_palette_native[3], gui_palette_native[0], false);
                 break;
             case SHOWING_MENU:
-                draw_text_centered(state->pixels, width, height, 8 + y_offset, "SameBoy", gui_palette_native[3], gui_palette_native[0], false);
+                draw_text_centered(menu_state.pixels, width, height, 8 + y_offset, "SameBoy", gui_palette_native[3], gui_palette_native[0], false);
                 unsigned i = 0, y = 24;
                 for (const struct menu_item *item = current_menu; item->string; item++, i++) {
                     if (i == current_selection && !mouse_scroling) {
@@ -1624,17 +1626,17 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
                     if (item->value_getter && !item->backwards_handler) {
                         char line[25];
                         snprintf(line, sizeof(line), "%s%*s", item->string, 24 - (unsigned)strlen(item->string), item->value_getter(i));
-                        draw_text_centered(state->pixels, width, height, y + y_offset, line, gui_palette_native[3], gui_palette_native[0],
+                        draw_text_centered(menu_state.pixels, width, height, y + y_offset, line, gui_palette_native[3], gui_palette_native[0],
                                            i == current_selection ? DECORATION_SELECTION : DECORATION_NONE);
                         y += 12;
                         
                     }
                     else {
-                        draw_text_centered(state->pixels, width, height, y + y_offset, item->string, gui_palette_native[3], gui_palette_native[0],
+                        draw_text_centered(menu_state.pixels, width, height, y + y_offset, item->string, gui_palette_native[3], gui_palette_native[0],
                                            i == current_selection && !item->value_getter ? DECORATION_SELECTION : DECORATION_NONE);
                         y += 12;
                         if (item->value_getter) {
-                            draw_text_centered(state->pixels, width, height, y + y_offset - 1, item->value_getter(i), gui_palette_native[3], gui_palette_native[0],
+                            draw_text_centered(menu_state.pixels, width, height, y + y_offset - 1, item->value_getter(i), gui_palette_native[3], gui_palette_native[0],
                                                i == current_selection ? DECORATION_ARROWS : DECORATION_NONE);
                             y += 12;
                         }
@@ -1656,7 +1658,7 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
                         scrollbar_offset = 140 - scrollbar_size;
                     }
                     for (unsigned y = 0; y < 140; y++) {
-                        uint32_t *pixel = state->pixels + x_offset + 156 + width * (y + y_offset + 2);
+                        uint32_t *pixel = menu_state.pixels + x_offset + 156 + width * (y + y_offset + 2);
                         if (y >= scrollbar_offset && y < scrollbar_offset + scrollbar_size) {
                             pixel[0] = pixel[1]= gui_palette_native[2];
                         }
@@ -1668,16 +1670,16 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
                 }
                 break;
             case SHOWING_HELP:
-                draw_text(state->pixels, width, height, 2 + x_offset, 2 + y_offset, help[current_help_page], gui_palette_native[3], gui_palette_native[0], false);
+                draw_text(menu_state.pixels, width, height, 2 + x_offset, 2 + y_offset, help[current_help_page], gui_palette_native[3], gui_palette_native[0], false);
                 break;
             case WAITING_FOR_KEY:
-                draw_text_centered(state->pixels, width, height, 68 + y_offset, "Press a Key", gui_palette_native[3], gui_palette_native[0], DECORATION_NONE);
+                draw_text_centered(menu_state.pixels, width, height, 68 + y_offset, "Press a Key", gui_palette_native[3], gui_palette_native[0], DECORATION_NONE);
                 break;
             case WAITING_FOR_JBUTTON:
-                draw_text_centered(state->pixels, width, height, 68 + y_offset,
+                draw_text_centered(menu_state.pixels, width, height, 68 + y_offset,
                                    joypad_configuration_progress != JOYPAD_BUTTONS_MAX ? "Press button for" : "Move the Analog Stick",
                                    gui_palette_native[3], gui_palette_native[0], DECORATION_NONE);
-                draw_text_centered(state->pixels, width, height, 80 + y_offset,
+                draw_text_centered(menu_state.pixels, width, height, 80 + y_offset,
                                   (const char *[])
                                    {
                                        "Right",
@@ -1695,14 +1697,14 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
                                        "",
                                    } [joypad_configuration_progress],
                                    gui_palette_native[3], gui_palette_native[0], DECORATION_NONE);
-                draw_text_centered(state->pixels, width, height, 104 + y_offset, "Press Enter to skip", gui_palette_native[3], gui_palette_native[0], DECORATION_NONE);
+                draw_text_centered(menu_state.pixels, width, height, 104 + y_offset, "Press Enter to skip", gui_palette_native[3], gui_palette_native[0], DECORATION_NONE);
                 break;
         }
         
-        render_texture(state->pixels, NULL);
+        render_texture(menu_state.pixels, NULL);
 #ifdef _WIN32
         /* Required for some Windows 10 machines, god knows why */
-        render_texture(state->pixels, NULL);
+        render_texture(menu_state.pixels, NULL);
 #endif
     }
 
@@ -1711,9 +1713,9 @@ bool run_gui_iteration(bool is_running, menu_state_t *state) {
 
 void run_gui(bool is_running)
 {
-    menu_state_t state = init_gui(is_running);
+    init_gui(is_running);
 
     do {
-        if (run_gui_iteration(is_running, &state)) break;
-    } while (SDL_WaitEvent(&state.event));
+        if (run_gui_iteration(is_running)) break;
+    } while (SDL_WaitEvent(&menu_state.event));
 }
