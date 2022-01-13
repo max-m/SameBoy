@@ -1,0 +1,50 @@
+#system.isAGB {
+    --system-color: #6a5e9f;
+
+    --button-bg: #c9c9c7;
+    --button-bg-hover: #e0e0dd;
+    --button-bg-active: #8b8c8b;
+    --button-shadow: #5b5a5f;
+    --button-shadow-inset: #d3d4d2;
+    --button-label-color: #b5b5b5;
+
+    --start-button-bg: var(--button-bg);
+    --start-button-bg-hover: var(--button-bg-hover);
+    --start-button-bg-active: var(--button-bg-active);
+    --start-button-shadow: var(--button-shadow);
+    --start-button-shadow-inset: var(--button-shadow-inset);
+    --start-button-label: #303037;
+
+    --dpad-bg: var(--button-bg);
+    --dpad-bg-hover: var(--button-bg-hover);
+    --dpad-bg-active: var(--button-bg-active);
+    --dpad-bg-shadow: var(--button-shadow);
+    --dpad-bg-shadow-inset: var(--button-shadow-inset);
+    --dpad-dimple-bg:#c5c2ca;
+    --dpad-dimple-shadow:  #bbbbbb;
+}
+
+@media (prefers-color-scheme: dark) {
+  #system.isAGB {
+    --system-color: #545454;
+
+    --start-button-label: #4f4f51;
+  }
+}
+
+#system.isAGB #controls #aButton::after,
+#system.isAGB #controls #bButton::after {
+  position: absolute;
+  font-size: 8vmax;
+  font-weight: bold;
+  left: 40%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+@media (orientation: landscape) {
+  #system.isAGB #controls #startButton,
+  #system.isAGB #controls #selectButton {
+    transform: rotate(10deg);
+  }
+}

@@ -1,0 +1,69 @@
+#system.isMGB {
+  --system-color: #cacbc9;
+
+  --button-bg: #545458;
+  --button-bg-hover: #6d6d70;
+  --button-bg-active: #4a4b53;
+  --button-shadow: #242324;
+  --button-shadow-inset: #7e7e81;
+
+  --start-button-bg: #3a414a;
+  --start-button-bg-hover: #4e545d;
+  --start-button-bg-active: #343943;
+  --start-button-shadow: #2d2e33;
+  --start-button-shadow-inset: #535858;
+  --start-button-label: #565655;
+
+  --dpad-bg: #474a51;
+  --dpad-bg-hover: #5a5b61;
+  --dpad-bg-active: #393942;
+  --dpad-bg-shadow: #222223;
+  --dpad-shadow-inset: #6e6f75;
+  --dpad-dimple-bg: #42434b;
+  --dpad-dimple-shadow:  #373535;
+}
+
+@media (prefers-color-scheme: dark) {
+  #system.isMGB {
+    --system-color: #292628;
+
+    --button-bg: #4c4b4f;
+    --button-bg-hover: #525054;
+    --button-bg-active: #39383e;
+    --button-shadow: #171719;
+    --button-shadow-inset: #78767b;
+
+    --start-button-bg: #525357;
+    --start-button-bg-hover: #56575a;
+    --start-button-bg-active: #43454b;
+    --start-button-shadow: #121216;
+    --start-button-shadow-inset: #606063;
+    --start-button-label: #9d4069;
+
+    --dpad-bg: #504e52;
+    --dpad-bg-hover: #575457;
+    --dpad-bg-active: #28272c;
+    --dpad-bg-shadow: #18181a;
+    --dpad-shadow-inset: #737074;
+    --dpad-dimple-bg: #4b4a4d;
+    --dpad-dimple-shadow: #403f3f;
+  }
+}
+
+@media (orientation: landscape) {
+  #system.isMGB #controls #startButton,
+  #system.isMGB #controls #selectButton {
+    --start-button-label: #1c1c1c;
+  }
+}
+
+#system.isMGB #controls #aButton::after,
+#system.isMGB #controls #bButton::after {
+  color: var(--start-button-label);
+  position: absolute;
+  font-size: 4vmax;
+  font-weight: bold;
+  left: 50%;
+  top: 130%;
+  transform: translate(-50%, -50%) ;
+}
