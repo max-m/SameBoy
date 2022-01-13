@@ -1,50 +1,10 @@
 @import url("https://fonts.googleapis.com/css2?family=Open+Sans+Condensed:wght@300&family=Raleway:wght@300&display=swap");
 
-:root {
-  --system-color: hsl(346.9, 63%, 41.4%);
-  --button-bg: hsl(0, 3.5%, 28%);
-  --button-shadow: hsl(0, 3.6%, 21.6%);
-  --button-shadoow-inset: hsl(0, 3.9%, 35.5%);
-  --button-bg-hover: hsl(0, 3.7%, 31.8%);
-  --dpad-dimple-bg: hsl(0, 4.1%, 24.1%);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --system-color: hsl(207.7, 14.6%, 17.5%);
-    --button-bg: hsl(0, 1.3%, 14.7%);
-    --button-shadow: hsl(0, 2%, 10%);
-    --button-shadoow-inset: hsl(0, 0%, 19.2%);
-    --button-bg-hover: hsl(0, 2.4%, 16.5%);
-    --dpad-dimple-bg: hsl(0, 3.4%, 17.1%);
-  }
-}
-
-#system.isSGB {
-  --system-color: hsl(120, 1.3%, 70.2%);
-  --button-bg: hsl(200, 3.4%, 34.1%);
-  --button-shadow: hsl(0, 3.6%, 21.6%);
-  --button-shadoow-inset: hsla(0, 0%, 99.2%, 0.2);
-  --button-bg-hover: hsl(200, 3.4%, 24.1%);
-  --dpad-dimple-bg: hsl(200, 3.4%, 30.1%);
-}
-
-#system.isSGB #controls {
-  background-color: hsl(160, 1.3%, 44.5%);
-}
-
-#system.isSGB #controls #aButton::after,
-#system.isSGB #controls #bButton::after {
-  content: none;
-}
-#system.isSGB #controls #aButton {
-  --button-bg: hsl(356.6, 82.9%, 41.4%);
-  --button-bg-hover: hsl(356.6, 82.9%, 26.4%);
-}
-#system.isSGB #controls #bButton {
-  --button-bg: hsl(44.5, 93.7%, 50.6%);
-  --button-bg-hover: hsl(44.5, 93.7%, 35.6%);
-}
+@import url('dmg.css');
+@import url('mgb.css');
+@import url('sgb.css');
+@import url('cgb.css');
+@import url('agb.css');
 
 html, body {
   margin: 0;
@@ -67,11 +27,11 @@ canvas {
 }
 
 #demo-roms a {
-    text-decoration: none;
+  text-decoration: none;
 }
 
 #demo-roms > li:not(:last-child) {
-    margin-bottom: 0.25rem;
+  margin-bottom: 0.25rem;
 }
 
 #spinner {
@@ -133,8 +93,7 @@ canvas {
   z-index: 1000;
   touch-action: none;
   background-color: var(--button-bg);
-  box-shadow: 0 0 0.2vmin 0.5vmin var(--button-shadow),
-              0 0 1.2vmin 0.5vmin var(--button-shadoow-inset) inset;
+  box-shadow: 0 0 0.2vmin 0.5vmin var(--button-shadow), 0 0 1.2vmin 0.5vmin var(--button-shadow-inset) inset;
   transition: all 0.15s ease-in-out;
 }
 #system #controls .button:hover {
@@ -143,28 +102,24 @@ canvas {
 #system #controls .button::after {
   cursor: default;
   user-select: none;
+  pointer-events: none;
 }
 #system #controls .button.active {
-  background-color: var(--button-shadow);
+  background-color: var(--button-bg-active);
   box-shadow: none;
 }
 #system #controls #aButton,
 #system #controls #bButton {
-  font-family: "Open Sans Condensed", sans-serif;
   display: block;
   width: 10vmax;
   height: 10vmax;
   border-radius: 50%;
   position: absolute;
+  font-family: "Open Sans Condensed", sans-serif;
 }
 #system #controls #aButton::after,
 #system #controls #bButton::after {
-  color: rgba(0, 0, 0, 0.3);
-  position: absolute;
-  font-size: 10vmax;
-  left: 40%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  color: var(--button-label-color);
 }
 #system #controls #aButton::after {
   content: "A";
@@ -172,17 +127,27 @@ canvas {
 #system #controls #bButton::after {
   content: "B";
 }
+
 #system #controls #startButton,
 #system #controls #selectButton {
+  background-color: var(--start-button-bg);
   position: absolute;
   display: block;
   border-radius: 5vmin;
+}
+#system #controls #startButton:hover,
+#system #controls #selectButton:hover {
+  background-color: var(--start-button-bg-hover);
+}
+#system #controls #startButton.active,
+#system #controls #selectButton.active {
+  background-color: var(--start-button-bg-active);
 }
 #system #controls #startButton::after,
 #system #controls #selectButton::after {
   font-family: "Raleway", sans-serif;
   font-size: 5vmin;
-  color: rgba(0, 0, 0, 0.5);
+  color: var(--start-button-label);
 }
 #system #controls #startButton::after {
   content: "Start";
@@ -193,16 +158,25 @@ canvas {
 #system #controls #dpad {
   position: absolute;
 }
+#system #controls #dpad .button {
+  background-color: var(--dpad-bg);
+}
+#system #controls #dpad .button:hover {
+  background-color: var(--dpad-bg-hover);
+}
+#system #controls #dpad .button.active {
+  background-color: var(--dpad-bg-active);
+}
 #system #controls #dpad:before {
   content: "";
   position: absolute;
-  background-color: var(--button-bg);
+  background-color: var(--dpad-bg);
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 1000;
-  box-shadow: 0 0 0.2vmin 0.5vmin var(--button-shadow);
-  border-radius: 2vmin;
+  box-shadow: 0 0 0.2vmin 0.5vmin var(--dpad-bg-shadow);
+  border-radius: 1.5vmin;
 }
 #system #controls #dpad:after {
   content: "";
@@ -214,7 +188,7 @@ canvas {
   transform: translate(-50%, -50%);
   z-index: 1000;
   border-radius: 50%;
-  box-shadow: 0 0 0.2vmin 0.5vmin var(--button-shadow) inset;
+  box-shadow: 0 0 0.2vmin 0.5vmin var(--dpad-dimple-shadow) inset;
 }
 #system #controls #dpad #leftButton,
 #system #controls #dpad #rightButton,
@@ -316,17 +290,17 @@ canvas {
     right: calc(20vmin + 10%);
   }
   #system #controls #startButton,
-#system #controls #selectButton {
+  #system #controls #selectButton {
     bottom: 20%;
     width: 20vmin;
     height: 5vmin;
   }
   #system #controls #startButton::after,
-#system #controls #selectButton::after {
+  #system #controls #selectButton::after {
     position: absolute;
-    bottom: -130%;
+    bottom: 0;
     left: 50%;
-    transform: translate(-50%, 0%);
+    transform: translate(-50%, 130%);
   }
   #system #controls #startButton {
     right: calc(50% - 25vmin);
@@ -341,20 +315,20 @@ canvas {
     left: 5%;
   }
   #system #controls #dpad:before {
-    width: 12.5vw;
-    height: 12.5vw;
+    width: 12vw;
+    height: 12vw;
   }
   #system #controls #dpad:after {
     width: 8vmin;
     height: 8vmin;
   }
   #system #controls #dpad #upButton,
-#system #controls #dpad #downButton {
+  #system #controls #dpad #downButton {
     width: 10vmin;
     height: 16vmin;
   }
   #system #controls #dpad #leftButton,
-#system #controls #dpad #rightButton {
+  #system #controls #dpad #rightButton {
     width: 16vmin;
     height: 10vmin;
   }
@@ -376,7 +350,7 @@ canvas {
     background-color: rgba(0, 0, 0, 0.5);
     border-radius: 2.5vw;
     max-height: calc(100vh - 15vw);
-    overflow: scroll;
+    overflow: auto;
   }
 }
 @media (max-height: 719px) and (orientation: landscape) {
@@ -393,7 +367,7 @@ canvas {
   }
 
   #system #display,
-#system #controls {
+  #system #controls {
     position: absolute;
     top: 0;
     left: 0;
@@ -421,7 +395,7 @@ canvas {
     transform: translate(0, -50%);
   }
   #system #controls #startButton,
-#system #controls #selectButton {
+  #system #controls #selectButton {
     width: 16vw;
     height: 3vw;
     left: 4.5vw;
@@ -442,20 +416,20 @@ canvas {
     transform: translate(0, 50%);
   }
   #system #controls #dpad:before {
-    width: 6.5vw;
-    height: 6.5vw;
+    width: 6vw;
+    height: 6vw;
   }
   #system #controls #dpad:after {
     width: 4vw;
     height: 4vw;
   }
   #system #controls #dpad #upButton,
-#system #controls #dpad #downButton {
+  #system #controls #dpad #downButton {
     width: 5vw;
     height: calc(7vw + 2vmin);
   }
   #system #controls #dpad #leftButton,
-#system #controls #dpad #rightButton {
+  #system #controls #dpad #rightButton {
     width: calc(7vw + 2vmin);
     height: 5vw;
   }
@@ -476,16 +450,16 @@ canvas {
     background-color: rgba(0, 0, 0, 0.5);
     border-radius: 2.5vw;
     max-height: calc(100vh - 15vw);
-    overflow: scroll;
+    overflow: auto;
     max-width: 50vw;
     margin: auto;
   }
 }
 @media (min-width: 720px) and (min-height: 720px) {
   html,
-body,
-#system,
-#display {
+  body,
+  #system,
+  #display {
     width: 100%;
     height: 100%;
   }

@@ -1,0 +1,72 @@
+:root,
+#system.isCGB {
+  /* --system-color: hsl(346.9, 63%, 41.4%); */
+  --system-color: #e84051;
+
+  --button-bg: #414240;
+  --button-bg-hover: #4f4f4d;
+  --button-bg-active: #2c2f2e;
+  --button-shadow: #361a1e;
+  --button-shadow-inset: #78746d;
+  --button-label-color: #2c2c2c;
+
+  --start-button-bg: var(--button-bg);
+  --start-button-bg-hover: var(--button-bg-hover);
+  --start-button-bg-active: var(--button-bg-active);
+  --start-button-shadow: var(--button-shadow);
+  --start-button-shadow-inset: var(--button-shadow-inset);
+  --start-button-label: #ff94a0;
+
+  --dpad-bg: var(--button-bg);
+  --dpad-bg-hover: var(--button-bg-hover);
+  --dpad-bg-active: var(--button-bg-active);
+  --dpad-bg-shadow: var(--button-shadow);
+  --dpad-bg-shadow-inset: var(--button-shadow-inset);
+  --dpad-dimple-bg: #3d3d3b;
+  --dpad-dimple-shadow:  #373535;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root,
+  #system.isCGB {
+    --system-color: hsl(207.7, 14.6%, 17.5%);
+
+    --button-bg: hsl(0, 1.3%, 14.7%);
+    --button-bg-hover: hsl(0, 2.4%, 16.5%);
+    --button-bg-active: hsl(0, 2.4%, 9.5%);
+    --button-shadow: hsl(0, 2%, 10%);
+    --button-shadow-inset: hsl(0, 0%, 19.2%);
+    --button-label-color: rgba(0, 0, 0, 0.3);
+
+    --start-button-bg: var(--button-bg);
+    --start-button-bg-hover: var(--button-bg-hover);
+    --start-button-bg-active: var(--button-bg-active);
+    --start-button-shadow: var(--button-shadow);
+    --start-button-shadow-inset: var(--button-shadow-inset);
+    --start-button-label: rgba(0, 0, 0, 0.5);
+
+    --dpad-bg: var(--button-bg);
+    --dpad-bg-hover: var(--button-bg-hover);
+    --dpad-bg-active: var(--button-bg-active);
+    --dpad-bg-shadow: var(--button-shadow);
+    --dpad-bg-shadow-inset: var(--button-shadow-inset);
+    --dpad-dimple-bg: #262323;
+    --dpad-dimple-shadow:  #222121;
+  }
+}
+
+@media (orientation: landscape) {
+  #system.isCGB #controls #startButton,
+  #system.isCGB #controls #selectButton {
+    --start-button-label: #1c1c1c;
+  }
+}
+
+#system.isCGB #controls #aButton::after,
+#system.isCGB #controls #bButton::after {
+  position: absolute;
+  font-size: 10vmax;
+  left: 40%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}

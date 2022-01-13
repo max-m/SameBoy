@@ -125,7 +125,7 @@ int EMSCRIPTEN_KEEPALIVE save_battery()
     return result;
 }
 
-unsigned query_sample_rate_of_audiocontexts()
+static unsigned query_sample_rate_of_audiocontexts()
 {
     return EM_ASM_INT({
         if (!Module.SDL2 || !Module.SDL2.audioContext) {
@@ -140,6 +140,45 @@ unsigned query_sample_rate_of_audiocontexts()
     });
 }
 
+static void set_model_class()
+{
+    EM_ASM({
+        document.getElementById('system')
+            .classList.remove('isDMG', 'isMGB', 'isSGB', 'isCGB', 'isAGB');
+    });
+
+    if (GB_get_model(&gb) == GB_MODEL_AGB) {
+        EM_ASM({
+            document.getElementById('system')
+                .classList.add('isAGB');
+        });
+    }
+    else if (GB_is_sgb(&gb)) {
+        EM_ASM({
+            document.getElementById('system')
+                .classList.add('isSGB');
+        });
+    }
+    else if (GB_is_cgb(&gb)) {
+        EM_ASM({
+            document.getElementById('system')
+                .classList.add('isCGB');
+        });
+    }
+    else if ((GB_get_model(&gb) & GB_MODEL_FAMILY_MASK) == GB_MODEL_DMG_FAMILY) {
+        EM_ASM({
+            document.getElementById('system')
+                .classList.add('isDMG');
+        });
+    }
+    else if ((GB_get_model(&gb) & GB_MODEL_FAMILY_MASK) == GB_MODEL_MGB_FAMILY) {
+        EM_ASM({
+            document.getElementById('system')
+                .classList.add('isMGB');
+        });
+    }
+}
+
 static void gb_audio_callback(GB_gameboy_t *gb, GB_sample_t *sample)
 {
     if (GB_audio_get_queue_length() / sizeof(*sample) > GB_audio_get_sample_rate() / 4) {
@@ -149,7 +188,7 @@ static void gb_audio_callback(GB_gameboy_t *gb, GB_sample_t *sample)
     GB_audio_queue_sample(sample);
 }
 
-void update_viewport(void)
+static void update_viewport(void)
 {
     int win_width, win_height;
     SDL_GL_GetDrawableSize(window, &win_width, &win_height);
@@ -188,7 +227,7 @@ void update_viewport(void)
     }
 }
 
-void render_texture(void *pixels,  void *previous)
+static void render_texture(void *pixels,  void *previous)
 {
     if (renderer) {
         if (pixels) {
@@ -445,7 +484,7 @@ static void load_boot_rom(GB_gameboy_t *gb, GB_boot_rom_t type)
     GB_load_boot_rom(gb, path);
 }
 
-void init_gb()
+static void init_gb()
 {
     GB_model_t model;
 
@@ -524,7 +563,7 @@ static bool use_software_renderer()
     return EXIT_SUCCESS;
 }
 
-bool try_init_shader(shader_t *shader, const char *shader_name)
+static bool try_init_shader(shader_t *shader, const char *shader_name)
 {
     const char *fallback = "NearestNeighbor";
     char *name;
@@ -555,7 +594,7 @@ bool try_init_shader(shader_t *shader, const char *shader_name)
     return false;
 }
 
-void connect_joypad(void)
+static void connect_joypad(void)
 {
     if (joystick && !SDL_NumJoysticks()) {
         if (controller) {
@@ -733,41 +772,7 @@ void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_s
 
     screen_size_changed();
 
-    EM_ASM({
-        document.getElementById('system')
-            .classList.remove('isDMG', 'isMGB', 'isSGB', 'isCGB', 'isAGB');
-    });
-
-    if (GB_get_model(&gb) == GB_MODEL_AGB) {
-        EM_ASM({
-            document.getElementById('system')
-                .classList.add('isAGB');
-        });
-    }
-    else if (GB_is_sgb(&gb)) {
-        EM_ASM({
-            document.getElementById('system')
-                .classList.add('isSGB');
-        });
-    }
-    else if (GB_is_cgb(&gb)) {
-        EM_ASM({
-            document.getElementById('system')
-                .classList.add('isCGB');
-        });
-    }
-    else if ((GB_get_model(&gb) & GB_MODEL_FAMILY_MASK) == GB_MODEL_DMG_FAMILY) {
-        EM_ASM({
-            document.getElementById('system')
-                .classList.add('isDMG');
-        });
-    }
-    else if ((GB_get_model(&gb) & GB_MODEL_FAMILY_MASK) == GB_MODEL_MGB_FAMILY) {
-        EM_ASM({
-            document.getElementById('system')
-                .classList.add('isMGB');
-        });
-    }
+    set_model_class();
 
     connect_joypad();
 }
