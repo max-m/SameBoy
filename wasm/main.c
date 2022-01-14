@@ -58,6 +58,13 @@ int EMSCRIPTEN_KEEPALIVE save_battery(void)
     return result;
 }
 
+void EMSCRIPTEN_KEEPALIVE dialog_canceled(void)
+{
+    if (pending_command == GB_SDL_WAIT_FOR_DIALOG) {
+        pending_command = GB_SDL_NO_COMMAND;
+    }
+}
+
 static void save_configuration(void)
 {
     FILE *prefs_file = fopen(PREFS_PATH, "wb");
@@ -209,8 +216,10 @@ void EMSCRIPTEN_KEEPALIVE quit(void)
     SDL_Quit();
 }
 
-static void open_menu(void)
+void open_menu(void)
 {
+    if (render_menu) return;
+
     had_audio_playing = GB_audio_is_playing();
     if (had_audio_playing) {
         GB_audio_set_paused(true);
@@ -622,7 +631,7 @@ void EMSCRIPTEN_KEEPALIVE run_frame(void)
 
     if (render_menu) {
         if (SDL_PollEvent(&menu_state.event)) {
-            if (run_gui_iteration(is_running)) {
+            if (run_gui_iteration(is_running) && pending_command != GB_SDL_WAIT_FOR_DIALOG) {
                 close_menu();
             }
         }

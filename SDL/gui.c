@@ -328,34 +328,68 @@ static void enter_joypad_menu(unsigned index);
 static void enter_audio_menu(unsigned index);
 
 #ifdef __EMSCRIPTEN__
+extern void open_menu(void);
+
 static void open_rom(unsigned index)
 {
-    EM_ASM({
-        const on_cancel = function () {
-            setTimeout(Module._cancel_load_rom, 100);
-        };
+    const int result = EM_ASM_INT({
+        try {
+            console.debug('Trying window.showOpenFilePicker()');
 
-        const file_selector = document.createElement('input');
+            window.showOpenFilePicker({
+                types: [
+                    {
+                        description: 'Game Boy',
+                        accept: {
+                            '*/*': [ '.gb', '.gbc', '.bin', '.isx' ]
+                        },
+                    }
+                ],
+                multiple: false,
+            })
+            .then(async ([handle]) => {
+                if (!handle) {
+                    throw new Error('Missing file handle');
+                }
 
-        file_selector.setAttribute('type', 'file');
-        file_selector.setAttribute('accept','.gb,.gbc,.bin');
+                if (handle.kind !== 'file') {
+                    throw new Error('Not a file');
+                }
 
-        file_selector.addEventListener('change', event => {
-            window.removeEventListener('focus', on_cancel);
-            window.removeEventListener('touchend', on_cancel);
+                const file = await handle.getFile();
 
-            Module.gb_open_file(event);
-        });
+                Module.gb_open_file(file);
+            })
+            .catch(e => {
+                console.debug('Could not get file:', e);
 
-        file_selector.addEventListener('click', () => {
-            window.addEventListener('focus', on_cancel, { 'once': true });
-            window.addEventListener('touchend', on_cancel, { 'once': true });
-        });
+                Module._dialog_canceled();
+            });
 
-        file_selector.click();
+            return 0;
+        }
+        catch (e) {
+            console.debug('window.showOpenFilePicker() failed, using fallback:', e);
+
+            const file_selector = document.createElement('input');
+            file_selector.setAttribute('type', 'file');
+            file_selector.setAttribute('accept','.gb,.gbc,.isx,.bin');
+            file_selector.addEventListener('change', Module.gb_open_file);
+            file_selector.click();
+
+            return 1;
+        }
     });
 
-    pending_command = GB_SDL_WAIT_FOR_DIALOG;
+    if (result == 0) {
+        // We have got a file picker that is awaitable, yay.
+        pending_command = GB_SDL_WAIT_FOR_DIALOG;
+    }
+    else {
+        // We can’t know if the dialog has been canceled by the user.
+        // Might be a good idea to make sure that the use is in the emulator menu …
+        open_menu();
+    }
 }
 #else
 extern void set_filename(const char *new_filename, typeof(free) *new_free_function);

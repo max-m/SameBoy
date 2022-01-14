@@ -106,11 +106,13 @@ Module.gb_load_remote_rom = async function (url) {
 };
 
 Module.gb_open_file = function (event) {
-	return new Promise((resolve, reject) => {
-		const files = (event.dataTransfer || event.target).files;
+	const file = event instanceof File
+	           ? event
+	           : (event.dataTransfer || event.target).files[0];
 
+	return new Promise((resolve, reject) => {
 		const reader = new FileReader();
-		const name = files[0].name;
+		const name = file.name;
 
 		reader.onload = () => {
 			const data = new Uint8Array(reader.result);
@@ -130,7 +132,7 @@ Module.gb_open_file = function (event) {
 		reader.onabort = reject;
 		reader.onerror = reject;
 
-		reader.readAsArrayBuffer(files[0]);
+		reader.readAsArrayBuffer(file);
 	});
 }
 
