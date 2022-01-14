@@ -63,7 +63,6 @@ CFLAGS += -I$(CORE_DIR)
 # -Werror implies -Wpass-failed=transform-warning and for some reason Clang fails to unroll some loops in apu.c
 CFLAGS += -Wno-pass-failed
 CFLAGS += -s USE_SDL=2
-CFLAGS += -DWASM=1
 CFLAGS += -DGB_DISABLE_TIMEKEEPING -DGB_DISABLE_REWIND -DGB_DISABLE_DEBUGGER -DGB_DISABLE_CHEATS
 
 # Build as library

@@ -300,7 +300,7 @@ static enum {
 static unsigned joypad_configuration_progress = 0;
 static uint8_t joypad_axis_temp;
 
-#ifndef WASM
+#ifndef __EMSCRIPTEN__
 static void item_exit(unsigned index)
 {
     pending_command = GB_SDL_QUIT_COMMAND;
@@ -320,7 +320,7 @@ static void enter_controls_menu(unsigned index);
 static void enter_joypad_menu(unsigned index);
 static void enter_audio_menu(unsigned index);
 
-#ifndef WASM
+#ifndef __EMSCRIPTEN__
 extern void set_filename(const char *new_filename, typeof(free) *new_free_function);
 static void open_rom(unsigned index)
 {
@@ -351,7 +351,7 @@ static void recalculate_menu_height(void)
 
 static const struct menu_item paused_menu[] = {
     {"Resume", NULL},
-#ifndef WASM
+#ifndef __EMSCRIPTEN__
     {"Open ROM", open_rom},
 #endif
     {"Emulation Options", enter_emulation_menu},
@@ -360,7 +360,7 @@ static const struct menu_item paused_menu[] = {
     {"Keyboard", enter_controls_menu},
     {"Joypad", enter_joypad_menu},
     {"Help", item_help},
-#ifndef WASM
+#ifndef __EMSCRIPTEN__
     {"Quit SameBoy", item_exit},
 #endif
     {NULL,}
@@ -474,7 +474,7 @@ const char *current_rewind_string(unsigned index)
 }
 #endif
 
-#ifndef WASM
+#ifndef __EMSCRIPTEN__
 const char *current_bootrom_string(unsigned index)
 {
     if (!configuration.bootrom_path[0]) {
@@ -533,7 +533,7 @@ const char *current_rtc_mode_string(unsigned index)
 static const struct menu_item emulation_menu[] = {
     {"Emulated Model:", cycle_model, current_model_string, cycle_model_backwards},
     {"SGB Revision:", cycle_sgb_revision, current_sgb_revision_string, cycle_sgb_revision_backwards},
-#ifndef WASM
+#ifndef __EMSCRIPTEN__
     {"Boot ROMs Folder:", toggle_bootrom, current_bootrom_string, toggle_bootrom},
 #endif
 #ifndef GB_DISABLE_REWIND
@@ -783,7 +783,7 @@ static void cycle_filter_backwards(unsigned index)
 static const char *current_filter_name(unsigned index)
 {
     if (!uses_gl()) {
-#ifdef WASM
+#ifdef __EMSCRIPTEN__
         return "Requires WebGL support";
 #endif
 
@@ -829,7 +829,7 @@ static void cycle_blending_mode_backwards(unsigned index)
 static const char *blending_mode_string(unsigned index)
 {
     if (!uses_gl()) {
-#ifdef WASM
+#ifdef __EMSCRIPTEN__
         return "Requires WebGL support";
 #endif
 
@@ -1376,7 +1376,7 @@ bool run_gui_iteration(bool is_running) {
             }
             break;
         }
-#ifndef WASM
+#ifndef __EMSCRIPTEN__
         case SDL_DROPFILE: {
             if (GB_is_save_state(menu_state.event.drop.file)) {
                 if (GB_is_inited(&gb)) {
@@ -1465,7 +1465,7 @@ bool run_gui_iteration(bool is_running) {
                 }
                 update_viewport();
             }
-#ifndef WASM
+#ifndef __EMSCRIPTEN__
             else if (event_hotkey_code(&menu_state.event) == SDL_SCANCODE_O) {
                 if (menu_state.event.key.keysym.mod & MODIFIER) {
                     char *filename = do_open_rom_dialog();
