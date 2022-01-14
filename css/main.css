@@ -6,6 +6,13 @@
 @import url('cgb.css');
 @import url('agb.css');
 
+:root {
+  --width: 160;
+  --height: 144;
+  --bordered-width: 256;
+  --bordered-height: 224;
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -15,7 +22,6 @@ html, body {
 
 canvas {
   border: 0px none;
-  background-color: black;
   vertical-align: middle;
   image-rendering: optimizeSpeed;
   image-rendering: -moz-crisp-edges;
@@ -24,6 +30,27 @@ canvas {
   image-rendering: optimize-contrast;
   image-rendering: crisp-edges;
   image-rendering: pixelated;
+}
+
+#canvasWrapper {
+  min-width: calc(var(--width) * 1px);
+  min-height: calc(var(--height) * 1px);
+
+  width: 100vw;
+  height: 100vh;
+  margin: auto;
+
+  background-color: #000;
+}
+
+#system.hasScreenBorder #canvasWrapper {
+  min-width: calc(var(--bordered-width) * 1px);
+  min-height: calc(var(--bordered-height) * 1px);
+}
+
+#canvas {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 #demo-roms a {
@@ -68,9 +95,11 @@ canvas {
   height: 100vh;
   width: 100vw;
   background-image: url(../img/noise.png);
+  overflow: hidden;
 }
 #system #display {
   position: relative;
+  overflow: hidden;
 }
 #system #display #spinner {
   position: absolute;
@@ -82,6 +111,8 @@ canvas {
 }
 #system #controls {
   touch-action: none;
+  overflow: hidden;
+  pointer-events: none;
 }
 #system #controls,
 #system #controls .button {
@@ -95,6 +126,7 @@ canvas {
   background-color: var(--button-bg);
   box-shadow: 0 0 0.2vmin 0.5vmin var(--button-shadow), 0 0 1.2vmin 0.5vmin var(--button-shadow-inset) inset;
   transition: all 0.15s ease-in-out;
+  pointer-events: all;
 }
 #system #controls .button:hover {
   background-color: var(--button-bg-hover);
@@ -267,18 +299,13 @@ canvas {
   #system #display {
     flex: 1 1 50vh;
   }
-  #system #display #canvas {
-    /*
-    height: auto !important;
-    width: 100% !important;
-    */
-    max-width: 50vh;
-
-    display: block;
+  #system #display #canvasWrapper {
+    width: 100vw;
+    height: min(50vh, calc(100vw * var(--height) / var(--width)));
     margin: auto;
-    position: relative;
-    top: 50%;
-    transform: translate(0, -50%);
+  }
+  #system.hasScreenBorder #display #canvasWrapper {
+    height: min(50vh, calc(100vw * var(--bordered-height) / var(--bordered-width)));
   }
   #system #controls {
     flex: 1 1 50vh;
@@ -377,15 +404,18 @@ canvas {
     right: 0;
     bottom: 0;
   }
-  #system #display #canvas {
-    display: block;
+  #system #display #canvasWrapper {
+    --wrapper-width: min(50vw, calc(100vh * var(--width) / var(--height)));
+    width: var(--wrapper-width);
+    height: calc(var(--wrapper-width) * var(--height) / var(--width));
     margin: auto;
-    width: 100% !important;
-    max-width: min(50vw, 100vh);
+
     position: relative;
     top: 50%;
     transform: translate(0, -50%);
-    height: auto !important;
+  }
+  #system.hasScreenBorder #display #canvasWrapper {
+    height: calc(min(50vw, 100vh) * var(--bordered-height) / var(--bordered-width));
   }
   #system #controls #aButton {
     top: 43vh;
@@ -469,15 +499,6 @@ canvas {
 
   #system #controls {
     display: none;
-  }
-  #system #display #canvas {
-    display: block;
-    margin: auto;
-    width: 100%;
-    max-width: 100vmin;
-    position: relative;
-    top: 50%;
-    transform: translate(0, -50%);
   }
 
   #menu {
