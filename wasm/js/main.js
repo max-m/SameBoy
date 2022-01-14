@@ -30,46 +30,6 @@ function simulate_key_event(type, key, which) {
 	Module.canvas.dispatchEvent(e);
 }
 
-async function load_rom_buffer(name, data) {
-	document.body.dispatchEvent(new Event('click'));
-
-	const pos = name.lastIndexOf('.');
-	const battery_name = name.substr(0, pos < 0 ? name.length : pos) + '.sav';
-	const battery_path = allocate(intArrayFromString(`/persist/${battery_name}`), ALLOC_NORMAL);
-
-	// Copy data into WASM memory
-	const ptr = Module._malloc(data.byteLength);
-	const wasm_buf = new Uint8Array(Module.HEAPU8.buffer, ptr, data.byteLength);
-	wasm_buf.set(new Uint8Array(data));
-
-	Module._load_rom(wasm_buf.byteOffset, wasm_buf.byteLength, battery_path);
-}
-
-async function load_remote_rom(url) {
-	const request = new Request(url);
-
-	const name = (_ => {
-		const name = url.substring(url.lastIndexOf('/') + 1);
-
-		if (name.endsWith('.gb') || name.endsWith('.gbc')) {
-			return name
-		}
-		else if (name.length) {
-			return `${name}.gb`
-		}
-
-		return string_hash(url)
-	})()
-
-	const response = await fetch(request);
-	if (!response.ok) {
-		throw new Error('HTTP error, status = ' + response.status);
-	}
-
-	const buf = await response.arrayBuffer();
-	await load_rom_buffer(name, buf);
-}
-
 async function handle_file_select(event) {
 	event.stopPropagation();
 	event.preventDefault();
@@ -246,6 +206,8 @@ function setup_controls() {
 
 	setup_simple_button(document.getElementById('aButton'), 'x', 88);
 	setup_simple_button(document.getElementById('bButton'), 'z', 90);
+
+	setup_simple_button(document.getElementById('menuButton'), 'Escape', 27);
 }
 
 function startup() {
@@ -255,50 +217,6 @@ function startup() {
 	for (const anchor of document.querySelectorAll('#demo-roms a')) {
 		anchor.addEventListener('click', rom_click_handler);
 	}
-
-	document.getElementById('menuButton').addEventListener('click', async event => {
-		event.preventDefault();
-		event.stopPropagation();
-
-		Module._pause();
-
-		const menuButton = event.target;
-		const menu = document.getElementById('menu');
-
-		menuButton.classList.add('active');
-		menu.style.display = 'block';
-
-		function onOutsideClick(event) {
-			let node = event.target;
-
-			while (node) {
-				if (node == menu) {
-					return;
-				}
-
-				node = node.parentElement;
-			}
-
-			document.body.removeEventListener('click', onOutsideClick);
-
-			menuButton.classList.remove('active');
-			menu.style.display = '';
-
-			Module._resume();
-		}
-
-		document.body.addEventListener('click', onOutsideClick);
-
-		Module._save_battery();
-		await Module.gb_syncfs();
-	});
-
-	document.getElementById('synchronize').addEventListener('click', async event => {
-		event.preventDefault();
-
-		Module._save_battery();
-		await Module.gb_syncfs();
-	});
 
 	setup_controls();
 

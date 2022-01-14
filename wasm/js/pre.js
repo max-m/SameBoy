@@ -65,6 +65,46 @@ Module.setStatus = function(text) {
 	statusElement.innerHTML = text;
 };
 
+Module.gb_load_rom_buffer = function (name, data) {
+	document.body.dispatchEvent(new Event('click'));
+
+	const pos = name.lastIndexOf('.');
+	const battery_name = name.substr(0, pos < 0 ? name.length : pos) + '.sav';
+	const battery_path = allocate(intArrayFromString(`/persist/${battery_name}`), ALLOC_NORMAL);
+
+	// Copy data into WASM memory
+	const ptr = Module._malloc(data.byteLength);
+	const wasm_buf = new Uint8Array(Module.HEAPU8.buffer, ptr, data.byteLength);
+	wasm_buf.set(new Uint8Array(data));
+
+	Module._load_rom(wasm_buf.byteOffset, wasm_buf.byteLength, battery_path);
+};
+
+Module.gb_load_remote_rom = async function (url) {
+	const request = new Request(url);
+
+	const name = (_ => {
+		const name = url.substring(url.lastIndexOf('/') + 1);
+
+		if (name.endsWith('.gb') || name.endsWith('.gbc')) {
+			return name
+		}
+		else if (name.length) {
+			return `${name}.gb`
+		}
+
+		return string_hash(url)
+	})()
+
+	const response = await fetch(request);
+	if (!response.ok) {
+		throw new Error('HTTP error, status = ' + response.status);
+	}
+
+	const buf = await response.arrayBuffer();
+	Module.gb_load_rom_buffer(name, buf);
+};
+
 Module.gb_open_file = function (event) {
 	return new Promise((resolve, reject) => {
 		const files = (event.dataTransfer || event.target).files;

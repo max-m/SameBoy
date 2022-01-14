@@ -35,6 +35,15 @@ menu_state_t menu_state = {0,};
 static SDL_Rect rect;
 static unsigned factor;
 
+SDL_Scancode event_hotkey_code(SDL_Event *event)
+{
+    if (event->key.keysym.sym >= SDLK_a && event->key.keysym.sym < SDLK_z) {
+        return SDL_SCANCODE_A + event->key.keysym.sym - SDLK_a;
+    }
+    
+    return event->key.keysym.scancode;
+}
+
 void render_texture(void *pixels,  void *previous)
 {
     if (renderer) {
@@ -202,7 +211,7 @@ static void draw_char(uint32_t *buffer, unsigned width, unsigned height, unsigne
     }
 }
 
-static signed scroll = 0;
+signed scroll = 0;
 static void draw_unbordered_text(uint32_t *buffer, unsigned width, unsigned height, unsigned x, signed y, const char *string, uint32_t color, bool is_osd)
 {
     if (!is_osd) {
@@ -279,19 +288,13 @@ static void draw_text_centered(uint32_t *buffer, unsigned width, unsigned height
     }
 }
 
-struct menu_item {
-    const char *string;
-    void (*handler)(unsigned);
-    const char *(*value_getter)(unsigned);
-    void (*backwards_handler)(unsigned);
-};
-static const struct menu_item *current_menu = NULL;
+const struct menu_item *current_menu = NULL;
 static const struct menu_item *root_menu = NULL;
 static unsigned menu_height;
 static unsigned scrollbar_size;
 static bool mouse_scroling = false;
 
-static unsigned current_selection = 0;
+unsigned current_selection = 0;
 
 static enum {
     SHOWING_DROP_MESSAGE,
@@ -366,7 +369,7 @@ static void open_rom(unsigned index)
 }
 #endif
 
-static void recalculate_menu_height(void)
+void recalculate_menu_height(void)
 {
     menu_height = 24;
     scrollbar_size = 0;
@@ -383,9 +386,22 @@ static void recalculate_menu_height(void)
     }
 }
 
+#ifdef __EMSCRIPTEN__
+extern void enter_examples_menu(unsigned index);
+
+EM_JS(void, synchronize_save_files, (unsigned index), {
+    Module._save_battery();
+    Module.gb_syncfs();
+});
+#endif
+
 static const struct menu_item paused_menu[] = {
     {"Resume", NULL},
     {"Open ROM", open_rom},
+#ifdef __EMSCRIPTEN__
+    {"Open Example", enter_examples_menu},
+    {"Synchronize Saves", synchronize_save_files},
+#endif
     {"Emulation Options", enter_emulation_menu},
     {"Graphic Options", enter_graphics_menu},
     {"Audio Options", enter_audio_menu},
@@ -400,7 +416,7 @@ static const struct menu_item paused_menu[] = {
 
 static const struct menu_item *const nonpaused_menu = &paused_menu[1];
 
-static void return_to_root_menu(unsigned index)
+void return_to_root_menu(unsigned index)
 {
     current_menu = root_menu;
     current_selection = 0;

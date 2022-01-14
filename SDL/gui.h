@@ -130,6 +130,13 @@ typedef struct {
 
 extern configuration_t configuration;
 
+struct menu_item {
+    const char *string;
+    void (*handler)(unsigned);
+    const char *(*value_getter)(unsigned);
+    void (*backwards_handler)(unsigned);
+};
+
 typedef struct {
     SDL_Event event;
     unsigned width;
@@ -142,7 +149,12 @@ typedef struct {
 } menu_state_t;
 
 extern menu_state_t menu_state;
+extern const struct menu_item *current_menu;
+extern unsigned current_selection;
+extern signed scroll;
 
+void return_to_root_menu(unsigned index);
+void recalculate_menu_height(void);
 void update_viewport(void);
 void init_gui(bool is_running);
 bool run_gui_iteration(bool is_running);
@@ -153,14 +165,7 @@ void connect_joypad(void);
 joypad_button_t get_joypad_button(uint8_t physical_button);
 joypad_axis_t get_joypad_axis(uint8_t physical_axis);
 
-static SDL_Scancode event_hotkey_code(SDL_Event *event)
-{
-    if (event->key.keysym.sym >= SDLK_a && event->key.keysym.sym < SDLK_z) {
-        return SDL_SCANCODE_A + event->key.keysym.sym - SDLK_a;
-    }
-    
-    return event->key.keysym.scancode;
-}
+SDL_Scancode event_hotkey_code(SDL_Event *event);
 
 void draw_text(uint32_t *buffer, unsigned width, unsigned height, unsigned x, signed y, const char *string, uint32_t color, uint32_t border, bool is_osd);
 void show_osd_text(const char *text);
