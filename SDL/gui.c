@@ -198,10 +198,12 @@ void update_viewport(void)
     }
 }
 
+#ifndef __EMSCRIPTEN__
 static void rescale_window(void)
 {
     SDL_SetWindowSize(window, GB_get_screen_width(&gb) * configuration.default_scale, GB_get_screen_height(&gb) * configuration.default_scale);
 }
+#endif
 
 static void draw_char(uint32_t *buffer, unsigned width, unsigned height, unsigned char ch, uint32_t color, uint32_t *mask_top, uint32_t *mask_bottom)
 {
@@ -433,8 +435,10 @@ void recalculate_menu_height(void)
 
 #ifdef __EMSCRIPTEN__
 extern void enter_examples_menu(unsigned index);
+extern void save_configuration(void);
 
 EM_JS(void, synchronize_save_files, (unsigned index), {
+    Module._save_configuration();
     Module._save_battery();
     Module.gb_syncfs();
 });
@@ -651,11 +655,13 @@ const char *current_scaling_mode(unsigned index)
         [configuration.scaling_mode];
 }
 
+#ifndef __EMSCRIPTEN__
 const char *current_default_scale(unsigned index)
 {
     return (const char *[]){"1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x"}
         [configuration.default_scale - 1];
 }
+#endif
 
 const char *current_color_correction_mode(unsigned index)
 {
@@ -706,6 +712,7 @@ void cycle_scaling_backwards(unsigned index)
     render_texture(NULL, NULL);
 }
 
+#ifndef __EMSCRIPTEN__
 void cycle_default_scale(unsigned index)
 {
     if (configuration.default_scale == GB_SDL_DEFAULT_SCALE_MAX) {
@@ -731,6 +738,7 @@ void cycle_default_scale_backwards(unsigned index)
     rescale_window();
     update_viewport();
 }
+#endif
 
 static void cycle_color_correction(unsigned index)
 {
@@ -963,7 +971,9 @@ static const struct menu_item graphics_menu[] = {
     {"Use Browser Timing:", toggle_browser_timing, current_browser_timing_mode, toggle_browser_timing},
 #endif
     {"Scaling Mode:", cycle_scaling, current_scaling_mode, cycle_scaling_backwards},
+#ifndef __EMSCRIPTEN__
     {"Default Window Scale:", cycle_default_scale, current_default_scale, cycle_default_scale_backwards},
+#endif
     {"Scaling Filter:", cycle_filter, current_filter_name, cycle_filter_backwards},
     {"Color Correction:", cycle_color_correction, current_color_correction_mode, cycle_color_correction_backwards},
     {"Ambient Light Temp.:", decrease_color_temperature, current_color_temperature, increase_color_temperature},

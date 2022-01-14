@@ -65,7 +65,7 @@ void EMSCRIPTEN_KEEPALIVE dialog_canceled(void)
     }
 }
 
-static void save_configuration(void)
+void EMSCRIPTEN_KEEPALIVE save_configuration(void)
 {
     FILE *prefs_file = fopen(PREFS_PATH, "wb");
     if (prefs_file) {
@@ -706,7 +706,6 @@ int EMSCRIPTEN_KEEPALIVE init(void)
         /* Sanitize for stability */
         configuration.color_correction_mode %= GB_COLOR_CORRECTION_LOW_CONTRAST +1;
         configuration.scaling_mode %= GB_SDL_SCALING_MAX;
-        configuration.default_scale %= GB_SDL_DEFAULT_SCALE_MAX + 1;
         configuration.blending_mode %= GB_FRAME_BLENDING_MODE_ACCURATE + 1;
         configuration.highpass_mode %= GB_HIGHPASS_MAX;
         configuration.model %= MODEL_MAX;
@@ -722,16 +721,15 @@ int EMSCRIPTEN_KEEPALIVE init(void)
         configuration.model = MODEL_CGB;
     }
 
-    if (configuration.default_scale == 0) {
-        configuration.default_scale = 2;
-    }
+    // Useless in the browser
+    configuration.default_scale = 1;
 
     window = SDL_CreateWindow(
         "SameBoy v" GB_VERSION,
         SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
-        160 * configuration.default_scale,
-        144 * configuration.default_scale,
+        160,
+        144,
         SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_BORDERLESS
     );
 
