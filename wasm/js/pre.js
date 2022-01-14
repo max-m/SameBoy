@@ -1,15 +1,6 @@
 const statusElement = document.getElementById('status');
 const progressElement = document.getElementById('progress');
 const spinnerElement = document.getElementById('spinner');
-const canvas = document.getElementById('canvas');
-
-// As a default initial behavior, pop up an alert when webgl context is lost. To make your
-// application robust, you may want to override this behavior before shipping!
-// See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
-canvas.addEventListener("webglcontextlost", function(e) {
-	e.preventDefault();
-	alert('WebGL context lost. You will need to reload the page.');
-}, false);
 
 Module.logReadFiles = true;
 
@@ -23,7 +14,23 @@ Module.printErr = function() {
 	console.error.apply(console, arguments);
 };
 
-Module.canvas = canvas;
+Module.canvas = (() => {
+	const canvas = document.getElementById('canvas');
+
+	// As a default initial behavior, pop up an alert when webgl context is lost. To make your
+	// application robust, you may want to override this behavior before shipping!
+	// See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
+	canvas.addEventListener("webglcontextlost", function(e) {
+		e.preventDefault();
+		alert('WebGL context lost. You will need to reload the page.');
+	}, false);
+
+	canvas.addEventListener('contextmenu', event => event.preventDefault())
+
+	canvas.setAttribute('tabindex', '-1');
+
+	return canvas;
+})();
 
 Module.setStatus = function(text) {
 	if (!Module.setStatus.last) {

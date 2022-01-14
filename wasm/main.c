@@ -190,12 +190,8 @@ static void screen_size_changed(void)
         GB_get_screen_height(&gb)
     );
 
-    SDL_SetWindowSize(window,
-        GB_get_screen_width(&gb) * configuration.default_scale,
-        GB_get_screen_height(&gb) * configuration.default_scale
-    );
-
     update_viewport();
+    render_texture(NULL, NULL);
 }
 
 void EMSCRIPTEN_KEEPALIVE quit(void)
@@ -324,6 +320,7 @@ static void handle_events(GB_gameboy_t *gb)
             case SDL_WINDOWEVENT: {
                 if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
                     update_viewport();
+                    render_texture(NULL, NULL);
                 }
                 break;
             }
@@ -560,6 +557,12 @@ static bool use_software_renderer(void)
 
     renderer = SDL_CreateRenderer(window, -1, 0);
 
+#ifdef TRANSPARENT_WINDOW
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+#else
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+#endif
+
     texture = SDL_CreateTexture(
         renderer,
         SDL_GetWindowPixelFormat(window),
@@ -681,6 +684,16 @@ int EMSCRIPTEN_KEEPALIVE init(void)
     if (SDL_InitSubSystem(SDL_INIT_HAPTIC) != 0) {
         fprintf(stderr, "Failed to init force feedback:\nError: %s\n", SDL_GetError());
     }
+
+    SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
+#ifdef TRANSPARENT_WINDOW
+    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
+#else
+    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0);
+#endif
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 0);
 
     printf("SameBoy v" GB_VERSION "\n");
 
@@ -815,8 +828,6 @@ int EMSCRIPTEN_KEEPALIVE init(void)
 
         audio_workaround();
     });
-
-    update_viewport();
 
     is_running = false;
     init_gui(is_running);

@@ -13,7 +13,7 @@
 #include <emscripten.h>
 #endif
 
-static const SDL_Color gui_palette[4] = {{8, 24, 16,}, {57, 97, 57,}, {132, 165, 99}, {198, 222, 140}};
+static const SDL_Color gui_palette[4] = {{8, 24, 16, 255}, {57, 97, 57, 255}, {132, 165, 99, 255}, {198, 222, 140, 255}};
 static uint32_t gui_palette_native[4];
 
 SDL_Window *window = NULL;
@@ -59,7 +59,13 @@ void render_texture(void *pixels,  void *previous)
         if (pixels) {
             _pixels = pixels;
         }
+
+#ifdef TRANSPARENT_WINDOW
+        glClearColor(0, 0, 0, 0);
+#else
         glClearColor(0, 0, 0, 1);
+#endif
+
         glClear(GL_COLOR_BUFFER_BIT);
         GB_frame_blending_mode_t mode = configuration.blending_mode;
         if (!previous) {

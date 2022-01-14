@@ -1,8 +1,3 @@
-const frame_rate = (0x400000 / 70224.0);
-const ms_per_frame = 1000 / frame_rate;
-let last_frame_time = 0;
-let animation_frame_handle = undefined;
-
 function string_hash(str) {
 	let hash = 0;
 
