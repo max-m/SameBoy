@@ -9,6 +9,10 @@
 #include "gui.h"
 #include "font.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 static const SDL_Color gui_palette[4] = {{8, 24, 16,}, {57, 97, 57,}, {132, 165, 99}, {198, 222, 140}};
 static uint32_t gui_palette_native[4];
 
@@ -320,7 +324,37 @@ static void enter_controls_menu(unsigned index);
 static void enter_joypad_menu(unsigned index);
 static void enter_audio_menu(unsigned index);
 
-#ifndef __EMSCRIPTEN__
+#ifdef __EMSCRIPTEN__
+static void open_rom(unsigned index)
+{
+    EM_ASM({
+        const on_cancel = function () {
+            setTimeout(Module._cancel_load_rom, 100);
+        };
+
+        const file_selector = document.createElement('input');
+
+        file_selector.setAttribute('type', 'file');
+        file_selector.setAttribute('accept','.gb,.gbc,.bin');
+
+        file_selector.addEventListener('change', event => {
+            window.removeEventListener('focus', on_cancel);
+            window.removeEventListener('touchend', on_cancel);
+
+            Module.gb_open_file(event);
+        });
+
+        file_selector.addEventListener('click', () => {
+            window.addEventListener('focus', on_cancel, { 'once': true });
+            window.addEventListener('touchend', on_cancel, { 'once': true });
+        });
+
+        file_selector.click();
+    });
+
+    pending_command = GB_SDL_WAIT_FOR_DIALOG;
+}
+#else
 extern void set_filename(const char *new_filename, typeof(free) *new_free_function);
 static void open_rom(unsigned index)
 {
@@ -351,9 +385,7 @@ static void recalculate_menu_height(void)
 
 static const struct menu_item paused_menu[] = {
     {"Resume", NULL},
-#ifndef __EMSCRIPTEN__
     {"Open ROM", open_rom},
-#endif
     {"Emulation Options", enter_emulation_menu},
     {"Graphic Options", enter_graphics_menu},
     {"Audio Options", enter_audio_menu},
@@ -1465,18 +1497,21 @@ bool run_gui_iteration(bool is_running) {
                 }
                 update_viewport();
             }
-#ifndef __EMSCRIPTEN__
             else if (event_hotkey_code(&menu_state.event) == SDL_SCANCODE_O) {
                 if (menu_state.event.key.keysym.mod & MODIFIER) {
+#ifdef __EMSCRIPTEN__
+                    open_rom(0);
+                    return true;
+#else
                     char *filename = do_open_rom_dialog();
                     if (filename) {
                         set_filename(filename, free);
                         pending_command = GB_SDL_NEW_FILE_COMMAND;
                         return true;
                     }
+#endif
                 }
             }
-#endif
             else if (menu_state.event.key.keysym.scancode == SDL_SCANCODE_RETURN && gui_state == WAITING_FOR_JBUTTON) {
                 menu_state.should_render = true;
                 if (joypad_configuration_progress != JOYPAD_BUTTONS_MAX) {

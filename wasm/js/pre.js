@@ -65,29 +65,58 @@ Module.setStatus = function(text) {
 	statusElement.innerHTML = text;
 };
 
-Module.sameboy_syncfs_in_progress = false;
-Module.sameboy_syncfs_needs_sync = false;
-Module.sameboy_syncfs = async function (populate = false) {
-	if (Module.sameboy_syncfs_in_progress) {
-		Module.sameboy_syncfs_needs_sync = { populate };
+Module.gb_open_file = function (event) {
+	return new Promise((resolve, reject) => {
+		const files = (event.dataTransfer || event.target).files;
+
+		const reader = new FileReader();
+		const name = files[0].name;
+
+		reader.onload = () => {
+			const data = new Uint8Array(reader.result);
+
+			const pos = name.lastIndexOf('.');
+			const battery_name = name.substr(0, pos < 0 ? name.length : pos) + '.sav';
+			const battery_path = allocate(intArrayFromString(`/persist/${battery_name}`), ALLOC_NORMAL);
+
+			// Copy data into WASM memory
+			const ptr = Module._malloc(data.byteLength);
+			const wasm_buf = new Uint8Array(Module.HEAPU8.buffer, ptr, data.byteLength);
+			wasm_buf.set(new Uint8Array(data));
+
+			Module._load_rom(wasm_buf.byteOffset, wasm_buf.byteLength, battery_path);
+			resolve();
+		}
+		reader.onabort = reject;
+		reader.onerror = reject;
+
+		reader.readAsArrayBuffer(files[0]);
+	});
+}
+
+Module.gb_syncfs_in_progress = false;
+Module.gb_syncfs_needs_sync = false;
+Module.gb_syncfs = async function (populate = false) {
+	if (Module.gb_syncfs_in_progress) {
+		Module.gb_syncfs_needs_sync = { populate };
 		return;
 	}
-	Module.sameboy_syncfs_in_progress = true;
+	Module.gb_syncfs_in_progress = true;
 	console.log("Syncing file system ...");
 
 	return await new Promise((resolve, reject) => {
 		FS.syncfs(populate, function (err) {
-			Module.sameboy_syncfs_in_progress = false;
+			Module.gb_syncfs_in_progress = false;
 
 			if (err) {
 				reject(err);
 			}
-			else if (Module.sameboy_syncfs_needs_sync) {
+			else if (Module.gb_syncfs_needs_sync) {
 				console.log("A sync was requested while syncing, syncing again.");
-				const populate = Module.sameboy_syncfs_needs_sync.populate;
-				Module.sameboy_syncfs_needs_sync = undefined;
+				const populate = Module.gb_syncfs_needs_sync.populate;
+				Module.gb_syncfs_needs_sync = undefined;
 
-				Module.sameboy_syncfs(populate)
+				Module.gb_syncfs(populate)
 					.then(resolve)
 					.catch(reject);
 
@@ -107,7 +136,7 @@ Module.onRuntimeInitialized = async () => {
 	FS.mkdir('/persist');
 	FS.mount(IDBFS, { }, '/persist');
 
-	await Module.sameboy_syncfs(true);
+	await Module.gb_syncfs(true);
 
 	// Call the exported init function
 	Module._init();

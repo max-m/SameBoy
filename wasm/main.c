@@ -49,7 +49,7 @@ int EMSCRIPTEN_KEEPALIVE save_battery(void)
     int result = GB_save_battery(&gb, battery_save_path_ptr);
 
     if (result == 0) {
-        EM_ASM(Module.sameboy_syncfs());
+        EM_ASM(Module.gb_syncfs());
     }
     else {
         printf("Failed to save battery file.\n");
@@ -283,6 +283,9 @@ static bool handle_pending_command(void)
             return false;
 
         case GB_SDL_NO_COMMAND:
+            return false;
+
+        case GB_SDL_WAIT_FOR_DIALOG:
             return false;
 
         case GB_SDL_RESET_COMMAND:
@@ -613,6 +616,10 @@ static bool try_init_shaders(void)
 
 void EMSCRIPTEN_KEEPALIVE run_frame(void)
 {
+    if (pending_command == GB_SDL_WAIT_FOR_DIALOG) {
+        return;
+    }
+
     if (render_menu) {
         if (SDL_PollEvent(&menu_state.event)) {
             if (run_gui_iteration(is_running)) {
@@ -795,6 +802,11 @@ int EMSCRIPTEN_KEEPALIVE init(void)
     emscripten_set_main_loop(run_frame, -1, false);
 
     return EXIT_SUCCESS;
+}
+
+void EMSCRIPTEN_KEEPALIVE cancel_load_rom()
+{
+    pending_command = GB_SDL_NO_COMMAND;
 }
 
 void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_save_path)

@@ -30,7 +30,7 @@ function simulate_key_event(type, key, which) {
 	Module.canvas.dispatchEvent(e);
 }
 
-async function loadRomFromMemory(name, data) {
+async function load_rom_buffer(name, data) {
 	document.body.dispatchEvent(new Event('click'));
 
 	const pos = name.lastIndexOf('.');
@@ -45,25 +45,7 @@ async function loadRomFromMemory(name, data) {
 	Module._load_rom(wasm_buf.byteOffset, wasm_buf.byteLength, battery_path);
 }
 
-async function loadROM(file) {
-	const name = file.name;
-
-	const buffer = await new Promise((resolve, reject) => {
-		const reader = new FileReader();
-
-		reader.onload = () => {
-			resolve(reader.result);
-		}
-
-		reader.onerror = reject;
-
-		reader.readAsArrayBuffer(file);
-	});
-
-	return await loadRomFromMemory(name, buffer);
-}
-
-async function loadRemoteRom(url) {
+async function load_remote_rom(url) {
 	const request = new Request(url);
 
 	const name = (_ => {
@@ -85,32 +67,34 @@ async function loadRemoteRom(url) {
 	}
 
 	const buf = await response.arrayBuffer();
-	await loadRomFromMemory(name, buf);
+	await load_rom_buffer(name, buf);
 }
 
-async function handleFileSelect(event, files) {
+async function handle_file_select(event) {
 	event.stopPropagation();
 	event.preventDefault();
 
+	const files = (event.dataTransfer || event.target).files;
+
 	if (files.length) {
-		await loadROM(files[0]);
+		await Module.gb_open_file(event);
 	}
 }
 
-function handleDragOver(event) {
+function handle_drag_over(event) {
 	event.stopPropagation();
 	event.preventDefault();
 	event.dataTransfer.dropEffect = 'copy';
 }
 
-async function romClickHandler(event) {
+async function rom_click_handler(event) {
 	event.stopPropagation();
 	event.preventDefault();
 
-	await loadRemoteRom(event.target.href);
+	await load_remote_rom(event.target.href);
 }
 
-function setupDpad() {
+function setup_dpad() {
 	const dpad  = document.getElementById('dpad');
 
 	const up    = document.getElementById('upButton');
@@ -229,7 +213,7 @@ function setupDpad() {
 	});
 }
 
-function setupSimpleButton(button, key, which) {
+function setup_simple_button(button, key, which) {
 	function activate(event) {
 		event.preventDefault();
 		button.setPointerCapture(event.pointerId);
@@ -254,29 +238,22 @@ function setupSimpleButton(button, key, which) {
 	button.setAttribute('unselectable', 'on');
 }
 
-function setupControls() {
-	setupDpad();
+function setup_controls() {
+	setup_dpad();
 
-	setupSimpleButton(document.getElementById('startButton'), 'Enter', 13);
-	setupSimpleButton(document.getElementById('selectButton'), 'Backspace', 8);
+	setup_simple_button(document.getElementById('startButton'), 'Enter', 13);
+	setup_simple_button(document.getElementById('selectButton'), 'Backspace', 8);
 
-	setupSimpleButton(document.getElementById('aButton'), 'x', 88);
-	setupSimpleButton(document.getElementById('bButton'), 'z', 90);
+	setup_simple_button(document.getElementById('aButton'), 'x', 88);
+	setup_simple_button(document.getElementById('bButton'), 'z', 90);
 }
 
 function startup() {
-	window.addEventListener('dragover', handleDragOver, false);
-
-	window.addEventListener('drop', e => {
-		handleFileSelect(e, e.dataTransfer.files);
-	}, false);
-
-	document.getElementById('file').addEventListener('change', e => {
-		handleFileSelect(e, e.target.files);
-	}, false);
+	window.addEventListener('dragover', handle_drag_over, false);
+	window.addEventListener('drop', handle_file_select, false);
 
 	for (const anchor of document.querySelectorAll('#demo-roms a')) {
-		anchor.addEventListener('click', romClickHandler);
+		anchor.addEventListener('click', rom_click_handler);
 	}
 
 	document.getElementById('menuButton').addEventListener('click', async event => {
@@ -313,21 +290,21 @@ function startup() {
 		document.body.addEventListener('click', onOutsideClick);
 
 		Module._save_battery();
-		await Module.sameboy_syncfs();
+		await Module.gb_syncfs();
 	});
 
 	document.getElementById('synchronize').addEventListener('click', async event => {
 		event.preventDefault();
 
 		Module._save_battery();
-		await Module.sameboy_syncfs();
+		await Module.gb_syncfs();
 	});
 
-	setupControls();
+	setup_controls();
 
 	document.addEventListener('visibilitychange', async () => {
 		Module._save_battery();
-		await Module.sameboy_syncfs();
+		await Module.gb_syncfs();
 	});
 }
 

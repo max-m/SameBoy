@@ -40,6 +40,9 @@ enum pending_command {
     GB_SDL_NEW_FILE_COMMAND,
     GB_SDL_QUIT_COMMAND,
     GB_SDL_LOAD_STATE_FROM_FILE_COMMAND,
+#ifdef __EMSCRIPTEN__
+    GB_SDL_WAIT_FOR_DIALOG,
+#endif
 };
 
 #define GB_SDL_DEFAULT_SCALE_MAX 8
