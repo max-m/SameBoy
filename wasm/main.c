@@ -653,6 +653,20 @@ void EMSCRIPTEN_KEEPALIVE run_frame(void)
     pending_command = GB_SDL_NO_COMMAND;
 }
 
+void start_main_loop(void)
+{
+    emscripten_cancel_main_loop();
+
+    if (configuration.use_browser_timing) {
+        printf("Running at your browser’s native refresh rate.\n");
+        emscripten_set_main_loop(run_frame, -1, false);
+    }
+    else {
+        printf("Trying to run at 60 FPS\n");
+        emscripten_set_main_loop(run_frame, 60, false);
+    }
+}
+
 int EMSCRIPTEN_KEEPALIVE init(void)
 {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
@@ -808,7 +822,7 @@ int EMSCRIPTEN_KEEPALIVE init(void)
     init_gui(is_running);
     open_menu();
 
-    emscripten_set_main_loop(run_frame, -1, false);
+    start_main_loop();
 
     return EXIT_SUCCESS;
 }

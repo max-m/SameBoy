@@ -126,6 +126,10 @@ typedef struct {
     
     /* v0.14.4 */
     bool osd;
+
+#ifdef __EMSCRIPTEN__
+    bool use_browser_timing;
+#endif
 } configuration_t;
 
 extern configuration_t configuration;

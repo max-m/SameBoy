@@ -126,6 +126,9 @@ configuration_t configuration =
     .rumble_mode = GB_RUMBLE_ALL_GAMES,
     .default_scale = 2,
     .color_temperature = 10,
+#ifdef __EMSCRIPTEN__
+    .use_browser_timing = true,
+#endif
 };
 
 
@@ -145,7 +148,9 @@ static const char *help[] = {
 #else
 " Mute/Unmute:       " MODIFIER_NAME "+M\n"
 #endif
+#ifndef GB_DISABLE_DEBUGGER
 " Break Debugger:    " CTRL_STRING "+C"
+#endif
 };
 
 void update_viewport(void)
@@ -933,7 +938,24 @@ static const char *current_osd_mode(unsigned index)
     return configuration.osd? "Enabled" : "Disabled";
 }
 
+#ifdef __EMSCRIPTEN__
+extern void start_main_loop(void);
+void toggle_browser_timing(unsigned index)
+{
+    configuration.use_browser_timing = !configuration.use_browser_timing;
+    start_main_loop();
+}
+
+const char *current_browser_timing_mode(unsigned index)
+{
+    return configuration.use_browser_timing? "Enabled" : "Disabled";
+}
+#endif
+
 static const struct menu_item graphics_menu[] = {
+#ifdef __EMSCRIPTEN__
+    {"Use Browser Timing:", toggle_browser_timing, current_browser_timing_mode, toggle_browser_timing},
+#endif
     {"Scaling Mode:", cycle_scaling, current_scaling_mode, cycle_scaling_backwards},
     {"Default Window Scale:", cycle_default_scale, current_default_scale, cycle_default_scale_backwards},
     {"Scaling Filter:", cycle_filter, current_filter_name, cycle_filter_backwards},
