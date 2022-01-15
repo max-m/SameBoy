@@ -398,18 +398,22 @@ static void handle_events(GB_gameboy_t *gb)
                     case SDL_SCANCODE_R:
                         if (event.key.keysym.mod & MODIFIER) {
                             pending_command = GB_SDL_RESET_COMMAND;
+                            show_osd_text("Reset");
                         }
                         break;
 
                     case SDL_SCANCODE_P:
                         if (event.key.keysym.mod & MODIFIER) {
                             paused = !paused;
+                            show_osd_text(paused ? "Paused" : "Resumed");
                         }
                         break;
 
                     case SDL_SCANCODE_M:
                         if (event.key.keysym.mod & MODIFIER) {
-                            GB_audio_set_paused(GB_audio_is_playing());
+                            bool playing = GB_audio_is_playing();
+                            show_osd_text(playing ? "Muted" : "Unmuted");
+                            GB_audio_set_paused(playing);
                         }
                         break;
 
@@ -443,8 +447,23 @@ static void handle_events(GB_gameboy_t *gb)
     }
 }
 
+static uint32_t rgb_encode(GB_gameboy_t *gb, uint8_t r, uint8_t g, uint8_t b)
+{
+    return SDL_MapRGB(pixel_format, r, g, b);
+}
+
 static void vblank(GB_gameboy_t *gb)
 {
+    if (osd_countdown && configuration.osd) {
+        unsigned width = GB_get_screen_width(gb);
+        unsigned height = GB_get_screen_height(gb);
+        draw_text(active_pixel_buffer,
+                  width, height, 8, height - 8 - osd_text_lines * 12, osd_text,
+                  rgb_encode(gb, 255, 255, 255), rgb_encode(gb, 0, 0, 0),
+                  true);
+        osd_countdown--;
+    }
+
     if (configuration.blending_mode) {
         render_texture(active_pixel_buffer, previous_pixel_buffer);
         uint32_t *temp = active_pixel_buffer;
@@ -457,11 +476,6 @@ static void vblank(GB_gameboy_t *gb)
     }
 
     handle_events(gb);
-}
-
-static uint32_t rgb_encode(GB_gameboy_t *gb, uint8_t r, uint8_t g, uint8_t b)
-{
-    return SDL_MapRGB(pixel_format, r, g, b);
 }
 
 static void rumble(GB_gameboy_t *gb, double amp)
@@ -858,9 +872,12 @@ void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_s
     battery_save_path_ptr = battery_save_path;
     save_battery();
 
+    static char start_text[64];
     static char title[17];
     GB_get_rom_title(&gb, title);
-    printf("SameBoy v" GB_VERSION "\n%s\n%08X", title, GB_get_rom_crc32(&gb));
+    sprintf(start_text, "SameBoy v" GB_VERSION "\n%s\n%08X", title, GB_get_rom_crc32(&gb));
+    printf("%s\n", start_text);
+    show_osd_text(start_text);
 
     screen_size_changed();
 
