@@ -203,6 +203,37 @@ function setup_controls() {
 	setup_simple_button(document.getElementById('bButton'), 'z', 90);
 
 	setup_simple_button(document.getElementById('menuButton'), 'Escape', 27);
+
+	const fsButton = document.getElementById('fullscreenButton');
+
+	if (document.fullscreenEnabled) {
+		document.addEventListener('fullscreenchange', (event) => {
+			if (document.fullscreenElement) {
+				fsButton.classList.add('active');
+			}
+			else {
+				fsButton.classList.remove('active');
+			}
+
+			window.dispatchEvent(new Event('resize'));
+		});
+
+		document.addEventListener('fullscreenerror', event => {
+			console.error('Failed to go fullscreen:', event);
+		});
+
+		fsButton.addEventListener('click', () => {
+			if (document.fullscreenElement) {
+				document.exitFullscreen();
+			}
+			else {
+				document.getElementById('system').requestFullscreen();
+			}
+		});
+	}
+	else {
+		fsButton.style.display = 'none';
+	}
 }
 
 function startup() {

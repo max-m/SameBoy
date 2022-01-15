@@ -11,6 +11,8 @@
   --height: 144;
   --bordered-width: 256;
   --bordered-height: 224;
+
+  --menu-button-color: rgba(0, 0, 0, 0.3);
 }
 
 html, body {
@@ -189,6 +191,7 @@ canvas {
 }
 #system #controls #dpad {
   position: absolute;
+  pointer-events: all;
 }
 #system #controls #dpad .button {
   background-color: var(--dpad-bg);
@@ -258,15 +261,33 @@ canvas {
   border-radius: 0 0 2vmin 2vmin;
   clip-path: inset(2vmin -2vmin -2vmin -2vmin);
 }
-#system #controls #menuButton {
+#system #controls #menuButton,
+#system #controls #fullscreenButton {
   position: absolute;
   width: 9vmin;
   height: 9vmin;
   border-radius: 9vmin;
 }
 #system #controls #menuButton > span {
+  background-color: var(--menu-button-color);
+}
+
+#system #controls #fullscreenButton {
+  color: var(--menu-button-color);
+}
+
+#system #controls #fullscreenButton > svg {
+  position: relative;
+  width: 65%;
+  height: 65%;
   display: block;
-  background-color: rgba(0, 0, 0, 0.3);
+  margin: auto;
+  top: 50%;
+  transform: translate(0, -50%);
+}
+
+#system #controls #menuButton > span {
+  display: block;
   margin: auto;
   width: 65%;
   height: 1vmin;
@@ -366,6 +387,10 @@ canvas {
     top: 5%;
     left: 50%;
     transform: translate(-50%, 0);
+  }
+  #system #controls #fullscreenButton {
+    top: 5%;
+    right: 5%;
   }
 
   #menu {
@@ -468,7 +493,11 @@ canvas {
   }
   #system #controls #menuButton {
     right: calc(25vw - min(100px, 12.5vmin) - 2%);
-    bottom: 5%;
+    top: 5%;
+  }
+  #system #controls #fullscreenButton {
+    top: 5%;
+    right: 2%;
   }
 
   #menu {
