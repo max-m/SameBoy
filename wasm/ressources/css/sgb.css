@@ -1,4 +1,4 @@
-#system.isSGB {
+.isSGB {
   --system-color: hsl(120, 1.3%, 70.2%);
 
   --button-bg: #535860;
@@ -12,7 +12,7 @@
   --start-button-bg-active: var(--button-bg-active);
   --start-button-shadow: #2d2d32;
   --start-button-shadow-inset: #8894a4;
-  --start-button-label: #353f45;
+  --start-button-label: #9ea4aa;
 
   --dpad-bg: hsl(200, 3.4%, 34.1%);
   --dpad-bg-hover: hsl(200, 3.4%, 24.1%);
@@ -23,17 +23,17 @@
   --dpad-dimple-shadow: #494a4a;
 }
 @media (orientation: portrait) {
-  #system.isSGB #controls {
+  .isSGB #controls {
     background-color: hsl(160, 1.3%, 44.5%);
     background-image: url(../img/noise.png);
   }
 }
-#system.isSGB #controls #aButton {
+.isSGB #aButton {
   --button-bg: hsl(356.6, 82.9%, 41.4%);
   --button-bg-hover: hsl(356.6, 82.9%, 26.4%);
   --button-bg-active: hsl(356.6, 82.9%, 26.4%);
 }
-#system.isSGB #controls #bButton {
+.isSGB #bButton {
   --button-bg: hsl(44.5, 93.7%, 50.6%);
   --button-bg-hover: hsl(44.5, 93.7%, 35.6%);
   --button-bg-active: hsl(44.5, 93.7%, 35.6%);
@@ -42,14 +42,12 @@
 /* Y button color: hsl(155.3, 100%, 22.4%) */
 
 @media (prefers-color-scheme: dark) {
-  #system.isSGB {
+  .isSGB {
     --system-color: #828186;
-
-    --start-button-label: #8e8d92;
   }
 
-  #system.isSGB #controls #aButton,
-  #system.isSGB #controls #bButton {
+  .isSGB #aButton,
+  .isSGB #bButton {
     --button-bg: hsl(249.9, 32.4%, 40.6%);
     --button-bg-hover: hsl(249.9, 32.4%, 30.6%);
     --button-bg-active: hsl(249.9, 32.4%, 30.6%);
@@ -58,52 +56,51 @@
   }
 }
 @media (orientation: landscape) and (prefers-color-scheme: dark) {
-  #system.isSGB {
+  .isSGB {
     --system-color: #545358;
   }
 }
 
-@media (orientation: portrait) {
-  #system.isSGB #controls #startButton,
-  #system.isSGB #controls #selectButton {
-    transform: rotate(-35deg);
-  }
-
-  #system.isSGB #controls #startButton::after,
-  #system.isSGB #controls #selectButton::after {
-    transform: rotate(35deg) translate(-50%, 250%);
-  }
-}
-
-#system.isSGB #controls #aButton::after,
-#system.isSGB #controls #bButton::after {
-  color: #9ea4aa;
+.isSGB #aButton::after,
+.isSGB #bButton::after {
+  color: var(--start-button-label);
   position: absolute;
   font-size: 4vmax;
   font-weight: bold;
   transform: translate(-50%, -50%);
 }
-
-#system.isSGB #controls #aButton::after {
+.isSGB #aButton::after {
   right: -28.82%;
   top: 6%;
 }
-
-#system.isSGB #controls #bButton::after {
+.isSGB #bButton::after {
   left: -13%;
   top: 96%;
 }
 
 @media (orientation: landscape) {
-  #system.isSGB {
+  .isSGB {
     --system-color: hsl(160, 1.3%, 44.5%);
   }
-  #system.isSGB #controls #aButton::after {
+  .isSGB #aButton::after {
     right: -23.82%;
     top: 0;
   }
-  #system.isSGB #controls #bButton::after {
+  .isSGB #bButton::after {
     left: -8%;
     top: 100%;
+  }
+}
+
+@media (orientation: portrait) {
+  .isSGB #startButton,
+  .isSGB #selectButton {
+    transform: rotate(-35deg);
+  }
+
+  .isSGB #startButton::after,
+  .isSGB #selectButton::after {
+    transform: rotate(35deg) translate(-50%, 285%);
+    font-weight: bold;
   }
 }

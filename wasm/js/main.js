@@ -240,10 +240,6 @@ function startup() {
 	window.addEventListener('dragover', handle_drag_over, false);
 	window.addEventListener('drop', handle_file_select, false);
 
-	for (const anchor of document.querySelectorAll('#demo-roms a')) {
-		anchor.addEventListener('click', rom_click_handler);
-	}
-
 	setup_controls();
 
 	document.addEventListener('visibilitychange', async () => {

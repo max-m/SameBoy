@@ -1,4 +1,4 @@
-#system.isDMG {
+.isDMG {
   --system-color: #c4bfbf;
 
   --button-bg: hsl(324, 91%, 54%);
@@ -25,7 +25,7 @@
 
 @media (prefers-color-scheme: dark) {
   /* Play It Loud Deep Black */
-  #system.isDMG {
+  .isDMG {
     --system-color: #2d2c2c;
 
     --button-bg: #6c6c74;
@@ -49,34 +49,51 @@
     --dpad-dimple-bg: #787779;
   }
 
-  #system.isDMG #controls #dpad::after {
+  .isDMG #dpad::after {
     box-shadow: 0 0 0.2vmin 0.5vmin #4d4d4d inset;
   }
 }
 
 @media (orientation: landscape) {
-  #system.isDMG #controls #startButton,
-  #system.isDMG #controls #selectButton {
+  .isDMG #startButton,
+  .isDMG #selectButton {
     --start-button-label: #1c1c1c;
   }
 }
 
-#system.isDMG #controls #menuButton {
+@media (orientation: portrait) {
+  .isDMG #startButton,
+  .isDMG #selectButton {
+    transform: rotate(-28deg);
+  }
+}
+
+.isDMG #menuButton,
+.isDMG #fullscreenButton {
   background-color: var(--start-button-bg);
 }
-#system.isDMG #controls #menuButton:hover {
+.isDMG #menuButton:hover,
+.isDMG #fullscreenButton:hover {
   background-color: var(--start-button-bg-hover);
 }
-#system.isDMG #controls #menuButton.active {
+.isDMG #menuButton.active,
+.isDMG #fullscreenButton.active {
   background-color: var(--start-button-bg-active);
 }
-#system.isDMG #controls #startButton::after,
-#system.isDMG #controls #selectButton::after {
+
+.isDMG #startButton::after,
+.isDMG #selectButton::after {
   font-weight: bold;
 }
 
-#system.isDMG #controls #aButton::after,
-#system.isDMG #controls #bButton::after {
+@media not (prefers-color-scheme: dark) {
+  .isDMG #aButton,
+  .isDMG #bButton {
+    --button-shadow-inset: #e397c1;
+  }
+}
+.isDMG #aButton::after,
+.isDMG #bButton::after {
   color: var(--start-button-label);
   position: absolute;
   font-size: 4vmax;
@@ -84,11 +101,4 @@
   left: 70%;
   top: 130%;
   transform: translate(-50%, -50%) rotate(-28deg);
-}
-
-@media (orientation: portrait) {
-  #system.isDMG #controls #startButton,
-  #system.isDMG #controls #selectButton {
-    transform: rotate(-28deg);
-  }
 }

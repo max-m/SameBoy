@@ -1,4 +1,4 @@
-#system.isAGB {
+.isAGB {
     --system-color: #6a5e9f;
 
     --button-bg: #c9c9c7;
@@ -25,15 +25,20 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  #system.isAGB {
+  .isAGB {
     --system-color: #545454;
+    --start-button-label: #b3b3b3;
+  }
+}
 
+@media (prefers-color-scheme: dark) and (orientation: landscape) {
+  .isAGB {
     --start-button-label: #4f4f51;
   }
 }
 
-#system.isAGB #controls #aButton::after,
-#system.isAGB #controls #bButton::after {
+.isAGB #aButton::after,
+.isAGB #bButton::after {
   position: absolute;
   font-size: 8vmax;
   font-weight: bold;
@@ -43,8 +48,8 @@
 }
 
 @media (orientation: landscape) {
-  #system.isAGB #controls #startButton,
-  #system.isAGB #controls #selectButton {
+  .isAGB #startButton,
+  .isAGB #selectButton {
     transform: rotate(10deg);
   }
 }
