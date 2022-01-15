@@ -442,6 +442,10 @@ EM_JS(void, synchronize_save_files, (unsigned index), {
     Module._save_battery();
     Module.gb_syncfs();
 });
+
+EM_JS(void, open_save_manager, (unsigned index), {
+    Module.gb_open_save_manager();
+});
 #endif
 
 static const struct menu_item paused_menu[] = {
@@ -450,6 +454,7 @@ static const struct menu_item paused_menu[] = {
 #ifdef __EMSCRIPTEN__
     {"Open Example", enter_examples_menu},
     {"Synchronize Saves", synchronize_save_files},
+    {"Open Save Manager", open_save_manager},
 #endif
     {"Emulation Options", enter_emulation_menu},
     {"Graphic Options", enter_graphics_menu},

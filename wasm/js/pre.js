@@ -181,6 +181,92 @@ Module.gb_syncfs = async function (populate = false) {
 	});
 };
 
+Module.gb_list_save_files = () => {
+	return FS.readdir('/persist')
+		.filter(entry => entry.endsWith('.sav'))
+}
+
+Module.gb_open_save_manager = () => {
+	Module._pause();
+
+	const elem = document.getElementById('saveManager');
+	elem.style.display = '';
+	elem.innerHTML = '';
+
+	const table = document.createElement('table');
+	const tbody = document.createElement('tbody');
+	table.appendChild(tbody);
+
+	const tr = document.createElement('tr');
+	const td = document.createElement('td');
+	td.setAttribute('colspan', '3');
+	const span = document.createElement('span');
+	span.innerText = 'CLOSE';
+	span.classList.add('closeButton');
+	span.addEventListener('click', Module.gb_close_save_manager);
+	td.appendChild(span);
+	tr.appendChild(td);
+	tbody.appendChild(tr);
+
+	for (let save of Module.gb_list_save_files()) {
+		const tr = document.createElement('tr');
+
+		const td1 = document.createElement('td');
+		td1.innerHTML = '<svg class="download"><use href="img/download.svg#i"></use></svg>'
+		td1.firstChild.addEventListener('click', () => {
+			const data = FS.readFile(`/persist/${save}`, { encoding: 'binary' });
+
+			const blob = new Blob([data], {
+				type: 'application/octet-stream'
+			});
+
+			const url = window.URL.createObjectURL(blob);
+
+			setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+
+			const anchor = document.createElement('a');
+			anchor.href = url;
+			anchor.download = save;
+			anchor.style.display = 'none';
+			document.body.appendChild(anchor);
+			anchor.click();
+			anchor.remove();
+		});
+		tr.append(td1);
+
+		const td2 = document.createElement('td');
+		td2.innerHTML = '<svg class="delete"><use href="img/delete.svg#i"></use></svg>'
+		td2.firstChild.addEventListener('click', async () => {
+			if (window.confirm(`Are you sure you want to delete “${save}”?`)) {
+				FS.unlink(`/persist/${save}`);
+
+				await Module.gb_syncfs();
+
+				if (!FS.analyzePath(`/persist/${save}`).exists) {
+					tr.remove();
+				}
+			}
+		});
+		tr.append(td2);
+
+		const td3 = document.createElement('td');
+		td3.innerText = save;
+		tr.append(td3);
+
+		tbody.appendChild(tr);
+	}
+
+	elem.appendChild(table);
+}
+
+Module.gb_close_save_manager = () => {
+	const elem = document.getElementById('saveManager');
+	elem.style.display = 'none';
+	elem.innerHTML = '';
+
+	Module._resume();
+}
+
 Module.onRuntimeInitialized = async () => {
 	FS.mkdir('/persist');
 	FS.mount(IDBFS, { }, '/persist');

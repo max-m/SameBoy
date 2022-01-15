@@ -93,6 +93,55 @@ canvas {
     transform: rotate(360deg);
   }
 }
+
+#saveManager {
+  position: absolute;
+  z-index: 1000;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  backdrop-filter: blur(5px);
+  background-color: rgba(0, 0, 0, 0.8);
+  padding: 1rem;
+  color: #fff;
+  font-size: 1.5rem;
+  overflow-y: auto;
+}
+
+#saveManager table {
+  margin: auto;
+}
+
+#saveManager .closeButton {
+  font-size: 2rem;
+  margin: 1rem;
+  cursor: pointer;
+  display: block;
+}
+
+#saveManager .download:hover,
+#saveManager .download:active {
+  color: #d0ffd0;
+}
+
+#saveManager .delete:hover,
+#saveManager .delete:active {
+  color: #a03010
+}
+
+#saveManager svg {
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-right: 0.5rem;
+  margin-left: 0.5rem;
+  cursor: pointer;
+}
+
+#saveManager tr:nth-child(even) {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
 #system {
   height: 100vh;
   width: 100vw;

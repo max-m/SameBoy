@@ -247,6 +247,13 @@ function startup() {
 	setup_controls();
 
 	document.addEventListener('visibilitychange', async () => {
+		if (document.visibilityState == 'visible') {
+			Module._resume();
+		}
+		else {
+			Module._pause();
+		}
+
 		Module._save_battery();
 		await Module.gb_syncfs();
 	});
