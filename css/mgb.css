@@ -1,4 +1,4 @@
-#system.isMGB {
+.isMGB {
   --system-color: #cacbc9;
 
   --button-bg: #545458;
@@ -24,7 +24,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  #system.isMGB {
+  .isMGB:not(.forceLight) {
     --system-color: #292628;
 
     --button-bg: #4c4b4f;
@@ -51,14 +51,14 @@
 }
 
 @media (orientation: landscape) {
-  #system.isMGB #controls #startButton,
-  #system.isMGB #controls #selectButton {
+  .isMGB #startButton,
+  .isMGB #selectButton {
     --start-button-label: #1c1c1c;
   }
 }
 
-#system.isMGB #controls #aButton::after,
-#system.isMGB #controls #bButton::after {
+.isMGB #aButton::after,
+.isMGB #bButton::after {
   color: var(--start-button-label);
   position: absolute;
   font-size: 4vmax;

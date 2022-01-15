@@ -1,5 +1,5 @@
 :root,
-#system.isCGB {
+.isCGB {
   /* --system-color: hsl(346.9, 63%, 41.4%); */
   --system-color: #e84051;
 
@@ -15,7 +15,7 @@
   --start-button-bg-active: var(--button-bg-active);
   --start-button-shadow: var(--button-shadow);
   --start-button-shadow-inset: var(--button-shadow-inset);
-  --start-button-label: #ff94a0;
+  --start-button-label: rgba(255, 241, 241, 0.36);
 
   --dpad-bg: var(--button-bg);
   --dpad-bg-hover: var(--button-bg-hover);
@@ -26,9 +26,16 @@
   --dpad-dimple-shadow:  #373535;
 }
 
+@media (orientation: landscape) {
+  .isCGB #startButton,
+  .isCGB #selectButton {
+    --start-button-label: var(--button-label-color);
+    font-weight: bold;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
-  :root,
-  #system.isCGB {
+  .isCGB:not(.forceLight) {
     --system-color: hsl(207.7, 14.6%, 17.5%);
 
     --button-bg: hsl(0, 1.3%, 14.7%);
@@ -43,7 +50,7 @@
     --start-button-bg-active: var(--button-bg-active);
     --start-button-shadow: var(--button-shadow);
     --start-button-shadow-inset: var(--button-shadow-inset);
-    --start-button-label: rgba(0, 0, 0, 0.5);
+    --start-button-label: rgba(0, 0, 0, 0.3);
 
     --dpad-bg: var(--button-bg);
     --dpad-bg-hover: var(--button-bg-hover);
@@ -53,20 +60,4 @@
     --dpad-dimple-bg: #262323;
     --dpad-dimple-shadow:  #222121;
   }
-}
-
-@media (orientation: landscape) {
-  #system.isCGB #controls #startButton,
-  #system.isCGB #controls #selectButton {
-    --start-button-label: #1c1c1c;
-  }
-}
-
-#system.isCGB #controls #aButton::after,
-#system.isCGB #controls #bButton::after {
-  position: absolute;
-  font-size: 10vmax;
-  left: 40%;
-  top: 50%;
-  transform: translate(-50%, -50%);
 }
