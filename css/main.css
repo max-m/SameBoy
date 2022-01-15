@@ -117,7 +117,10 @@ canvas {
   font-size: 2rem;
   margin: 1rem;
   cursor: pointer;
-  display: block;
+  display: inline-block;
+}
+#saveManager .closeButton:hover {
+  color: #ffffaa;
 }
 
 #saveManager .download:hover,
@@ -127,7 +130,7 @@ canvas {
 
 #saveManager .delete:hover,
 #saveManager .delete:active {
-  color: #a03010
+  color: #a03010;
 }
 
 #saveManager svg {
