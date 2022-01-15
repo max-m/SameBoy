@@ -198,6 +198,12 @@ canvas {
 #aButton::after,
 #bButton::after {
   color: var(--button-label-color);
+
+  position: absolute;
+  font-size: 10vmax;
+  left: 40%;
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
 #aButton::after {
   content: "A";

@@ -64,6 +64,7 @@ CFLAGS += -I$(CORE_DIR)
 CFLAGS += -Wno-pass-failed
 CFLAGS += -s USE_SDL=2
 CFLAGS += -DGB_DISABLE_TIMEKEEPING -DGB_DISABLE_REWIND -DGB_DISABLE_DEBUGGER -DGB_DISABLE_CHEATS
+CFLAGS += -DGB_ENABLE_CHAMELEON_MODE
 
 # Build as library
 LDFLAGS += --no-entry
@@ -93,6 +94,9 @@ LDFLAGS += -flto --emit-symbol-map
 else
 $(error Invalid value for CONF: $(CONF). Use "debug", "release" or "native_release")
 endif
+
+CFLAGS := $(CFLAGS) $(CFLAGS_OVERRIDES)
+LDFLAGS := $(LDFLAGS) $(LDFLAGS_OVERRIDES)
 
 # Define our targets
 

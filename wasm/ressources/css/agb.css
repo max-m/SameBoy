@@ -25,14 +25,14 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .isAGB {
+  .isAGB:not(.forceLight) {
     --system-color: #545454;
     --start-button-label: #b3b3b3;
   }
 }
 
 @media (prefers-color-scheme: dark) and (orientation: landscape) {
-  .isAGB {
+  .isAGB:not(.forceLight) {
     --start-button-label: #4f4f51;
   }
 }

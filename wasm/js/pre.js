@@ -267,6 +267,12 @@ Module.gb_close_save_manager = () => {
 	Module._resume();
 }
 
+Module.gb_set_system_color = (r, g, b) => {
+	const system = document.getElementById('system');
+	system.classList.add('forceLight');
+	system.style.setProperty('--system-color', `rgb(${r}, ${g}, ${b})`);
+}
+
 Module.onRuntimeInitialized = async () => {
 	FS.mkdir('/persist');
 	FS.mount(IDBFS, { }, '/persist');

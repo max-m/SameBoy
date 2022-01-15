@@ -25,7 +25,7 @@
 
 @media (prefers-color-scheme: dark) {
   /* Play It Loud Deep Black */
-  .isDMG {
+  .isDMG:not(.forceLight) {
     --system-color: #2d2c2c;
 
     --button-bg: #6c6c74;
@@ -49,7 +49,7 @@
     --dpad-dimple-bg: #787779;
   }
 
-  .isDMG #dpad::after {
+  .isDMG:not(.forceLight) #dpad::after {
     box-shadow: 0 0 0.2vmin 0.5vmin #4d4d4d inset;
   }
 }

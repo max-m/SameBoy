@@ -42,12 +42,12 @@
 /* Y button color: hsl(155.3, 100%, 22.4%) */
 
 @media (prefers-color-scheme: dark) {
-  .isSGB {
+  .isSGB:not(.forceLight) {
     --system-color: #828186;
   }
 
-  .isSGB #aButton,
-  .isSGB #bButton {
+  .isSGB:not(.forceLight) #aButton,
+  .isSGB:not(.forceLight) #bButton {
     --button-bg: hsl(249.9, 32.4%, 40.6%);
     --button-bg-hover: hsl(249.9, 32.4%, 30.6%);
     --button-bg-active: hsl(249.9, 32.4%, 30.6%);
@@ -56,7 +56,7 @@
   }
 }
 @media (orientation: landscape) and (prefers-color-scheme: dark) {
-  .isSGB {
+  .isSGB:not(.forceLight) {
     --system-color: #545358;
   }
 }

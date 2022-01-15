@@ -109,6 +109,10 @@ typedef struct __attribute__((packed)) {
     uint8_t flags;
 } object_t;
 
+#ifdef __EMSCRIPTEN__
+extern void set_system_color(uint32_t color);
+#endif
+
 void GB_display_vblank(GB_gameboy_t *gb)
 {  
     gb->vblank_just_occured = true;
@@ -182,6 +186,20 @@ void GB_display_vblank(GB_gameboy_t *gb)
             border_colors[i] = GB_convert_rgb15(gb, LE16(gb->borrowed_border.palette[i]), true);
         }
         
+#if defined(__EMSCRIPTEN__) && defined(GB_ENABLE_CHAMELEON_MODE)
+        if (!gb->has_sgb_border) {
+            if (GB_is_cgb(gb)) {
+                set_system_color(border_colors[0]);
+            }
+            else if ((GB_get_model(gb) & GB_MODEL_FAMILY_MASK) == GB_MODEL_DMG_FAMILY) {
+                set_system_color(border_colors[6]);
+            }
+            else if ((GB_get_model(gb) & GB_MODEL_FAMILY_MASK) == GB_MODEL_MGB_FAMILY) {
+                set_system_color(border_colors[5]);
+            }
+        }
+#endif
+
         for (unsigned tile_y = 0; tile_y < 28; tile_y++) {
             for (unsigned tile_x = 0; tile_x < 32; tile_x++) {
                 if (tile_x >= 6 && tile_x < 26 && tile_y >= 5 && tile_y < 23) {

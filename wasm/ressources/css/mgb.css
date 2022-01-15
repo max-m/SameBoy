@@ -24,7 +24,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .isMGB {
+  .isMGB:not(.forceLight) {
     --system-color: #292628;
 
     --button-bg: #4c4b4f;

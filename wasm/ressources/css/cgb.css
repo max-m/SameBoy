@@ -15,7 +15,7 @@
   --start-button-bg-active: var(--button-bg-active);
   --start-button-shadow: var(--button-shadow);
   --start-button-shadow-inset: var(--button-shadow-inset);
-  --start-button-label: #ff94a0;
+  --start-button-label: rgba(255, 241, 241, 0.36);
 
   --dpad-bg: var(--button-bg);
   --dpad-bg-hover: var(--button-bg-hover);
@@ -35,8 +35,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root,
-  .isCGB {
+  .isCGB:not(.forceLight) {
     --system-color: hsl(207.7, 14.6%, 17.5%);
 
     --button-bg: hsl(0, 1.3%, 14.7%);
@@ -61,13 +60,4 @@
     --dpad-dimple-bg: #262323;
     --dpad-dimple-shadow:  #222121;
   }
-}
-
-.isCGB #aButton::after,
-.isCGB #bButton::after {
-  position: absolute;
-  font-size: 10vmax;
-  left: 40%;
-  top: 50%;
-  transform: translate(-50%, -50%);
 }

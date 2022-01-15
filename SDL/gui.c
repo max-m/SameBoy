@@ -35,6 +35,26 @@ menu_state_t menu_state = {0,};
 static SDL_Rect rect;
 static unsigned factor;
 
+static GLfloat clear_color[3] = { 0.0, 0.0, 0.0 };
+
+#ifdef TRANSPARENT_WINDOW
+#define CLEAR_ALPHA_COLOR 1.0
+#else
+#define CLEAR_ALPHA_COLOR 0.0
+#endif
+
+void set_clear_color(uint8_t r, uint8_t g, uint8_t b)
+{
+    if (renderer) {
+        SDL_SetRenderDrawColor(renderer, r, g, b, (uint8_t)CLEAR_ALPHA_COLOR * 255);
+    }
+    else {
+        clear_color[0] = (GLfloat)r / 255.0;
+        clear_color[1] = (GLfloat)g / 255.0;
+        clear_color[2] = (GLfloat)b / 255.0;
+    }
+}
+
 SDL_Scancode event_hotkey_code(SDL_Event *event)
 {
     if (event->key.keysym.sym >= SDLK_a && event->key.keysym.sym < SDLK_z) {
@@ -60,11 +80,7 @@ void render_texture(void *pixels,  void *previous)
             _pixels = pixels;
         }
 
-#ifdef TRANSPARENT_WINDOW
-        glClearColor(0, 0, 0, 0);
-#else
-        glClearColor(0, 0, 0, 1);
-#endif
+        glClearColor(clear_color[0], clear_color[1], clear_color[2], CLEAR_ALPHA_COLOR);
 
         glClear(GL_COLOR_BUFFER_BIT);
         GB_frame_blending_mode_t mode = configuration.blending_mode;

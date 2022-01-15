@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -75,6 +76,21 @@ void EMSCRIPTEN_KEEPALIVE save_configuration(void)
     }
 }
 
+#ifdef GB_ENABLE_CHAMELEON_MODE
+
+void set_system_color(uint32_t color) {
+    uint8_t r, g, b;
+
+    SDL_GetRGB(color, pixel_format, &r, &g, &b);
+
+    set_clear_color(r, g, b);
+
+    EM_ASM({
+        Module.gb_set_system_color($0, $1, $2);
+    }, r, g, b);
+}
+#endif
+
 static unsigned query_sample_rate_of_audiocontexts(void)
 {
     return EM_ASM_INT({
@@ -113,8 +129,10 @@ static void update_palette(void)
 static void set_model_class(void)
 {
     EM_ASM({
-        document.getElementById('system')
-            .classList.remove('isDMG', 'isMGB', 'isSGB', 'isCGB', 'isAGB');
+        const system = document.getElementById('system');
+
+        system.classList.remove('isDMG', 'isMGB', 'isSGB', 'isCGB', 'isAGB', 'forceLight');
+        system.style.removeProperty('--system-color');
     });
 
     if (GB_get_model(&gb) == GB_MODEL_AGB) {
@@ -558,6 +576,7 @@ static void init_gb(void)
 
     screen_size_changed();
     set_model_class();
+    set_clear_color(0, 0, 0);
 }
 
 static bool use_software_renderer(void)
@@ -570,12 +589,6 @@ static bool use_software_renderer(void)
     }
 
     renderer = SDL_CreateRenderer(window, -1, 0);
-
-#ifdef TRANSPARENT_WINDOW
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
-#else
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-#endif
 
     texture = SDL_CreateTexture(
         renderer,

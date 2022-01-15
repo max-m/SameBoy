@@ -157,6 +157,7 @@ extern const struct menu_item *current_menu;
 extern unsigned current_selection;
 extern signed scroll;
 
+void set_clear_color(uint8_t r, uint8_t g, uint8_t b);
 void return_to_root_menu(unsigned index);
 void recalculate_menu_height(void);
 void update_viewport(void);
