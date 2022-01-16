@@ -1364,6 +1364,39 @@ void init_gui(bool is_running)
     scroll = 0;
 }
 
+enum menu_key {
+    MENU_KEY_UNKNOWN,
+    MENU_KEY_UP,
+    MENU_KEY_DOWN,
+    MENU_KEY_LEFT,
+    MENU_KEY_RIGHT,
+    MENU_KEY_SELECT,
+    MENU_KEY_BACK,
+    MENU_KEY_OPEN_ROOT,
+};
+
+enum menu_key get_menu_key(SDL_Scancode scancode)
+{
+    switch (scancode) {
+        case SDL_SCANCODE_UP: return MENU_KEY_UP;
+        case SDL_SCANCODE_DOWN: return MENU_KEY_DOWN;
+        case SDL_SCANCODE_LEFT: return MENU_KEY_LEFT;
+        case SDL_SCANCODE_RIGHT: return MENU_KEY_RIGHT;
+        case SDL_SCANCODE_RETURN: return MENU_KEY_SELECT;
+        case SDL_SCANCODE_ESCAPE: return MENU_KEY_OPEN_ROOT;
+        default:
+            if (scancode == configuration.keys[0]) return MENU_KEY_RIGHT;
+            if (scancode == configuration.keys[1]) return MENU_KEY_LEFT;
+            if (scancode == configuration.keys[2]) return MENU_KEY_UP;
+            if (scancode == configuration.keys[3]) return MENU_KEY_DOWN;
+            if (scancode == configuration.keys[4]) return MENU_KEY_SELECT; // A
+            if (scancode == configuration.keys[5]) return MENU_KEY_BACK; // B
+            if (scancode == configuration.keys[7]) return MENU_KEY_SELECT; // Start button
+    }
+
+    return MENU_KEY_UNKNOWN;
+}
+
 bool run_gui_iteration(bool is_running) {
     unsigned width = menu_state.width;
     unsigned height = menu_state.height;
@@ -1586,7 +1619,9 @@ bool run_gui_iteration(bool is_running) {
         }
             
 
-        case SDL_KEYDOWN:
+        case SDL_KEYDOWN: {
+            enum menu_key key = get_menu_key(menu_state.event.key.keysym.scancode);
+
             if (gui_state == WAITING_FOR_KEY) {
                 if (current_selection > 8) {
                     configuration.keys_2[current_selection - 9] = menu_state.event.key.keysym.scancode;
@@ -1621,7 +1656,7 @@ bool run_gui_iteration(bool is_running) {
 #endif
                 }
             }
-            else if (menu_state.event.key.keysym.scancode == SDL_SCANCODE_RETURN && gui_state == WAITING_FOR_JBUTTON) {
+            else if (key == MENU_KEY_SELECT && gui_state == WAITING_FOR_JBUTTON) {
                 menu_state.should_render = true;
                 if (joypad_configuration_progress != JOYPAD_BUTTONS_MAX) {
                     configuration.joypad_configuration[joypad_configuration_progress] = -1;
@@ -1636,7 +1671,7 @@ bool run_gui_iteration(bool is_running) {
                     gui_state = SHOWING_MENU;
                 }
             }
-            else if (menu_state.event.key.keysym.scancode == SDL_SCANCODE_ESCAPE) {
+            else if (key == MENU_KEY_OPEN_ROOT) {
                 if (gui_state == SHOWING_MENU && current_menu != root_menu) {
                     return_to_root_menu(0);
                     menu_state.should_render = true;
@@ -1660,25 +1695,17 @@ bool run_gui_iteration(bool is_running) {
                 }
             }
             else if (gui_state == SHOWING_MENU) {
-                if ((menu_state.event.key.keysym.scancode == SDL_SCANCODE_DOWN
-                    || menu_state.event.key.keysym.scancode == configuration.keys[3] // Down button
-                ) && current_menu[current_selection + 1].string) {
+                if ((key == MENU_KEY_DOWN) && current_menu[current_selection + 1].string) {
                     current_selection++;
                     mouse_scroling = false;
                     menu_state.should_render = true;
                 }
-                else if ((menu_state.event.key.keysym.scancode == SDL_SCANCODE_UP
-                    || menu_state.event.key.keysym.scancode == configuration.keys[2] // Up button
-                ) && current_selection) {
+                else if ((key == MENU_KEY_UP) && current_selection) {
                     current_selection--;
                     mouse_scroling = false;
                     menu_state.should_render = true;
                 }
-                else if ((menu_state.event.key.keysym.scancode == SDL_SCANCODE_RETURN
-                    || menu_state.event.key.keysym.scancode == SDL_SCANCODE_X
-                    || menu_state.event.key.keysym.scancode == configuration.keys[4] // A button
-                    || menu_state.event.key.keysym.scancode == configuration.keys[7] // Start button
-                ) && !current_menu[current_selection].backwards_handler) {
+                else if ((key == MENU_KEY_SELECT) && !current_menu[current_selection].backwards_handler) {
                     if (current_menu[current_selection].handler) {
                         current_menu[current_selection].handler(current_selection);
                         after_item_handler:
@@ -1697,21 +1724,15 @@ bool run_gui_iteration(bool is_running) {
                         return true;
                     }
                 }
-                else if ((menu_state.event.key.keysym.scancode == SDL_SCANCODE_RIGHT
-                    || menu_state.event.key.keysym.scancode == configuration.keys[0] // Right button
-                ) && current_menu[current_selection].backwards_handler) {
+                else if ((key == MENU_KEY_RIGHT) && current_menu[current_selection].backwards_handler) {
                     current_menu[current_selection].handler(current_selection);
                     menu_state.should_render = true;
                 }
-                else if ((menu_state.event.key.keysym.scancode == SDL_SCANCODE_LEFT
-                    || menu_state.event.key.keysym.scancode == configuration.keys[1] // Left button
-                ) && current_menu[current_selection].backwards_handler) {
+                else if ((key == MENU_KEY_LEFT) && current_menu[current_selection].backwards_handler) {
                     current_menu[current_selection].backwards_handler(current_selection);
                     menu_state.should_render = true;
                 }
-                else if ((menu_state.event.key.keysym.scancode == SDL_SCANCODE_Z
-                    || menu_state.event.key.keysym.scancode == configuration.keys[5] // B button
-                )) {
+                else if (key == MENU_KEY_BACK) {
                     unsigned i = 0;
                     for (const struct menu_item *item = current_menu; item->string; item++, i++) {
                         if (strcmp(item->string, "Back") == 0
@@ -1732,6 +1753,7 @@ bool run_gui_iteration(bool is_running) {
                 menu_state.should_render = true;
             }
             break;
+        }
     }
     
     if (menu_state.should_render) {
