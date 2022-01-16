@@ -79,6 +79,10 @@ void GB_audio_init(unsigned sample_rate)
     want_aspec.channels = 2;
     want_aspec.samples = 512;
     
+#ifdef __EMSCRIPTEN__
+    /* This might improve playback in some browsers */
+    want_aspec.samples = 4096;
+#else
     SDL_version _sdl_version;
     SDL_GetVersion(&_sdl_version);
     unsigned sdl_version = _sdl_version.major * 1000 + _sdl_version.minor * 100 + _sdl_version.patch;
@@ -95,6 +99,7 @@ void GB_audio_init(unsigned sample_rate)
          to 44100 because otherwise we would get garbled audio output.*/
         want_aspec.freq = 44100;
     }
+#endif
 #endif
     
     device_id = SDL_OpenAudioDevice(0, 0, &want_aspec, &have_aspec, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE | SDL_AUDIO_ALLOW_SAMPLES_CHANGE);
