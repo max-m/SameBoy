@@ -1660,19 +1660,28 @@ bool run_gui_iteration(bool is_running) {
                 }
             }
             else if (gui_state == SHOWING_MENU) {
-                if (menu_state.event.key.keysym.scancode == SDL_SCANCODE_DOWN && current_menu[current_selection + 1].string) {
+                if ((menu_state.event.key.keysym.scancode == SDL_SCANCODE_DOWN
+                    || menu_state.event.key.keysym.scancode == configuration.keys[3] // Down button
+                ) && current_menu[current_selection + 1].string) {
                     current_selection++;
                     mouse_scroling = false;
                     menu_state.should_render = true;
                 }
-                else if (menu_state.event.key.keysym.scancode == SDL_SCANCODE_UP && current_selection) {
+                else if ((menu_state.event.key.keysym.scancode == SDL_SCANCODE_UP
+                    || menu_state.event.key.keysym.scancode == configuration.keys[2] // Up button
+                ) && current_selection) {
                     current_selection--;
                     mouse_scroling = false;
                     menu_state.should_render = true;
                 }
-                else if (menu_state.event.key.keysym.scancode == SDL_SCANCODE_RETURN  && !current_menu[current_selection].backwards_handler) {
+                else if ((menu_state.event.key.keysym.scancode == SDL_SCANCODE_RETURN
+                    || menu_state.event.key.keysym.scancode == SDL_SCANCODE_X
+                    || menu_state.event.key.keysym.scancode == configuration.keys[4] // A button
+                    || menu_state.event.key.keysym.scancode == configuration.keys[7] // Start button
+                ) && !current_menu[current_selection].backwards_handler) {
                     if (current_menu[current_selection].handler) {
                         current_menu[current_selection].handler(current_selection);
+                        after_item_handler:
                         if (pending_command == GB_SDL_RESET_COMMAND && !is_running) {
                             pending_command = GB_SDL_NO_COMMAND;
                         }
@@ -1688,13 +1697,31 @@ bool run_gui_iteration(bool is_running) {
                         return true;
                     }
                 }
-                else if (menu_state.event.key.keysym.scancode == SDL_SCANCODE_RIGHT && current_menu[current_selection].backwards_handler) {
+                else if ((menu_state.event.key.keysym.scancode == SDL_SCANCODE_RIGHT
+                    || menu_state.event.key.keysym.scancode == configuration.keys[0] // Right button
+                ) && current_menu[current_selection].backwards_handler) {
                     current_menu[current_selection].handler(current_selection);
                     menu_state.should_render = true;
                 }
-                else if (menu_state.event.key.keysym.scancode == SDL_SCANCODE_LEFT && current_menu[current_selection].backwards_handler) {
+                else if ((menu_state.event.key.keysym.scancode == SDL_SCANCODE_LEFT
+                    || menu_state.event.key.keysym.scancode == configuration.keys[1] // Left button
+                ) && current_menu[current_selection].backwards_handler) {
                     current_menu[current_selection].backwards_handler(current_selection);
                     menu_state.should_render = true;
+                }
+                else if ((menu_state.event.key.keysym.scancode == SDL_SCANCODE_Z
+                    || menu_state.event.key.keysym.scancode == configuration.keys[5] // B button
+                )) {
+                    unsigned i = 0;
+                    for (const struct menu_item *item = current_menu; item->string; item++, i++) {
+                        if (strcmp(item->string, "Back") == 0
+                            && item->handler
+                            && !item->backwards_handler
+                        ) {
+                            item->handler(i);
+                            goto after_item_handler;
+                        }
+                    }
                 }
             }
             else if (gui_state == SHOWING_HELP) {
