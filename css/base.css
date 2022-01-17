@@ -1,0 +1,380 @@
+:root {
+  --width: 160;
+  --height: 144;
+  --bordered-width: 256;
+  --bordered-height: 224;
+
+  --menu-button-color: rgba(0, 0, 0, 0.3);
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #fff !important;
+  font-family: "Raleway", sans-serif;
+  height: 100%;
+}
+
+canvas {
+  border: 0px none;
+  vertical-align: middle;
+  image-rendering: optimizeSpeed;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: -o-crisp-edges;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: optimize-contrast;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+
+#canvasWrapper {
+  min-width: calc(var(--width) * 1px);
+  min-height: calc(var(--height) * 1px);
+
+  width: 100vw;
+  height: 100%;
+  margin: auto;
+
+  background-color: #000;
+}
+
+#system.hasScreenBorder #canvasWrapper {
+  min-width: calc(var(--bordered-width) * 1px);
+  min-height: calc(var(--bordered-height) * 1px);
+}
+
+#canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+#spinner {
+  margin: 0;
+  padding: 0;
+}
+#spinner .spinner {
+  height: 50px;
+  width: 50px;
+  margin: 0px auto;
+  animation: rotation 0.8s linear infinite;
+  border-left: 10px solid #0096f0;
+  border-right: 10px solid #0096f0;
+  border-bottom: 10px solid #0096f0;
+  border-top: 10px solid #6400c8;
+  border-radius: 100%;
+  background-color: #c864fa;
+}
+#spinner .info {
+  text-align: center;
+  color: #fff;
+  margin-top: 1rem;
+}
+
+@keyframes rotation {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+#saveManager {
+  position: absolute;
+  z-index: 1000;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  backdrop-filter: blur(5px);
+  background-color: rgba(0, 0, 0, 0.8);
+  padding: 1rem;
+  color: #fff;
+  font-size: 1.5rem;
+  overflow-y: auto;
+}
+
+#saveManager table {
+  margin: auto;
+}
+
+#saveManager .closeButton {
+  font-size: 2rem;
+  margin: 1rem;
+  cursor: pointer;
+  display: inline-block;
+}
+#saveManager .closeButton:hover {
+  color: #ffffaa;
+}
+
+#saveManager .download:hover,
+#saveManager .download:active {
+  color: #d0ffd0;
+}
+
+#saveManager .delete:hover,
+#saveManager .delete:active {
+  color: #a03010;
+}
+
+#saveManager svg {
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-right: 0.5rem;
+  margin-left: 0.5rem;
+  cursor: pointer;
+}
+
+#saveManager tr:nth-child(even) {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+#system {
+  height: 100%;
+  width: 100vw;
+  background-image: url(../img/noise.png);
+  overflow: hidden;
+}
+#display {
+  position: relative;
+  overflow: hidden;
+}
+#spinner {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  transform: translate(0, -50%);
+}
+#controls {
+  touch-action: none;
+  overflow: hidden;
+  pointer-events: none;
+}
+#controls,
+.button {
+  user-drag: none;
+  user-select: none;
+  touch-action: none;
+}
+.button {
+  z-index: 1000;
+  touch-action: none;
+  background-color: var(--button-bg);
+  box-shadow: 0 0 0.2vmin 0.5vmin var(--button-shadow),
+              0 0 1.2vmin 0.5vmin var(--button-shadow-inset) inset;
+  transition: all 0.15s ease-in-out;
+  pointer-events: all;
+}
+.button:hover {
+  background-color: var(--button-bg-hover);
+}
+.button::after {
+  cursor: default;
+  user-select: none;
+  pointer-events: none;
+}
+.button.active {
+  background-color: var(--button-bg-active);
+  box-shadow: none;
+}
+#aButton,
+#bButton {
+  display: block;
+  width: 85%;
+  height: auto;
+  border-radius: 50%;
+  font-family: "Open Sans Condensed", sans-serif;
+  aspect-ratio: 1 / 1;
+  margin: auto;
+  position: relative;
+}
+#aButton::after,
+#bButton::after {
+  color: var(--button-label-color);
+  position: absolute;
+  font-size: 20vw;
+  transform: translate(-50%, -50%);
+  left: 40%;
+  top: 50%;
+}
+#aButton::after {
+  content: "A";
+}
+#bButton::after {
+  content: "B";
+}
+
+#startButton,
+#selectButton {
+  background-color: var(--start-button-bg);
+  position: absolute;
+  display: block;
+  border-radius: 5vmin;
+  width: 100%;
+  height: 100%;
+}
+#startButton:hover,
+#selectButton:hover {
+  background-color: var(--start-button-bg-hover);
+}
+#startButton.active,
+#selectButton.active {
+  background-color: var(--start-button-bg-active);
+}
+#startButton::after,
+#selectButton::after {
+  font-family: "Raleway", sans-serif;
+  font-size: 5vmin;
+  color: var(--start-button-label);
+}
+#startButton::after {
+  content: "Start";
+}
+#selectButton::after {
+  content: "Select";
+}
+#dpad {
+  position: relative;
+  pointer-events: all;
+  margin: auto;
+  height: 90%;
+  width: auto;
+  aspect-ratio: 1 / 1;
+}
+#dpad:before {
+  width: 30%;
+  height: 30%;
+}
+#dpad:after {
+  width: 17.5%;
+  height: 17.5%;
+}
+#dpad .button {
+  background-color: var(--dpad-bg);
+}
+#dpad .button:hover {
+  background-color: var(--dpad-bg-hover);
+}
+#dpad .button.active {
+  background-color: var(--dpad-bg-active);
+}
+#dpad:before {
+  content: "";
+  position: absolute;
+  background-color: var(--dpad-bg);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+  box-shadow: 0 0 0.2vmin 0.5vmin var(--dpad-bg-shadow);
+  border-radius: 1.5vmin;
+}
+#dpad:after {
+  content: "";
+  display: block;
+  position: absolute;
+  background-color: var(--dpad-dimple-bg);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+  border-radius: 50%;
+  box-shadow: 0 0 0.2vmin 0.5vmin var(--dpad-dimple-shadow) inset;
+}
+#leftButton,
+#rightButton,
+#upButton,
+#downButton {
+  position: absolute;
+}
+#upButton,
+#downButton {
+  left: 50%;
+  transform: translate(-50%, 0);
+  width: 22.2%;
+  height: 40%;
+}
+#leftButton,
+#rightButton {
+  top: 50%;
+  transform: translate(0, -50%);
+  width: 40%;
+  height: 22.2%;
+}
+#leftButton {
+  left: 0;
+  border-radius: 12.5% 0 0 12.5% / 22.5% 0 0 22.5%;
+  clip-path: inset(-12.5% 11% -12.5% -12.5%);
+}
+#rightButton {
+  right: 0;
+  border-radius: 0 12.5% 12.5% 0 / 0 22.5% 22.5% 0;
+  clip-path: inset(-12.5% -12.5% -12.5% 11%);
+}
+#upButton {
+  top: 0;
+  border-radius: 22.5% 22.5% 0 0 / 12.5% 12.5% 0 0;
+  clip-path: inset(-12.5% -12.5% 11% -12.5%);
+}
+#downButton {
+  bottom: 0;
+  border-radius: 0 0 22.5% 22.5% / 0 0 12.5% 12.5%;
+  clip-path: inset(11% -12.5% -12.5% -12.5%);
+}
+.button.small {
+  position: absolute;
+  width: 9vmin;
+  height: 9vmin;
+  border-radius: 9vmin;
+}
+#menuButton > span {
+  background-color: var(--menu-button-color);
+}
+
+.button > svg {
+  color: var(--menu-button-color);
+
+  position: relative;
+  width: 65%;
+  height: 65%;
+  display: block;
+  margin: auto;
+  top: 50%;
+  transform: translate(0, -50%);
+}
+
+#menuButton > span {
+  display: block;
+  margin: auto;
+  width: 65%;
+  height: 1vmin;
+  border-radius: 1vmin;
+}
+#menuButton > span:not(:last-child) {
+  margin: 0 auto 1vmin auto;
+}
+#menuButton > span:first-child {
+  margin-top: 2vmin;
+}
+
+@media (min-width: 720px) and (min-height: 720px) {
+  html,
+  body,
+  #system,
+  #display {
+    width: 100%;
+    height: 100%;
+  }
+
+  #controls {
+    display: none;
+  }
+
+  #menu {
+    padding: 5vw;
+    padding-top: 0;
+  }
+}
