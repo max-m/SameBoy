@@ -68,16 +68,13 @@
   }
 }
 
-.isDMG #menuButton,
-.isDMG #fullscreenButton {
+.isDMG .button.small {
   background-color: var(--start-button-bg);
 }
-.isDMG #menuButton:hover,
-.isDMG #fullscreenButton:hover {
+.isDMG .button.small:hover {
   background-color: var(--start-button-bg-hover);
 }
-.isDMG #menuButton.active,
-.isDMG #fullscreenButton.active {
+.isDMG .button.small.active {
   background-color: var(--start-button-bg-active);
 }
 
@@ -92,13 +89,18 @@
     --button-shadow-inset: #e397c1;
   }
 }
+.isDMG #aButton,
+.isDMG #bButton {
+  transform: rotate(-28deg);
+}
 .isDMG #aButton::after,
 .isDMG #bButton::after {
   color: var(--start-button-label);
-  position: absolute;
+  position: relative;
   font-size: 4vmax;
   font-weight: bold;
-  left: 70%;
-  top: 130%;
-  transform: translate(-50%, -50%) rotate(-28deg);
+  left: 50%;
+  top: 100%;
+  transform: translate(-50%, 0%);
+  position: absolute;
 }

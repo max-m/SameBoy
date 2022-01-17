@@ -64,18 +64,19 @@
 .isSGB #aButton::after,
 .isSGB #bButton::after {
   color: var(--start-button-label);
-  position: absolute;
-  font-size: 4vmax;
+  position: relative;
+  font-size: 5vmin;
   font-weight: bold;
   transform: translate(-50%, -50%);
+  position: absolute;
 }
 .isSGB #aButton::after {
-  right: -28.82%;
-  top: 6%;
+  left: 100%;
+  top: 0;
 }
 .isSGB #bButton::after {
-  left: -13%;
-  top: 96%;
+  left: 0;
+  top: 100%;
 }
 
 @media (orientation: landscape) {
@@ -100,7 +101,24 @@
 
   .isSGB #startButton::after,
   .isSGB #selectButton::after {
-    transform: rotate(35deg) translate(-50%, 285%);
+    content: none;
+  }
+
+  .isSGB .startButtonWrapper::after,
+  .isSGB .selectButtonWrapper::after {
+    font-family: "Raleway", sans-serif;
+    font-size: 5vmin;
+    color: var(--start-button-label);
+    position: absolute;
+    top: 130%;
+    left: 50%;
+    transform: translate(-50%, 50%);
     font-weight: bold;
+  }
+  .isSGB .startButtonWrapper::after {
+    content: "Start";
+  }
+  .isSGB .selectButtonWrapper::after {
+    content: "Select";
   }
 }

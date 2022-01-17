@@ -215,7 +215,9 @@ function setup_controls() {
 				fsButton.classList.remove('active');
 			}
 
-			window.dispatchEvent(new Event('resize'));
+			setTimeout(() => {
+				window.dispatchEvent(new Event('resize'));
+			}, 32);
 		});
 
 		document.addEventListener('fullscreenerror', event => {

@@ -2,7 +2,7 @@
 <html lang="en-us">
 	<head>
 		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width,initial-scale=1">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 		<title>SameBoy</title>
 		<link href="css/main.css" rel="stylesheet">
 	</head>
@@ -24,26 +24,36 @@
 			</div>
 
 			<div id="controls">
-				<div id="dpad">
-					<span id="upButton" class="button"></span>
-					<span id="rightButton" class="button"></span>
-					<span id="downButton" class="button"></span>
-					<span id="leftButton" class="button"></span>
+				<div class="dpadWrapper">
+					<div id="dpad">
+						<span id="upButton" class="button"></span>
+						<span id="rightButton" class="button"></span>
+						<span id="downButton" class="button"></span>
+						<span id="leftButton" class="button"></span>
+					</div>
 				</div>
 
-				<span id="startButton" class="button"></span>
-				<span id="selectButton" class="button"></span>
+				<div class="startButtonWrapper">
+					<span id="startButton" class="button"></span>
+				</div>
+				<div class="selectButtonWrapper">
+					<span id="selectButton" class="button"></span>
+				</div>
 
-				<span id="aButton" class="button"></span>
-				<span id="bButton" class="button"></span>
+				<div class="aButtonWrapper">
+					<span id="aButton" class="button"></span>
+				</div>
+				<div class="bButtonWrapper">
+					<span id="bButton" class="button"></span>
+				</div>
 
-				<span id="menuButton" class="button">
+				<span id="menuButton" class="button small">
 					<span></span>
 					<span></span>
 					<span></span>
 				</span>
 
-				<span id="fullscreenButton" class="button">
+				<span id="fullscreenButton" class="button small">
 					<svg><use href="img/fullscreen.svg#i"></use></svg>
 				</span>
 			</div>
