@@ -14,13 +14,15 @@ function string_hash(str) {
 	return hash;
 }
 
-function simulate_key_event(type, key, which) {
+function simulate_key_event(type, name) {
 	const e = new Event(type, { bubbles: true });
 
-	e.code = key;
-	e.key = key;
-	e.keyCode = which;
-	e.which = which;
+	const key = Module.gb_touch_keymap[name];
+
+	// SDL2 uses `keyCode`, see:
+	// https://github.com/emscripten-ports/SDL2/blob/c180eca6734d9520e1ef3c8643063b62b9f559b4/src/video/emscripten/SDL_emscriptenevents.c#L499-L500
+	e.keyCode = key.keyCode;
+	e.which   = key.keyCode;
 
 	Module.canvas.dispatchEvent(e);
 }
@@ -71,19 +73,19 @@ function setup_dpad() {
 
 		switch (button) {
 			case up:
-				simulate_key_event(eventType, 'ArrowUp', 38);
+				simulate_key_event(eventType, 'up');
 			break;
 
 			case down:
-				simulate_key_event(eventType, 'ArrowDown', 40);
+				simulate_key_event(eventType, 'down');
 			break;
 
 			case left:
-				simulate_key_event(eventType, 'ArrowLeft', 37);
+				simulate_key_event(eventType, 'left');
 			break;
 
 			case right:
-				simulate_key_event(eventType, 'ArrowRight', 39);
+				simulate_key_event(eventType, 'right');
 			break;
 		}
 	}
@@ -168,13 +170,13 @@ function setup_dpad() {
 	});
 }
 
-function setup_simple_button(button, key, which) {
+function setup_simple_button(button, name) {
 	function activate(event) {
 		event.preventDefault();
 		button.setPointerCapture(event.pointerId);
 
 		button.classList.add('active');
-		simulate_key_event('keydown', key, which);
+		simulate_key_event('keydown', name);
 	}
 
 	function deactivate(event) {
@@ -182,7 +184,7 @@ function setup_simple_button(button, key, which) {
 		button.releasePointerCapture(event.pointerId);
 
 		button.classList.remove('active');
-		simulate_key_event('keyup', key, which);
+		simulate_key_event('keyup', name);
 	}
 
 	button.addEventListener('pointerdown',   activate);
@@ -196,13 +198,13 @@ function setup_simple_button(button, key, which) {
 function setup_controls() {
 	setup_dpad();
 
-	setup_simple_button(document.getElementById('startButton'), 'Enter', 13);
-	setup_simple_button(document.getElementById('selectButton'), 'Backspace', 8);
+	setup_simple_button(document.getElementById('startButton'), 'start');
+	setup_simple_button(document.getElementById('selectButton'), 'select');
 
-	setup_simple_button(document.getElementById('aButton'), 'x', 88);
-	setup_simple_button(document.getElementById('bButton'), 'z', 90);
+	setup_simple_button(document.getElementById('aButton'), 'a');
+	setup_simple_button(document.getElementById('bButton'), 'b');
 
-	setup_simple_button(document.getElementById('menuButton'), 'Escape', 27);
+	setup_simple_button(document.getElementById('menuButton'), 'menu');
 
 	const fsButton = document.getElementById('fullscreenButton');
 

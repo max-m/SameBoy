@@ -1395,7 +1395,7 @@ enum menu_key get_menu_key(SDL_Scancode scancode)
             if (scancode == configuration.keys[3]) return MENU_KEY_DOWN;
             if (scancode == configuration.keys[4]) return MENU_KEY_SELECT; // A
             if (scancode == configuration.keys[5]) return MENU_KEY_BACK; // B
-            if (scancode == configuration.keys[7]) return MENU_KEY_SELECT; // Start button
+            if (scancode == configuration.keys[6]) return MENU_KEY_SELECT; // Start button
     }
 
     return MENU_KEY_UNKNOWN;

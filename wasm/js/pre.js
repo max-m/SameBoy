@@ -72,6 +72,18 @@ Module.setStatus = function(text) {
 	statusElement.innerHTML = text;
 };
 
+Module.gb_touch_keymap = {
+	up:     { keyCode: 38 }, // ArrowUp
+	down:   { keyCode: 40 }, // ArrowDown
+	left:   { keyCode: 37 }, // ArrowLeft
+	right:  { keyCode: 39 }, // ArrowRight
+	a:      { keyCode: 88 }, // x
+	b:      { keyCode: 90 }, // z
+	start:  { keyCode: 13 }, // Enter
+	select: { keyCode: 8 },  // Backspace
+	menu:   { keyCode: 27 }, // Escape
+};
+
 Module.gb_load_rom_buffer = function (name, data) {
 	document.body.dispatchEvent(new Event('click'));
 
