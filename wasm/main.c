@@ -34,6 +34,9 @@ static bool had_audio_playing = false;
 static bool render_menu = false;
 static size_t previous_width = 0;
 
+extern SDL_Joystick *joystick;
+extern unsigned joypad_index;
+
 bool uses_gl(void)
 {
     return gl_context;
@@ -503,7 +506,44 @@ static void vblank(GB_gameboy_t *gb)
 
 static void rumble(GB_gameboy_t *gb, double amp)
 {
-    SDL_HapticRumblePlay(haptic, amp, 250);
+    const int duration = 250;
+
+    // Currently emscripten’s SDL2 port doesn’t support SDL_Haptic,
+    // but maybe it will in the future.
+    if (haptic) {
+        int supported = SDL_HapticRumbleSupported(haptic);
+
+        if (supported == SDL_TRUE) {
+            int result = SDL_HapticRumblePlay(haptic, amp, duration);
+
+            if (result == 0) {
+                return;
+            }
+
+            fprintf(stderr, "SDL_HapticRumblePlay: %s\n", SDL_GetError());
+        }
+        else if (supported < 0) {
+            fprintf(stderr, "SDL_HapticRumbleSupported: %s\n", SDL_GetError());
+        }
+    }
+
+    int index = -1;
+    if (joystick) {
+        uint16_t strength = (uint16_t) ((double) 0xFFFF * amp);
+
+        // Currently it also doesn’t support the simlper rumble interface,
+        // but we can try anyway.
+        if (SDL_JoystickRumble(joystick, strength, strength, duration) == 0) {
+            return;
+        }
+
+        index = joypad_index;
+    }
+
+    // Try our own fallback
+    EM_ASM({
+        Module.gb_rumble($0, $1, $2)
+    }, index, amp, duration);
 }
 
 static void load_boot_rom(GB_gameboy_t *gb, GB_boot_rom_t type)

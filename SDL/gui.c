@@ -1140,9 +1140,9 @@ static void enter_controls_menu(unsigned index)
     recalculate_menu_height();
 }
 
-static unsigned joypad_index = 0;
-static SDL_Joystick *joystick = NULL;
-static SDL_GameController *controller = NULL;
+unsigned joypad_index = 0;
+SDL_Joystick *joystick = NULL;
+SDL_GameController *controller = NULL;
 SDL_Haptic *haptic = NULL;
 
 const char *current_joypad_name(unsigned index)
@@ -1242,6 +1242,8 @@ static void cycle_rumble_mode(unsigned index)
     else {
         configuration.rumble_mode++;
     }
+
+    GB_set_rumble_mode(&gb, configuration.rumble_mode);
 }
 
 static void cycle_rumble_mode_backwards(unsigned index)
@@ -1252,6 +1254,8 @@ static void cycle_rumble_mode_backwards(unsigned index)
     else {
         configuration.rumble_mode--;
     }
+
+    GB_set_rumble_mode(&gb, configuration.rumble_mode);
 }
 
 const char *current_rumble_mode(unsigned index)

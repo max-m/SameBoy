@@ -481,6 +481,59 @@ Module.gb_camera_init = () => {
 	}
 }
 
+Module.gb_rumble = (index, amp, duration) => {
+	// Check if a gamepad is in use
+	if (index >= 0) {
+		const pads = navigator.getGamepads();
+
+		if (pads[index]) {
+			// The gamepad rumble interface is still experimental.
+			if (pads[index].hapticActuators && pads[index].hapticActuators[0]) { // Firefox
+				pads[index].hapticActuators[0].pulse(amp, duration);
+				return;
+			}
+			else if (pads[index].vibrationActuator && pads[index].vibrationActuator.playEffect) { // Chrome
+				pads[index].vibrationActuator.playEffect('dual-rumble', {
+					duration: duration,
+					startDelay: 0,
+					strongMagnitude: amp,
+					weakMagnitude: amp
+				});
+				return;
+			}
+		}
+	}
+
+	// Try to use the Vibration API as fallback.
+	// Calls to this function get silently ignored in “Do not disturb“ mode for example.
+	if (navigator.vibrate) {
+		if (amp == 1.0) return navigator.vibrate(duration);
+		if (amp == 0.0) return navigator.vibrate(0);
+
+		const steps = 10;
+		const on  = (duration / (steps / 2)) * amp;
+		const off = (duration / (steps / 2)) * (1.0 - amp);
+
+		const pattern = [ on ];
+		let remaining = duration - on;
+		let is_off = true;
+
+		while (remaining > 0) {
+			if (is_off) {
+				remaining -= off;
+				pattern.push(off);
+			}
+			else {
+				remaining -= on;
+				pattern.push(on);
+			}
+			is_off = !is_off;
+		}
+
+		navigator.vibrate(pattern);
+	}
+}
+
 Module.onRuntimeInitialized = async () => {
 	FS.mkdir('/persist');
 	FS.mount(IDBFS, { }, '/persist');
