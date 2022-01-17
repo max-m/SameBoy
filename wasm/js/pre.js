@@ -273,6 +273,214 @@ Module.gb_set_system_color = (r, g, b) => {
 	system.style.setProperty('--system-color', `rgb(${r}, ${g}, ${b})`);
 }
 
+Module.gb_camera_ready = false;
+Module.gb_camera_buf = null;
+Module.gb_camera_video = null;
+Module.gb_camera_canvas = null;
+Module.gb_camera_facing_mode = 'environment';
+
+Module.gb_camera_stop = () => {
+	if (Module.gb_camera_video && Module.gb_camera_video.srcObject) {
+		if (Module.gb_camera_video.srcObject.stop) {
+			Module.gb_camera_video.srcObject.stop();
+		}
+		else if (Module.gb_camera_video.srcObject.getTracks) {
+			Module.gb_camera_video.srcObject.getTracks().forEach(track => track.stop());
+		}
+
+		Module.gb_camera_video.srcObject = null;
+	}
+}
+
+Module.gb_camera_remove = () => {
+	Module.gb_camera_stop();
+
+	if (Module.gb_camera_video) {
+		Module.gb_camera_video.remove();
+		Module.gb_camera_video = null;
+	}
+
+	if (Module.gb_camera_canvas) {
+		Module.gb_camera_canvas.remove();
+		Module.gb_camera_canvas = null;
+	}
+
+	Module.gb_camera_ready = false;
+	Module.gb_camera_buf = null;
+}
+
+Module.gb_camera_start_capture = () => {
+	Module.gb_camera_ready = false;
+
+	navigator.mediaDevices
+		.getUserMedia({
+			audio: false,
+			video: {
+				width: { min: 128, ideal: 128 },
+				height: { min: 112, ideal: 112 },
+				facingMode: Module.gb_camera_facing_mode,
+				frameRate: { ideal: 20 },
+			}
+		})
+		.then(stream => {
+			Module.gb_camera_video.srcObject = stream;
+			Module.gb_camera_video.onloadedmetadata = () => Module.gb_camera_video.play();
+		})
+		.catch(err => {
+			console.error('getUserMedia() failed:', err);
+			Module._camera_unsupported();
+		});
+}
+
+Module.gb_camera_canplay = () => {
+	if (Module.gb_camera_ready) {
+		return;
+	}
+
+	let width = 128;
+	let height = Math.round(Module.gb_camera_video.videoHeight / (Module.gb_camera_video.videoWidth / width));
+
+	if (height < 112) {
+		height = 112;
+		width = Math.max(
+			128,
+			Math.round(Module.gb_camera_video.videoWidth / (Module.gb_camera_video.videoHeight / height))
+		);
+	}
+
+	console.log(`Camera input resolution: ${Module.gb_camera_video.videoWidth}x${Module.gb_camera_video.videoHeight}`);
+
+	Module.gb_camera_video.setAttribute('width', width);
+	Module.gb_camera_video.setAttribute('height', height);
+
+	Module.gb_camera_canvas.setAttribute('width', width);
+	Module.gb_camera_canvas.setAttribute('height', height);
+
+	const size = Module.gb_camera_canvas.width * Module.gb_camera_canvas.height * 4;
+	const ptr = Module._malloc(size);
+
+	Module.gb_camera_buf = new Uint8Array(Module.HEAPU8.buffer, ptr, size);
+
+	Module._camera_set_buf(ptr, size, width, height);
+	Module.gb_camera_ready = true;
+
+	const stream = Module.gb_camera_video.srcObject;
+	if (!stream) {
+		return;
+	}
+
+	const track = stream.getVideoTracks()[0];
+
+	if (!track) {
+		return;
+	}
+
+	let flip_button = document.getElementById('cameraFlipButton');
+
+	const camera_supported_constraints = navigator.mediaDevices.getSupportedConstraints();
+	const track_capabilities = track.getCapabilities();
+
+	if (camera_supported_constraints.facingMode) {
+		if (!flip_button) {
+			flip_button = document.createElement('span');
+			flip_button.id = 'cameraFlipButton';
+			flip_button.classList.add('button', 'small');
+			flip_button.innerHTML = '<svg><use href="img/flip.svg#i"></use></svg>';
+			flip_button.dataset.facingMode = 'environment';
+
+			flip_button.addEventListener('click', event => {
+				event.preventDefault();
+
+				if (flip_button.dataset.facingMode == 'environment') {
+					flip_button.dataset.facingMode = 'user';
+				}
+				else {
+					flip_button.dataset.facingMode = 'environment';
+				}
+
+				Module.gb_camera_stop();
+				Module.gb_camera_start_capture();
+			});
+
+			document.getElementById('controls').appendChild(flip_button);
+		}
+
+		Module.gb_camera_facing_mode = flip_button.dataset.facingMode;
+	}
+	else if (flip_button) {
+		flip_button.remove();
+		flip_button = null;
+		Module.gb_camera_facing_mode = undefined;
+	}
+
+	let torch_button = document.getElementById('cameraTorchButton');
+
+	if (track_capabilities.torch) {
+		if (!torch_button) {
+			torch_button = document.createElement('span');
+			torch_button.id = 'cameraTorchButton';
+			torch_button.classList.add('button', 'small');
+			torch_button.innerHTML = '<svg><use href="img/torch.svg#i"></use></svg>';
+			torch_button.dataset.torch = 'false';
+
+			torch_button.addEventListener('click', event => {
+				event.preventDefault();
+
+				if (torch_button.dataset.torch == 'true') {
+					torch_button.dataset.torch = 'false';
+				}
+				else {
+					torch_button.dataset.torch = 'true';
+				}
+
+				track.applyConstraints({
+					advanced: [{
+						torch: torch_button.dataset.torch == 'true'
+					}]
+				});
+			});
+
+			document.getElementById('controls').appendChild(torch_button);
+		}
+	}
+	else if (torch_button) {
+		torch_button.remove();
+		torch_button = null;
+	}
+}
+
+Module.gb_camera_init = () => {
+	try {
+		if (!Module.gb_camera_canvas) {
+			Module.gb_camera_canvas = document.createElement('canvas');
+		}
+
+		if (!Module.gb_camera_video) {
+			Module.gb_camera_video = document.createElement('video');
+
+			Module.gb_camera_video.addEventListener('canplay', Module.gb_camera_canplay, false);
+
+			Module.gb_camera_start_capture();
+		}
+
+		if (Module.gb_camera_ready) {
+			const ctx = Module.gb_camera_canvas.getContext('2d');
+			ctx.drawImage(Module.gb_camera_video, 0, 0, Module.gb_camera_canvas.width, Module.gb_camera_canvas.height);
+
+			const iDat = ctx.getImageData(0, 0, Module.gb_camera_canvas.width, Module.gb_camera_canvas.height);
+			Module.gb_camera_buf.set(new Uint8Array(iDat.data));
+
+			return 0;
+		}
+
+		return 1;
+	}
+	catch (err) {
+		console.error("Failed to get camera stream:", err);
+		return 2;
+	}
+}
+
 Module.onRuntimeInitialized = async () => {
 	FS.mkdir('/persist');
 	FS.mount(IDBFS, { }, '/persist');
