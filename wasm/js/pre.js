@@ -546,16 +546,6 @@ Module.gb_rumble = (index, amp, duration) => {
 	}
 }
 
-Module.onRuntimeInitialized = async () => {
-	FS.mkdir('/persist');
-	FS.mount(IDBFS, { }, '/persist');
-
-	await Module.gb_syncfs(true);
-
-	// Call the exported init function
-	Module._init();
-};
-
 Module.setStatus('Downloading...');
 
 window.onerror = function() {
@@ -565,3 +555,13 @@ window.onerror = function() {
 		if (text) Module.printErr('[post-exception status] ' + text);
 	};
 };
+
+Module.ready.then(async () => {
+	FS.mkdir('/persist');
+	FS.mount(IDBFS, { }, '/persist');
+
+	await Module.gb_syncfs(true);
+
+	// Call the exported init function
+	Module._init();
+});

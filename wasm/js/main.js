@@ -249,28 +249,19 @@ function setup_controls() {
 	}
 }
 
-function startup() {
-	window.addEventListener('dragover', handle_drag_over, false);
-	window.addEventListener('drop', handle_file_select, false);
+window.addEventListener('dragover', handle_drag_over, false);
+window.addEventListener('drop', handle_file_select, false);
 
-	setup_controls();
+setup_controls();
 
-	document.addEventListener('visibilitychange', async () => {
-		if (document.visibilityState == 'visible') {
-			Module._resume();
-		}
-		else {
-			Module._pause();
-		}
+document.addEventListener('visibilitychange', async () => {
+	if (document.visibilityState == 'visible') {
+		Module._resume();
+	}
+	else {
+		Module._pause();
+	}
 
-		Module._save_battery();
-		await Module.gb_syncfs();
-	});
-}
-
-if (document.readyState !== 'loading') {
-	setTimeout(startup, 0);
-}
-else {
-	window.addEventListener('DOMContentLoaded', startup);
-}
+	Module._save_battery();
+	await Module.gb_syncfs();
+});

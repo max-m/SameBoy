@@ -73,6 +73,8 @@ LDFLAGS += -s WASM=1 -lidbfs.js
 LDFLAGS += -s ALLOW_MEMORY_GROWTH=1
 # Enable WebGL 2 support
 LDFLAGS += -s USE_WEBGL2=1
+# Create an ES6 Module
+LDFLAGS += -s MODULARIZE=1 -s EXPORT_ES6=1 -s EXPORT_NAME=initSameBoy
 
 LDFLAGS += -s LLD_REPORT_UNDEFINED
 
@@ -177,13 +179,17 @@ $(BIN)/ressources/%:
 
 	cp -a $(patsubst $(BIN)/%,%,$@) $(patsubst $(BIN)/ressources/%,$(BIN)/%,$@)
 
-$(BIN)/index.html: $(CORE_OBJECTS) $(WASM_OBJECTS) index-shell.html js/pre.js js/main.js
+$(BIN)/index.html: index.html $(BIN)/index.js
+	-@$(MKDIR) -p $(dir $@)
+
+	cp index.html $@
+
+$(BIN)/index.js: $(CORE_OBJECTS) $(WASM_OBJECTS) index.html js/pre.js js/main.js
 	-@$(MKDIR) -p $(dir $@)
 	$(CC) \
 		$(CFLAGS) \
 		$(filter %.o, $^) \
 		-o $@ \
-		--shell-file "index-shell.html" \
 		--pre-js "js/pre.js" \
 		--post-js "js/main.js" \
 		$(LDFLAGS)
