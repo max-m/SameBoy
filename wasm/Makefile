@@ -60,9 +60,13 @@ CFLAGS += -Werror -Wall -Wno-strict-aliasing -Wno-unknown-warning -Wno-unknown-w
 # CFLAGS += -DGB_INTERNAL=1 # get access to internal APIs
 CFLAGS += -I$(CORE_DIR)
 # CFLAGS += -Wcast-align -Wover-aligned -s SAFE_HEAP=1 -s WARN_UNALIGNED=1
+
 # -Werror implies -Wpass-failed=transform-warning and for some reason Clang fails to unroll some loops in apu.c
 CFLAGS += -Wno-pass-failed
+
+CFLAGS += -s DEFAULT_TO_CXX=0
 CFLAGS += -s USE_SDL=2
+
 CFLAGS += -DGB_DISABLE_TIMEKEEPING -DGB_DISABLE_REWIND -DGB_DISABLE_DEBUGGER -DGB_DISABLE_CHEATS
 CFLAGS += -DGB_ENABLE_CHAMELEON_MODE
 
@@ -72,9 +76,15 @@ LDFLAGS += --no-entry
 LDFLAGS += -s WASM=1 -lidbfs.js
 LDFLAGS += -s ALLOW_MEMORY_GROWTH=1
 # Enable WebGL 2 support
-LDFLAGS += -s USE_WEBGL2=1
+LDFLAGS += -s MAX_WEBGL_VERSION=2
 # Create an ES6 Module
 LDFLAGS += -s MODULARIZE=1 -s EXPORT_ES6=1 -s EXPORT_NAME=initSameBoy
+
+# If set to 1, perform acorn pass that converts each HEAP access into a
+# function call that uses DataView to enforce LE byte order for HEAP buffer;
+# This makes generated JavaScript run on BE as well as LE machines. (If 0, only
+# LE systems are supported). Does not affect generated wasm.
+# LDFLAGS += -s SUPPORT_BIG_ENDIAN=1
 
 LDFLAGS += -s LLD_REPORT_UNDEFINED
 
@@ -84,15 +94,19 @@ LDFLAGS += --preload-file $(CORE_DIR)/SDL/background.bmp@/background.bmp
 LDFLAGS += -s "EXPORTED_RUNTIME_METHODS=['ccall', 'cwrap', 'getValue', 'AsciiToString', 'FS']"
 
 LDFLAGS += -lc -lm -ldl
-CFLAGS += -Wno-deprecated-declarations
 
 ifeq ($(CONF),debug)
 CFLAGS += -g -gseparate-dwarf
-#LDFLAGS += --cpuprofiler --memoryprofiler
 LDFLAGS += --emit-symbol-map --source-map-base ./
+LDFLAGS += -s RETAIN_COMPILER_SETTINGS=1
+
+CFLAGS += -s STRICT=1
+# SDL2 uses symbols (behind a runtime check) that are only available when built with ASYNCIFY=1
+LDFLAGS += -s ERROR_ON_UNDEFINED_SYMBOLS=0
 else ifeq ($(CONF), release)
 CFLAGS += -O3 -flto -DNDEBUG
 LDFLAGS += -flto --emit-symbol-map
+LDFLAGS += -s GL_TRACK_ERRORS=0
 else
 $(error Invalid value for CONF: $(CONF). Use "debug", "release" or "native_release")
 endif
