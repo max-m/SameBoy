@@ -337,6 +337,21 @@ static void handle_events(GB_gameboy_t *gb)
 {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
+        if (event.type == virtual_control_event_type) {
+            virtual_key_t key = event.user.code & VIRTUAL_KEY_MASK;
+            /* We use the sign bit to signal keyup / keydown */
+            bool down = event.user.code < 0;
+
+            if (key < GB_KEY_MAX) {
+                GB_set_key_state(gb, (GB_key_t)key, down);
+                continue;
+            }
+            else if (key == VIRTUAL_MENU) {
+                event.type = down ? SDL_KEYDOWN : GB_KEY_UP;
+                event.key.keysym.scancode = SDL_SCANCODE_ESCAPE;
+            }
+        }
+
         switch (event.type) {
             case SDL_QUIT: {
                 quit();
@@ -1014,6 +1029,8 @@ int EMSCRIPTEN_KEEPALIVE init(void)
 
         audio_workaround();
     });
+
+    register_virtual_key_event();
 
     is_running = false;
     init_gui(is_running);

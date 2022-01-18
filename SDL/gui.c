@@ -43,6 +43,27 @@ static GLfloat clear_color[3] = { 0.0, 0.0, 0.0 };
 #define CLEAR_ALPHA_COLOR 0.0
 #endif
 
+#ifdef __EMSCRIPTEN__
+uint32_t virtual_control_event_type = 0;
+static SDL_Event virtual_key_event = {0,};
+
+void register_virtual_key_event(void) {
+    virtual_control_event_type = SDL_RegisterEvents(1);
+
+    virtual_key_event.type = virtual_control_event_type;
+}
+
+void EMSCRIPTEN_KEEPALIVE dispatch_virtual_key_event(virtual_key_t key, bool down)
+{
+    if (virtual_control_event_type == 0) return;
+
+    uint32_t code = (uint32_t)key;
+    virtual_key_event.user.code = down ? code | (1 << 31) : code;
+
+    SDL_PushEvent(&virtual_key_event);
+}
+#endif
+
 void set_clear_color(uint8_t r, uint8_t g, uint8_t b)
 {
     if (renderer) {
@@ -1407,6 +1428,35 @@ bool run_gui_iteration(bool is_running) {
     unsigned x_offset = menu_state.x_offset;
     unsigned y_offset = menu_state.y_offset;
 
+#ifdef __EMSCRIPTEN__
+    /* Convert the virtual keys to logical ones */
+    if (menu_state.event.type == virtual_control_event_type) {
+        /* We use the sign bit to signal keyup / keydown */
+        menu_state.event.type = menu_state.event.user.code < 0 ? SDL_KEYDOWN : SDL_KEYUP;
+
+        // Allow users to get out of the config menus without ruining the settings
+        if ((gui_state == WAITING_FOR_KEY || gui_state == WAITING_FOR_JBUTTON) && menu_state.event.type == SDL_KEYDOWN) {
+            gui_state = SHOWING_MENU;
+            menu_state.should_render = true;
+        }
+        else {
+            switch (menu_state.event.user.code & VIRTUAL_KEY_MASK) {
+                case VIRTUAL_RIGHT: menu_state.event.key.keysym.scancode = SDL_SCANCODE_RIGHT; break;
+                case VIRTUAL_LEFT: menu_state.event.key.keysym.scancode = SDL_SCANCODE_LEFT; break;
+                case VIRTUAL_UP: menu_state.event.key.keysym.scancode = SDL_SCANCODE_UP; break;
+                case VIRTUAL_DOWN: menu_state.event.key.keysym.scancode = SDL_SCANCODE_DOWN; break;
+                case VIRTUAL_A: menu_state.event.key.keysym.scancode = SDL_SCANCODE_RETURN; break;
+                case VIRTUAL_B: menu_state.event.key.keysym.scancode = configuration.keys[5]; break;
+                case VIRTUAL_START: menu_state.event.key.keysym.scancode = SDL_SCANCODE_RETURN; break;
+                case VIRTUAL_MENU: menu_state.event.key.keysym.scancode = SDL_SCANCODE_ESCAPE; break;
+                default:
+                    // Do nothing
+                    break;
+            }
+        }
+    }
+#endif
+
     /* Convert Joypad and mouse events (We only generate down events) */
     if (gui_state != WAITING_FOR_KEY && gui_state != WAITING_FOR_JBUTTON) {
         switch (menu_state.event.type) {
@@ -1497,7 +1547,7 @@ bool run_gui_iteration(bool is_running) {
                     }
                 }
                 break;
-           }
+            }
                 
             case SDL_JOYAXISMOTION: {
                 static bool axis_active[2] = {false, false};
@@ -1545,7 +1595,6 @@ bool run_gui_iteration(bool is_running) {
                 pending_command = GB_SDL_QUIT_COMMAND;
                 return true;
             }
-            
         }
         case SDL_WINDOWEVENT: {
             if (menu_state.event.window.event == SDL_WINDOWEVENT_RESIZED) {
@@ -1622,16 +1671,17 @@ bool run_gui_iteration(bool is_running) {
             break;
         }
             
-
         case SDL_KEYDOWN: {
             enum menu_key key = get_menu_key(menu_state.event.key.keysym.scancode);
 
             if (gui_state == WAITING_FOR_KEY) {
-                if (current_selection > 8) {
-                    configuration.keys_2[current_selection - 9] = menu_state.event.key.keysym.scancode;
-                }
-                else {
-                    configuration.keys[current_selection] = menu_state.event.key.keysym.scancode;
+                if (menu_state.event.key.keysym.scancode != SDL_SCANCODE_ESCAPE) {
+                    if (current_selection > 8) {
+                        configuration.keys_2[current_selection - 9] = menu_state.event.key.keysym.scancode;
+                    }
+                    else {
+                        configuration.keys[current_selection] = menu_state.event.key.keysym.scancode;
+                    }
                 }
                 gui_state = SHOWING_MENU;
                 menu_state.should_render = true;

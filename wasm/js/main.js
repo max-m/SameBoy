@@ -1,3 +1,16 @@
+const VIRTUAL_RIGHT = 0;
+const VIRTUAL_LEFT = 1;
+const VIRTUAL_UP = 2;
+const VIRTUAL_DOWN = 3;
+const VIRTUAL_A = 4;
+const VIRTUAL_B = 5;
+const VIRTUAL_SELECT = 6;
+const VIRTUAL_START = 7;
+const VIRTUAL_TURBO = 8;
+const VIRTUAL_REWIND = 9;
+const VIRTUAL_SLOWMOTION = 10;
+const VIRTUAL_MENU = 11;
+
 function string_hash(str) {
 	let hash = 0;
 
@@ -12,19 +25,6 @@ function string_hash(str) {
 	}
 
 	return hash;
-}
-
-function simulate_key_event(type, name) {
-	const e = new Event(type, { bubbles: true });
-
-	const key = Module.gb_touch_keymap[name];
-
-	// SDL2 uses `keyCode`, see:
-	// https://github.com/emscripten-ports/SDL2/blob/c180eca6734d9520e1ef3c8643063b62b9f559b4/src/video/emscripten/SDL_emscriptenevents.c#L499-L500
-	e.keyCode = key.keyCode;
-	e.which   = key.keyCode;
-
-	Module.canvas.dispatchEvent(e);
 }
 
 async function handle_file_select(event) {
@@ -69,23 +69,21 @@ function setup_dpad() {
 	function dispatch(button, active) {
 		button.classList[active ? 'add' : 'remove']('active');
 
-		const eventType = active ? 'keydown' : 'keyup';
-
 		switch (button) {
 			case up:
-				simulate_key_event(eventType, 'up');
+				Module._dispatch_virtual_key_event(VIRTUAL_UP, active);
 			break;
 
 			case down:
-				simulate_key_event(eventType, 'down');
+				Module._dispatch_virtual_key_event(VIRTUAL_DOWN, active);
 			break;
 
 			case left:
-				simulate_key_event(eventType, 'left');
+				Module._dispatch_virtual_key_event(VIRTUAL_LEFT, active);
 			break;
 
 			case right:
-				simulate_key_event(eventType, 'right');
+				Module._dispatch_virtual_key_event(VIRTUAL_RIGHT, active);
 			break;
 		}
 	}
@@ -137,15 +135,26 @@ function setup_dpad() {
 		dpad.releasePointerCapture(event.pointerId);
 
 		isActive = false;
-		isLeft   = false;
-		isRight  = false;
-		isUp     = false;
-		isDown   = false;
 
-		dispatch(left, false);
-		dispatch(right, false);
-		dispatch(up, false);
-		dispatch(down, false);
+		if (isLeft) {
+			isLeft = false;
+			dispatch(left, false);
+		}
+
+		if (isRight) {
+			isRight = false;
+			dispatch(right, false);
+		}
+
+		if (isUp) {
+			isUp = false;
+			dispatch(up, false);
+		}
+
+		if (isDown) {
+			isDown = false;
+			dispatch(down, false);
+		}
 	}
 
 	function move(event) {
@@ -170,13 +179,13 @@ function setup_dpad() {
 	});
 }
 
-function setup_simple_button(button, name) {
+function setup_simple_button(button, key) {
 	function activate(event) {
 		event.preventDefault();
 		button.setPointerCapture(event.pointerId);
 
 		button.classList.add('active');
-		simulate_key_event('keydown', name);
+		Module._dispatch_virtual_key_event(key, true);
 	}
 
 	function deactivate(event) {
@@ -184,7 +193,7 @@ function setup_simple_button(button, name) {
 		button.releasePointerCapture(event.pointerId);
 
 		button.classList.remove('active');
-		simulate_key_event('keyup', name);
+		Module._dispatch_virtual_key_event(key, false);
 	}
 
 	button.addEventListener('pointerdown',   activate);
@@ -198,13 +207,13 @@ function setup_simple_button(button, name) {
 function setup_controls() {
 	setup_dpad();
 
-	setup_simple_button(document.getElementById('startButton'), 'start');
-	setup_simple_button(document.getElementById('selectButton'), 'select');
+	setup_simple_button(document.getElementById('startButton'), VIRTUAL_START);
+	setup_simple_button(document.getElementById('selectButton'), VIRTUAL_SELECT);
 
-	setup_simple_button(document.getElementById('aButton'), 'a');
-	setup_simple_button(document.getElementById('bButton'), 'b');
+	setup_simple_button(document.getElementById('aButton'), VIRTUAL_A);
+	setup_simple_button(document.getElementById('bButton'), VIRTUAL_B);
 
-	setup_simple_button(document.getElementById('menuButton'), 'menu');
+	setup_simple_button(document.getElementById('menuButton'), VIRTUAL_MENU);
 
 	const fsButton = document.getElementById('fullscreenButton');
 

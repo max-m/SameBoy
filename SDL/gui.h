@@ -134,6 +134,31 @@ typedef struct {
 
 extern configuration_t configuration;
 
+#ifdef __EMSCRIPTEN__
+extern uint32_t virtual_control_event_type;
+
+#define VIRTUAL_KEY_MASK 0xFF
+
+typedef enum {
+    VIRTUAL_RIGHT = GB_KEY_RIGHT,
+    VIRTUAL_LEFT = GB_KEY_LEFT,
+    VIRTUAL_UP = GB_KEY_UP,
+    VIRTUAL_DOWN = GB_KEY_DOWN,
+    VIRTUAL_A = GB_KEY_A,
+    VIRTUAL_B = GB_KEY_B,
+    VIRTUAL_SELECT = GB_KEY_SELECT,
+    VIRTUAL_START = GB_KEY_START,
+    VIRTUAL_TURBO,
+    VIRTUAL_REWIND,
+    VIRTUAL_SLOWMOTION,
+    VIRTUAL_MENU,
+    VIRTUAL_KEY_MAX = 0xFF // 255 virtual keys should be enough for now
+} virtual_key_t;
+
+void register_virtual_key_event(void);
+void dispatch_virtual_key_event(virtual_key_t key, bool down);
+#endif
+
 struct menu_item {
     const char *string;
     void (*handler)(unsigned);
