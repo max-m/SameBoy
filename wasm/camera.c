@@ -42,7 +42,7 @@ void EMSCRIPTEN_KEEPALIVE camera_free()
     });
 }
 
-void EMSCRIPTEN_KEEPALIVE camera_unsupported(GB_gameboy_t *gb)
+void camera_unsupported(GB_gameboy_t *gb)
 {
     GB_set_camera_get_pixel_callback(gb, NULL);
     GB_set_camera_update_request_callback(gb, NULL);
@@ -67,7 +67,7 @@ void EMSCRIPTEN_KEEPALIVE camera_set_buf(uint8_t *buffer, size_t size, unsigned 
 
 void camera_request_update(GB_gameboy_t *gb)
 {
-    uint32_t result =  EM_ASM_INT({
+    int32_t result = EM_ASM_INT({
         return Module.gb_camera_init();
     });
 
@@ -102,11 +102,11 @@ void camera_request_update(GB_gameboy_t *gb)
         }
 
         case 1:
-            // Camera is supported but not yet ready
+            // Not yet ready
             GB_camera_updated(gb);
             break;
 
-        case 2:
+        case -1:
             GB_camera_updated(gb);
             camera_unsupported(gb);
             break;

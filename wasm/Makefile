@@ -157,9 +157,12 @@ WASM_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(WASM_SOURCES))
 WEB_SOURCES := $(shell ls ressources/.)
 WEB_OBJECTS := $(patsubst %,$(BIN)/ressources/%,$(WEB_SOURCES))
 
+JS_SOURCES := $(filter-out main.js pre.js,$(shell ls js/.))
+JS_FILES := $(patsubst %,$(BIN)/js/%,$(JS_SOURCES))
+
 SHADERS := $(shell ls $(CORE_DIR)/Shaders/*.fsh)
 
-wasm: bootroms $(BIN)/index.html $(WEB_OBJECTS) $(SHADERS)
+wasm: bootroms $(BIN)/index.html $(JS_FILES) $(WEB_OBJECTS) $(SHADERS)
 all: wasm
 
 # Automatic dependency generation
@@ -188,14 +191,17 @@ $(OBJ)/%.c.o: %.c
 	-@$(MKDIR) -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BIN)/ressources/%:
+$(BIN)/ressources/%: ressources/%
 	-@$(MKDIR) -p $(dir $(patsubst $(BIN)/ressources/%,$(BIN)/%,$@))
 
 	cp -a $(patsubst $(BIN)/%,%,$@) $(patsubst $(BIN)/ressources/%,$(BIN)/%,$@)
 
+$(BIN)/js/%.js: js/%.js
+	-@$(MKDIR) -p $(dir $@)
+	cp $< $@
+
 $(BIN)/index.html: index.html $(BIN)/index.js
 	-@$(MKDIR) -p $(dir $@)
-
 	cp index.html $@
 
 $(BIN)/index.js: $(CORE_OBJECTS) $(WASM_OBJECTS) index.html js/pre.js js/main.js
