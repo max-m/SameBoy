@@ -28,8 +28,8 @@ Module.canvas = (() => {
 	// As a default initial behavior, pop up an alert when webgl context is lost. To make your
 	// application robust, you may want to override this behavior before shipping!
 	// See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
-	canvas.addEventListener("webglcontextlost", function(e) {
-		e.preventDefault();
+	canvas.addEventListener('webglcontextlost', event => {
+		event.preventDefault();
 		alert('WebGL context lost. You will need to reload the page.');
 	}, false);
 
@@ -222,7 +222,7 @@ Module.gb_syncfs = async function (populate = false) {
 		return;
 	}
 	Module.gb_syncfs_in_progress = true;
-	console.log("Syncing file system ...");
+	console.log('Syncing file system ...');
 
 	return await new Promise((resolve, reject) => {
 		FS.syncfs(populate, function (err) {
@@ -232,7 +232,7 @@ Module.gb_syncfs = async function (populate = false) {
 				reject(err);
 			}
 			else if (Module.gb_syncfs_needs_sync) {
-				console.log("A sync was requested while syncing, syncing again.");
+				console.log('A sync was requested while syncing, syncing again.');
 				const populate = Module.gb_syncfs_needs_sync.populate;
 				Module.gb_syncfs_needs_sync = undefined;
 
@@ -243,7 +243,7 @@ Module.gb_syncfs = async function (populate = false) {
 				return;
 			}
 			else {
-				console.log("File system synchronized.");
+				console.log('File system synchronized.');
 
 				resolve()
 			}
@@ -383,6 +383,69 @@ Module.gb_camera_remove = () => {
 	if (Module.GbCamera && Module.GbCamera.remove) {
 		Module.GbCamera.remove();
 	}
+}
+
+Module.GbAccelerometer = undefined;
+Module.gb_accelerometer_stop = () => {
+	if (Module.GbAccelerometer) {
+		Module.GbAccelerometer.stop();
+		Module.GbAccelerometer = undefined;
+	}
+}
+Module.gb_accelerometer_init = () => {
+	if (Module.GbAccelerometer) {
+		return;
+	}
+
+	Module._pause();
+	Module.setStatus('Loading Accelerometer module (0 / 1)');
+	import('./js/motion-sensors.js')
+		.then(({ Accelerometer }) => {
+			function start() {
+				// Kirby - Tilt ’n’ Tumble uses an ADXL202 2-axis accelerometer.
+				// Its R_SET resistor seems to be 120 kΩ,
+				// which would mean that its accelerometer samples 1000 times per second.
+				// I think 60 updates should be enough for us.
+				const sensor = new Accelerometer({ frequency: 60 });
+
+				sensor.addEventListener('reading', event => {
+					// https://www.w3.org/TR/accelerometer/#model
+					// The acceleration is the rate of change of velocity of a device with respect to time.
+					// Its unit is the metre per second squared (m/s2)
+					Module._set_accelerometer_values(
+						sensor.x / 9.80665,
+						-sensor.y / 9.80665 // The Y axis of the sensor points down
+					);
+				});
+
+				sensor.start();
+
+				Module.GbAccelerometer = sensor;
+			}
+
+			if (navigator.permissions) {
+				navigator.permissions.query({ name: 'accelerometer' })
+				.then(result => {
+					if (result.state === 'granted') {
+						start();
+					}
+					else {
+						console.error('Accelerometer permission has been denied.');
+					}
+				})
+				.catch(err => {
+					console.error('Permission query failed, trying anyway:', err);
+					start();
+				});
+			}
+		})
+		.catch(error => {
+			console.error(error);
+		})
+		.finally(() => {
+			Module.setStatus(null);
+			Module._resume();
+		});
 }
 
 Module.gb_rumble = (index, amp, duration) => {

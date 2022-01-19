@@ -948,6 +948,11 @@ void EMSCRIPTEN_KEEPALIVE cancel_load_rom()
     pending_command = GB_SDL_NO_COMMAND;
 }
 
+void EMSCRIPTEN_KEEPALIVE set_accelerometer_values(double x, double y)
+{
+    GB_set_accelerometer_values(&gb, x, y);
+}
+
 void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_save_path)
 {
     close_menu();
@@ -978,6 +983,14 @@ void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_s
     screen_size_changed();
 
     connect_joypad();
+
+    if (GB_has_accelerometer(&gb)) {
+        // TODO: Mouse/touch and analog joysticks as alternative
+        EM_ASM({ Module.gb_accelerometer_init(); });
+    }
+    else {
+        EM_ASM({ Module.gb_accelerometer_stop(); });
+    }
 
     is_running = true;
 }
