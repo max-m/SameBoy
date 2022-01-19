@@ -3,6 +3,13 @@
       background-color: var(--system-color);
     }
 
+    #spinner {
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+    }
+
     #display,
     #controls {
       position: absolute;
@@ -12,12 +19,14 @@
       bottom: 0;
     }
 
-    #canvasWrapper {
+    #canvasWrapper, #spinner {
       --wrapper-width: min(50vw, calc(100vh * var(--width) / var(--height)));
       width: var(--wrapper-width);
       height: calc(var(--wrapper-width) * var(--height) / var(--width));
       margin: auto;
 
+    }
+    #canvasWrapper {
       position: relative;
       top: 50%;
       transform: translate(0, -50%);
