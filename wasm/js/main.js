@@ -265,6 +265,3 @@ document.addEventListener('visibilitychange', async () => {
 	Module._save_battery();
 	await Module.gb_syncfs();
 });
-
-// Debug
-window.SameBoy = Module;

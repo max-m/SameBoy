@@ -1,6 +1,14 @@
+if (typeof Module.SAMEBOY_DEBUG === 'undefined') {
+	Module.SAMEBOY_DEBUG = false;
+}
+
 const statusElement = document.getElementById('status');
 const progressElement = document.getElementById('progress');
 const spinnerElement = document.getElementById('spinner');
+
+if (Module.SAMEBOY_DEBUG) {
+	window.SameBoy = Module;
+}
 
 Module.logReadFiles = true;
 
@@ -32,7 +40,9 @@ Module.canvas = (() => {
 	return canvas;
 })();
 
-Module.setStatus = function(text) {
+Module.setStatus = text => {
+	console.debug(`[Status] ${text}`);
+
 	if (!Module.setStatus.last) {
 		Module.setStatus.last = {
 			time: Date.now(),
@@ -40,25 +50,29 @@ Module.setStatus = function(text) {
 		};
 	}
 
+	text = text ? text.trim() : '';
+
 	if (text === Module.setStatus.last.text) {
 		return;
 	}
 
-	const m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
+	// Message (done / total)
+	const progress = text.match(/([^(]+)\((\d+(\.\d+)?)\s*\/\s*(\d+)\)/);
+
 	const now = Date.now();
 
 	// if this is a progress update, skip it if too soon
-	if (m && now - Module.setStatus.last.time < 30) {
+	if (progress && now - Module.setStatus.last.time < 30) {
 		return;
 	}
 
 	Module.setStatus.last.time = now;
 	Module.setStatus.last.text = text;
 
-	if (m) {
-		text = m[1];
-		progressElement.value = parseInt(m[2]) * 100;
-		progressElement.max = parseInt(m[4]) * 100;
+	if (progress) {
+		text = progress[1];
+		progressElement.value = parseInt(progress[2]) * 100;
+		progressElement.max = parseInt(progress[4]) * 100;
 		progressElement.hidden = false;
 		spinnerElement.hidden = false;
 	}
@@ -94,7 +108,7 @@ Module.gb_load_rom_buffer = function (name, data) {
 	// Copy data into WASM memory
 	const ptr = Module._malloc(data.byteLength);
 	const wasm_buf = new Uint8Array(Module.HEAPU8.buffer, ptr, data.byteLength);
-	wasm_buf.set(new Uint8Array(data));
+	wasm_buf.set(data);
 
 	Module._load_rom(wasm_buf.byteOffset, wasm_buf.byteLength, battery_path);
 };
@@ -115,12 +129,57 @@ Module.gb_load_remote_rom = async function (url) {
 		return string_hash(url)
 	})()
 
+	Module._pause();
+	Module.setStatus(`Fetching ${name}`);
+
 	const response = await fetch(request);
+	const content_length = Number.parseInt(response.headers.get('Content-Length')) || 0;
+
 	if (!response.ok) {
 		throw new Error('HTTP error, status = ' + response.status);
 	}
 
-	const buf = await response.arrayBuffer();
+	let buf;
+
+	if (content_length) {
+		Module.setStatus(`Fetching ${name} (0 / ${content_length})`);
+
+		buf = new Uint8Array(content_length);
+		const reader = response.body.getReader();
+		let received_length = 0;
+
+		while (true) {
+			const { done, value } = await reader.read();
+
+			if (done) {
+				break;
+			}
+
+			if (received_length + value.length <= buf.length) {
+				buf.set(value, received_length);
+			}
+			else {
+				console.warn(`Content-Length header underreported the length:\nContent-Length: ${content_length}\nReceived: ${received_length + value.length}`);
+
+				// Copy data to a new buffer :(
+				const tmp = new Uint8Array(received_length + value.length);
+				tmp.set(buf);
+				tmp.set(value, received_length);
+				buf = tmp;
+			}
+
+			received_length += value.length;
+
+			Module.setStatus(`Fetching ${name} (${received_length} / ${content_length})`);
+		}
+	}
+	else {
+		buf = new Uint8Array(await response.arrayBuffer());
+	}
+
+	Module.setStatus();
+	Module._resume();
+
 	Module.gb_load_rom_buffer(name, buf);
 };
 
@@ -301,6 +360,9 @@ Module.gb_camera_init = () => {
 	if (Module.GbCamera === 'unloaded') {
 		Module.GbCamera = { };
 
+		Module._pause();
+		Module.setStatus('Loading Camera module (0 / 1)');
+
 		import('./js/camera.js')
 			.then(camera => Module.GbCamera = camera.default(Module))
 			.catch(error => {
@@ -308,6 +370,10 @@ Module.gb_camera_init = () => {
 
 				Module.GbCamera = undefined;
 				delete Module.GbCamera;
+			})
+			.finally(() => {
+				Module.setStatus();
+				Module._resume();
 			});
 	}
 

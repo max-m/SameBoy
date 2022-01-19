@@ -157,10 +157,16 @@ WASM_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(WASM_SOURCES))
 WEB_SOURCES := $(shell ls ressources/.)
 WEB_OBJECTS := $(patsubst %,$(BIN)/ressources/%,$(WEB_SOURCES))
 
-JS_SOURCES := $(filter-out main.js pre.js,$(shell ls js/.))
+JS_SOURCES := $(filter-out _debug.js pre.js main.js,$(shell ls js/.))
 JS_FILES := $(patsubst %,$(BIN)/js/%,$(JS_SOURCES))
 
 SHADERS := $(shell ls $(CORE_DIR)/Shaders/*.fsh)
+
+EMCCFLAGS := --post-js "js/main.js"
+ifeq ($(CONF),debug)
+EMCCFLAGS += --pre-js "js/_debug.js"
+endif
+EMCCFLAGS += --pre-js "js/pre.js"
 
 wasm: bootroms $(BIN)/index.html $(JS_FILES) $(WEB_OBJECTS) $(SHADERS)
 all: wasm
@@ -204,14 +210,13 @@ $(BIN)/index.html: index.html $(BIN)/index.js
 	-@$(MKDIR) -p $(dir $@)
 	cp index.html $@
 
-$(BIN)/index.js: $(CORE_OBJECTS) $(WASM_OBJECTS) index.html js/pre.js js/main.js
+$(BIN)/index.js: $(CORE_OBJECTS) $(WASM_OBJECTS) index.html js/_debug.js js/pre.js js/main.js
 	-@$(MKDIR) -p $(dir $@)
 	$(CC) \
 		$(CFLAGS) \
 		$(filter %.o, $^) \
 		-o $@ \
-		--pre-js "js/pre.js" \
-		--post-js "js/main.js" \
+		$(EMCCFLAGS) \
 		$(LDFLAGS)
 
 $(CORE_DIR)/build/bin/BootROMs/%_boot.bin:
