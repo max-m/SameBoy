@@ -52,6 +52,11 @@ void camera_unsupported(GB_gameboy_t *gb)
 
 void EMSCRIPTEN_KEEPALIVE camera_set_buf(uint8_t *buffer, size_t size, unsigned width, unsigned height)
 {
+    if (camera_buffer_ptr) {
+        free(camera_buffer_ptr);
+        camera_buffer_ptr = NULL;
+    }
+
     camera_buffer_ptr = buffer;
     camera_buffer_size = size;
 

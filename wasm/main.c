@@ -81,7 +81,6 @@ void EMSCRIPTEN_KEEPALIVE save_configuration(void)
 }
 
 #ifdef GB_ENABLE_CHAMELEON_MODE
-
 void set_system_color(uint32_t color) {
     uint8_t r, g, b;
 
@@ -225,8 +224,17 @@ void EMSCRIPTEN_KEEPALIVE quit(void)
 {
     printf("Quitting ...\n");
 
+    emscripten_cancel_main_loop();
+
     save_battery();
-    battery_save_path_ptr = NULL;
+
+    if (battery_save_path_ptr) {
+        free(battery_save_path_ptr);
+        battery_save_path_ptr = NULL;
+    }
+
+    camera_free();
+    free_shader(&shader);
 
     GB_free(&gb);
 
@@ -575,11 +583,12 @@ static void load_boot_rom(GB_gameboy_t *gb, GB_boot_rom_t type)
         [GB_BOOT_ROM_AGB] = "agb_boot.bin",
     };
 
-    const char *path = resource_path(concat("BootROMs/", names[type]));
+    char *path = concat("BootROMs/", names[type]);
+    const char *real_path = resource_path(path);
+    free(path);
 
-    printf("Loading boot ROM: %s\n", path);
-
-    GB_load_boot_rom(gb, path);
+    printf("Loading boot ROM: %s\n", real_path);
+    GB_load_boot_rom(gb, real_path);
 }
 
 static void init_gb(void)
@@ -635,7 +644,10 @@ static void init_gb(void)
         GB_set_camera_get_pixel_callback(&gb, (GB_camera_get_pixel_callback_t) camera_get_pixels);
         GB_set_camera_update_request_callback(&gb, (GB_camera_update_request_callback_t) camera_request_update);
 
-        battery_save_path_ptr = NULL;
+        if (battery_save_path_ptr) {
+            free(battery_save_path_ptr);
+            battery_save_path_ptr = NULL;
+        }
     }
 
     camera_free();
@@ -950,6 +962,9 @@ void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_s
 
     GB_load_battery(&gb, battery_save_path);
 
+    if (battery_save_path_ptr) {
+        free(battery_save_path_ptr);
+    }
     battery_save_path_ptr = battery_save_path;
     save_battery();
 

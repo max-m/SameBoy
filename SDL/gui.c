@@ -38,9 +38,9 @@ static unsigned factor;
 static GLfloat clear_color[3] = { 0.0, 0.0, 0.0 };
 
 #ifdef TRANSPARENT_WINDOW
-#define CLEAR_ALPHA_COLOR 1.0
-#else
 #define CLEAR_ALPHA_COLOR 0.0
+#else
+#define CLEAR_ALPHA_COLOR 1.0
 #endif
 
 #ifdef __EMSCRIPTEN__

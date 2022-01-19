@@ -12,7 +12,7 @@ if (Module.SAMEBOY_DEBUG) {
 
 Module.logReadFiles = true;
 
-Module.printWithColors = true;
+Module.printWithColors = false;
 
 Module.print = function() {
 	console.log.apply(console, arguments);
@@ -127,7 +127,7 @@ Module.gb_load_remote_rom = async function (url) {
 		}
 
 		return string_hash(url)
-	})()
+	})();
 
 	Module._pause();
 	Module.setStatus(`Fetching ${name}`);
@@ -177,7 +177,7 @@ Module.gb_load_remote_rom = async function (url) {
 		buf = new Uint8Array(await response.arrayBuffer());
 	}
 
-	Module.setStatus();
+	Module.setStatus(null);
 	Module._resume();
 
 	Module.gb_load_rom_buffer(name, buf);
@@ -344,12 +344,6 @@ Module.gb_set_system_color = (r, g, b) => {
 	system.style.setProperty('--system-color', `rgb(${r}, ${g}, ${b})`);
 }
 
-Module.gb_camera_remove = () => {
-	if (Module.GbCamera && Module.GbCamera.remove) {
-		Module.GbCamera.remove();
-	}
-}
-
 Module.GbCamera = 'unloaded';
 Module.gb_camera_init = () => {
 	if (Module.GbCamera === undefined) {
@@ -372,7 +366,7 @@ Module.gb_camera_init = () => {
 				delete Module.GbCamera;
 			})
 			.finally(() => {
-				Module.setStatus();
+				Module.setStatus(null);
 				Module._resume();
 			});
 	}
@@ -383,6 +377,12 @@ Module.gb_camera_init = () => {
 
 	// Not yet ready
 	return 1;
+}
+
+Module.gb_camera_remove = () => {
+	if (Module.GbCamera && Module.GbCamera.remove) {
+		Module.GbCamera.remove();
+	}
 }
 
 Module.gb_rumble = (index, amp, duration) => {
@@ -438,7 +438,7 @@ Module.gb_rumble = (index, amp, duration) => {
 	}
 }
 
-Module.setStatus('Downloading...');
+Module.setStatus('Downloading ...');
 
 window.onerror = function() {
 	Module.setStatus('Exception thrown, see JavaScript console');
@@ -449,6 +449,8 @@ window.onerror = function() {
 };
 
 Module.ready.then(async () => {
+	Module.setStatus('Syncing filesystem');
+
 	FS.mkdir('/persist');
 	FS.mount(IDBFS, { }, '/persist');
 
@@ -456,4 +458,5 @@ Module.ready.then(async () => {
 
 	// Call the exported init function
 	Module._init();
+	Module.setStatus(null);
 });
