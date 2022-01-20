@@ -154,8 +154,11 @@ WASM_SOURCES := \
 	$(CORE_DIR)/SDL/utils.c
 WASM_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(WASM_SOURCES))
 
+ICON_SIZES := 16x16 32x32 64x64 128x128 256x256 512x512
+ICONS := $(foreach size,$(ICON_SIZES),$(BIN)/img/icon-$(size).png)
+
 WEB_SOURCES := $(shell ls ressources/.)
-WEB_OBJECTS := $(patsubst %,$(BIN)/ressources/%,$(WEB_SOURCES))
+WEB_OBJECTS := $(patsubst %,$(BIN)/%,$(WEB_SOURCES)) $(ICONS)
 
 JS_SOURCES := $(filter-out _debug.js pre.js main.js,$(shell ls js/.))
 JS_FILES := $(patsubst %,$(BIN)/js/%,$(JS_SOURCES))
@@ -197,10 +200,9 @@ $(OBJ)/%.c.o: %.c
 	-@$(MKDIR) -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BIN)/ressources/%: ressources/%
-	-@$(MKDIR) -p $(dir $(patsubst $(BIN)/ressources/%,$(BIN)/%,$@))
-
-	cp -a $(patsubst $(BIN)/%,%,$@) $(patsubst $(BIN)/ressources/%,$(BIN)/%,$@)
+$(BIN)/img/icon-%.png: $(CORE_DIR)/FreeDesktop/AppIcon/%.png
+	-@$(MKDIR) -p $(dir $@)
+	cp $< $@
 
 $(BIN)/js/%.js: js/%.js
 	-@$(MKDIR) -p $(dir $@)
@@ -218,6 +220,10 @@ $(BIN)/index.js: $(CORE_OBJECTS) $(WASM_OBJECTS) index.html js/_debug.js js/pre.
 		-o $@ \
 		$(EMCCFLAGS) \
 		$(LDFLAGS)
+
+$(BIN)/%: ressources/%
+	-@$(MKDIR) -p $(dir $@)
+	cp -a $< $@
 
 $(CORE_DIR)/build/bin/BootROMs/%_boot.bin:
 	$(MAKE) -C $(CORE_DIR) $(patsubst $(CORE_DIR)/%,%,$@)

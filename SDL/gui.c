@@ -483,27 +483,54 @@ EM_JS(void, synchronize_save_files, (unsigned index), {
 EM_JS(void, open_save_manager, (unsigned index), {
     Module.gb_open_save_manager();
 });
-#endif
+
+static const struct menu_item options_menu[] = {
+    {"Emulation Options", enter_emulation_menu},
+    {"Graphic Options", enter_graphics_menu},
+    {"Audio Options", enter_audio_menu},
+    {"Keyboard", enter_controls_menu},
+    {"Joypad", enter_joypad_menu},
+    {"Back", return_to_root_menu},
+    {NULL,}
+};
+
+static void enter_options_menu(unsigned index)
+{
+    current_menu = options_menu;
+    current_selection = 0;
+    scroll = 0;
+    recalculate_menu_height();
+}
+
+EM_JS(void, item_about, (unsigned index), {
+    Module.open_about_dialog();
+});
 
 static const struct menu_item paused_menu[] = {
     {"Resume", NULL},
     {"Open ROM", open_rom},
-#ifdef __EMSCRIPTEN__
     {"Open Example", enter_examples_menu},
     {"Synchronize Saves", synchronize_save_files},
     {"Open Save Manager", open_save_manager},
-#endif
+    {"Options", enter_options_menu},
+    {"Help", item_help},
+    {"About", item_about},
+    {NULL,}
+};
+#else
+static const struct menu_item paused_menu[] = {
+    {"Resume", NULL},
+    {"Open ROM", open_rom},
     {"Emulation Options", enter_emulation_menu},
     {"Graphic Options", enter_graphics_menu},
     {"Audio Options", enter_audio_menu},
     {"Keyboard", enter_controls_menu},
     {"Joypad", enter_joypad_menu},
     {"Help", item_help},
-#ifndef __EMSCRIPTEN__
     {"Quit SameBoy", item_exit},
-#endif
     {NULL,}
 };
+#endif
 
 static const struct menu_item *const nonpaused_menu = &paused_menu[1];
 
@@ -679,7 +706,11 @@ static const struct menu_item emulation_menu[] = {
     {"Rewind Length:", cycle_rewind, current_rewind_string, cycle_rewind_backwards},
 #endif
     {"Real Time Clock:", toggle_rtc_mode, current_rtc_mode_string, toggle_rtc_mode},
+#ifdef __EMSCRIPTEN__
+    {"Back", enter_options_menu},
+#else
     {"Back", return_to_root_menu},
+#endif
     {NULL,}
 };
 
@@ -1024,7 +1055,11 @@ static const struct menu_item graphics_menu[] = {
     {"Display Border:", cycle_border_mode, current_border_mode, cycle_border_mode_backwards},
     {"On-Screen Display:", toggle_osd, current_osd_mode, toggle_osd},
 
+#ifdef __EMSCRIPTEN__
+    {"Back", enter_options_menu},
+#else
     {"Back", return_to_root_menu},
+#endif
     {NULL,}
 };
 
@@ -1110,7 +1145,11 @@ static const struct menu_item audio_menu[] = {
     {"Highpass Filter:", cycle_highpass_filter, highpass_filter_string, cycle_highpass_filter_backwards},
     {"Volume:", increase_volume, volume_string, decrease_volume},
     {"Interference Volume:", increase_interference_volume, interference_volume_string, decrease_interference_volume},
+#ifdef __EMSCRIPTEN__
+    {"Back", enter_options_menu},
+#else
     {"Back", return_to_root_menu},
+#endif
     {NULL,}
 };
 
@@ -1141,7 +1180,11 @@ static const struct menu_item controls_menu[] = {
     {"Turbo:", modify_key, key_name,},
     {"Rewind:", modify_key, key_name,},
     {"Slow-Motion:", modify_key, key_name,},
+#ifdef __EMSCRIPTEN__
+    {"Back", enter_options_menu},
+#else
     {"Back", return_to_root_menu},
+#endif
     {NULL,}
 };
 
@@ -1289,7 +1332,11 @@ static const struct menu_item joypad_menu[] = {
     {"Joypad:", cycle_joypads, current_joypad_name, cycle_joypads_backwards},
     {"Configure layout", detect_joypad_layout},
     {"Rumble Mode:", cycle_rumble_mode, current_rumble_mode, cycle_rumble_mode_backwards},
+#ifdef __EMSCRIPTEN__
+    {"Back", enter_options_menu},
+#else
     {"Back", return_to_root_menu},
+#endif
     {NULL,}
 };
 

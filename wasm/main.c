@@ -46,7 +46,8 @@ bool uses_gl(void)
 // Sometimes the SDL_WINDOW_FULLSCREEN flag gets set when going into fullscreen,
 // sometimes it does not. When it doesn’t our canvas behaves like it should,
 // so we remove the flag and hope for the best.
-void EMSCRIPTEN_KEEPALIVE emscripten_sdl2_fullscreen_workaround(void) {
+void EMSCRIPTEN_KEEPALIVE emscripten_sdl2_fullscreen_workaround(void)
+{
     Uint32 flags = SDL_GetWindowFlags(window);
 
     SDL_SetWindowFullscreen(window, flags & ~SDL_WINDOW_FULLSCREEN);
@@ -810,6 +811,9 @@ int EMSCRIPTEN_KEEPALIVE init(void)
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 0);
 
     printf("SameBoy v" GB_VERSION "\n");
+    EM_ASM({
+        document.getElementById('sameboyVersion').innerText = ` v${UTF8ToString($0, $1)}`;
+    }, GB_VERSION, strlen(GB_VERSION));
 
     FILE *prefs_file = fopen(PREFS_PATH, "rb");
     if (prefs_file) {
@@ -1009,5 +1013,10 @@ void EMSCRIPTEN_KEEPALIVE pause(void) {
 }
 
 void EMSCRIPTEN_KEEPALIVE resume(void) {
+    // Remove queued input events that have accumulated
+    // while the main loop was paused
+    SDL_PumpEvents();
+    SDL_FlushEvents(SDL_KEYDOWN, SDL_DROPCOMPLETE);
+
     emscripten_resume_main_loop();
 }

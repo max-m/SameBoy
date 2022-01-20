@@ -501,6 +501,24 @@ Module.gb_rumble = (index, amp, duration) => {
 	}
 }
 
+Module.close_about_on_keyup = event => {
+	if (event.key === "Escape" || event.key === "Esc" || event.keyCode === 27) {
+		event.preventDefault();
+		Module.close_about_dialog();
+	}
+}
+Module.close_about_dialog = () => {
+	document.removeEventListener('keyup', Module.close_about_on_keydown);
+	document.getElementById('about').style.display = 'none';
+	Module._resume();
+}
+Module.open_about_dialog = () => {
+	Module._pause();
+
+	document.getElementById('about').style.display = '';
+	document.addEventListener('keyup', Module.close_about_on_keyup);
+}
+
 Module.setStatus('Downloading ...');
 
 window.onerror = function() {
