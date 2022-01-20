@@ -292,8 +292,18 @@ static uint8_t read_mbc_rom(GB_gameboy_t *gb, uint16_t addr)
 
 static uint8_t read_vram(GB_gameboy_t *gb, uint16_t addr)
 {
-    GB_display_sync(gb);
-    if (unlikely(gb->vram_read_blocked)) {
+    if (likely(!GB_is_dma_active(gb))) {
+        /* Prevent syncing from a DMA read. Batching doesn't happen during DMA anyway. */
+        GB_display_sync(gb);
+    }
+    else {
+        if ((gb->dma_current_dest & 0xE000) == 0x8000) {
+            // TODO: verify conflict behavior
+            return gb->vram[(addr & 0x1FFF) + (gb->cgb_vram_bank? 0x2000 : 0)];
+        }
+    }
+    
+    if (unlikely(gb->vram_read_blocked && !gb->in_dma_read)) {
         return 0xFF;
     }
     if (unlikely(gb->display_state == 22 && GB_is_cgb(gb) && !gb->cgb_double_speed)) {
@@ -1461,6 +1471,7 @@ static void write_high_memory(GB_gameboy_t *gb, uint16_t addr, uint8_t value)
 
             case GB_IO_DMA:
                 gb->dma_cycles = 0;
+                gb->dma_cycles_modulo = 2;
                 gb->dma_current_dest = 0xFF;
                 gb->dma_current_src = value << 8;
                 gb->io_registers[GB_IO_DMA] = value;
@@ -1688,8 +1699,11 @@ bool GB_is_dma_active(GB_gameboy_t *gb)
 void GB_dma_run(GB_gameboy_t *gb)
 {
     if (gb->dma_current_dest == 0xa1) return;
-    while (unlikely(gb->dma_cycles >= 4)) {
-        gb->dma_cycles -= 4;
+    if (unlikely(gb->halted || gb->stopped)) return;
+    signed cycles = gb->dma_cycles + gb->dma_cycles_modulo;
+    gb->in_dma_read = true;
+    while (unlikely(cycles >= 4)) {
+        cycles -= 4;
         if (gb->dma_current_dest >= 0xa0) {
             gb->dma_current_dest++;
             break;
@@ -1708,7 +1722,11 @@ void GB_dma_run(GB_gameboy_t *gb)
         
         /* dma_current_src must be the correct value during GB_read_memory */
         gb->dma_current_src++;
+        gb->dma_ppu_vram_conflict = false;
     }
+    gb->in_dma_read = false;
+    gb->dma_cycles_modulo = cycles;
+    gb->dma_cycles = 0;
 }
 
 void GB_hdma_run(GB_gameboy_t *gb)
