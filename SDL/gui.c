@@ -1597,7 +1597,7 @@ bool run_gui_iteration(bool is_running) {
             }
         }
         case SDL_WINDOWEVENT: {
-            if (menu_state.event.window.event == SDL_WINDOWEVENT_RESIZED) {
+            if (menu_state.event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
                 update_viewport();
                 render_texture(NULL, NULL);
             }

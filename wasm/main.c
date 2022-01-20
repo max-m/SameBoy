@@ -43,6 +43,15 @@ bool uses_gl(void)
     return gl_context;
 }
 
+// Sometimes the SDL_WINDOW_FULLSCREEN flag gets set when going into fullscreen,
+// sometimes it does not. When it doesn’t our canvas behaves like it should,
+// so we remove the flag and hope for the best.
+void EMSCRIPTEN_KEEPALIVE emscripten_sdl2_fullscreen_workaround(void) {
+    Uint32 flags = SDL_GetWindowFlags(window);
+
+    SDL_SetWindowFullscreen(window, flags & ~SDL_WINDOW_FULLSCREEN);
+}
+
 // Use this function instead of GB_save_battery()
 int EMSCRIPTEN_KEEPALIVE save_battery(void)
 {

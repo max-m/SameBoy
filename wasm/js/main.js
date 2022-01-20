@@ -226,9 +226,14 @@ function setup_controls() {
 				fsButton.classList.remove('active');
 			}
 
-			setTimeout(() => {
-				window.dispatchEvent(new Event('resize'));
-			}, 32);
+			// This should make sure that this function gets processed after
+			// emscripten’s own fullscreenchange listener in any case
+			requestAnimationFrame(() => {
+				// Remove the SDL_WINDOW_FULLSCREEN flag if it has been set for some unknown reason
+				Module._emscripten_sdl2_fullscreen_workaround();
+
+				window.dispatchEvent(new Event('resize'))
+			});
 		});
 
 		document.addEventListener('fullscreenerror', event => {
