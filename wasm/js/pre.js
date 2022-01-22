@@ -2,6 +2,14 @@ if (typeof Module.SAMEBOY_DEBUG === 'undefined') {
 	Module.SAMEBOY_DEBUG = false;
 }
 
+if ('serviceWorker' in navigator) {
+	navigator.serviceWorker
+		.register('./service_worker.js')
+		.then(reg => console.log('Registered ServiceWorker:', reg))
+		.catch(err => console.error('Failed to register ServiceWorker:', err));
+};
+
+
 const statusElement = document.getElementById('status');
 const progressElement = document.getElementById('progress');
 const spinnerElement = document.getElementById('spinner');
@@ -132,55 +140,64 @@ Module.gb_load_remote_rom = async function (url) {
 	Module._pause();
 	Module.setStatus(`Fetching ${name}`);
 
-	const response = await fetch(request);
-	const content_length = Number.parseInt(response.headers.get('Content-Length')) || 0;
+	let buf = null;
 
-	if (!response.ok) {
-		throw new Error('HTTP error, status = ' + response.status);
-	}
+	try {
+		const response = await fetch(request);
+		const content_length = Number.parseInt(response.headers.get('Content-Length')) || 0;
 
-	let buf;
+		if (!response.ok) {
+			throw new Error('HTTP error, status = ' + response.status);
+		}
 
-	if (content_length) {
-		Module.setStatus(`Fetching ${name} (0 / ${content_length})`);
 
-		buf = new Uint8Array(content_length);
-		const reader = response.body.getReader();
-		let received_length = 0;
+		if (content_length) {
+			Module.setStatus(`Fetching ${name} (0 / ${content_length})`);
 
-		while (true) {
-			const { done, value } = await reader.read();
+			buf = new Uint8Array(content_length);
+			const reader = response.body.getReader();
+			let received_length = 0;
 
-			if (done) {
-				break;
+			while (true) {
+				const { done, value } = await reader.read();
+
+				if (done) {
+					break;
+				}
+
+				if (received_length + value.length <= buf.length) {
+					buf.set(value, received_length);
+				}
+				else {
+					console.warn(`Content-Length header underreported the length:\nContent-Length: ${content_length}\nReceived: ${received_length + value.length}`);
+
+					// Copy data to a new buffer :(
+					const tmp = new Uint8Array(received_length + value.length);
+					tmp.set(buf);
+					tmp.set(value, received_length);
+					buf = tmp;
+				}
+
+				received_length += value.length;
+
+				Module.setStatus(`Fetching ${name} (${received_length} / ${content_length})`);
 			}
-
-			if (received_length + value.length <= buf.length) {
-				buf.set(value, received_length);
-			}
-			else {
-				console.warn(`Content-Length header underreported the length:\nContent-Length: ${content_length}\nReceived: ${received_length + value.length}`);
-
-				// Copy data to a new buffer :(
-				const tmp = new Uint8Array(received_length + value.length);
-				tmp.set(buf);
-				tmp.set(value, received_length);
-				buf = tmp;
-			}
-
-			received_length += value.length;
-
-			Module.setStatus(`Fetching ${name} (${received_length} / ${content_length})`);
+		}
+		else {
+			buf = new Uint8Array(await response.arrayBuffer());
 		}
 	}
-	else {
-		buf = new Uint8Array(await response.arrayBuffer());
+	catch (err) {
+		console.error(err);
+		// TODO: Show error to user
 	}
 
 	Module.setStatus(null);
 	Module._resume();
 
-	Module.gb_load_rom_buffer(name, buf);
+	if (buf) {
+		Module.gb_load_rom_buffer(name, buf);
+	}
 };
 
 Module.gb_open_file = function (event) {

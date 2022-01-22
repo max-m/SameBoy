@@ -87,10 +87,6 @@ LDFLAGS += -s MODULARIZE=1 -s EXPORT_ES6=1 -s EXPORT_NAME=initSameBoy
 # LDFLAGS += -s SUPPORT_BIG_ENDIAN=1
 
 LDFLAGS += -s LLD_REPORT_UNDEFINED
-
-LDFLAGS += --preload-file $(BOOTROMS_DIR)@/BootROMs
-LDFLAGS += --preload-file $(CORE_DIR)/Shaders@/Shaders
-LDFLAGS += --preload-file $(CORE_DIR)/SDL/background.bmp@/background.bmp
 LDFLAGS += -s "EXPORTED_RUNTIME_METHODS=['ccall', 'cwrap', 'getValue', 'AsciiToString', 'FS']"
 
 LDFLAGS += -lc -lm -ldl
@@ -157,8 +153,8 @@ WASM_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(WASM_SOURCES))
 ICON_SIZES := 16x16 32x32 64x64 128x128 256x256 512x512
 ICONS := $(foreach size,$(ICON_SIZES),$(BIN)/img/icon-$(size).png)
 
-WEB_SOURCES := $(shell ls ressources/.)
-WEB_OBJECTS := $(patsubst %,$(BIN)/%,$(WEB_SOURCES)) $(ICONS)
+WEB_SOURCES := $(shell find ressources/ -type f)
+WEB_OBJECTS := $(patsubst ressources/%,$(BIN)/%,$(WEB_SOURCES))
 
 JS_SOURCES := $(filter-out _debug.js pre.js main.js,$(shell ls js/.))
 JS_FILES := $(patsubst %,$(BIN)/js/%,$(JS_SOURCES))
@@ -170,8 +166,11 @@ ifeq ($(CONF),debug)
 EMCCFLAGS += --pre-js "js/_debug.js"
 endif
 EMCCFLAGS += --pre-js "js/pre.js"
+EMCCFLAGS += --preload-file $(BOOTROMS_DIR)@/BootROMs
+EMCCFLAGS += --preload-file $(CORE_DIR)/Shaders@/Shaders
+EMCCFLAGS += --preload-file $(CORE_DIR)/SDL/background.bmp@/background.bmp
 
-wasm: bootroms $(BIN)/index.html $(JS_FILES) $(WEB_OBJECTS) $(SHADERS)
+wasm: $(BIN)/index.html
 all: wasm
 
 # Automatic dependency generation
@@ -187,7 +186,7 @@ $(OBJ)/%.dep: %
 	-@$(MKDIR) -p $(dir $@)
 	$(CC) $(CFLAGS) -MT $(OBJ)/$^.o -M $^ -c -o $@
 
-$(CORE_DIR)/build/bin/BootROMs/%_boot.bin:
+$(CORE_DIR)/build/bin/BootROMs/%_boot.bin: $(BOOTROM_SOURCES)
 	$(MAKE) -C $(CORE_DIR) $(patsubst $(CORE_DIR)/%,%,$@)
 
 # Compilation rules
@@ -208,20 +207,35 @@ $(BIN)/js/%.js: js/%.js
 	-@$(MKDIR) -p $(dir $@)
 	cp $< $@
 
-$(BIN)/index.html: index.html $(BIN)/index.js
+$(BIN)/service_worker.js: index.html $(BIN)/index.js $(JS_FILES) $(BIN)/sameboy.webmanifest $(ICONS) $(WEB_OBJECTS)
+	# This script prepends the version number (plus git info, if available),
+	# the names of the files that should be cached to our service worker “template”
+	# and saves the result in $(BIN)/service_worker.js
+	sh create_service_worker.sh $(BIN) $(VERSION) \
+		$(BIN)/index.html $(BIN)/index.js $(BIN)/index.data $(BIN)/index.wasm \
+		$(BIN)/sameboy.webmanifest \
+		$(JS_FILES) \
+		$(ICONS) \
+		$(filter-out $(wildcard $(BIN)/demos/*),$(WEB_OBJECTS))
+
+$(BIN)/index.html: index.html $(BIN)/index.js $(JS_FILES) $(BIN)/sameboy.webmanifest $(ICONS) $(WEB_OBJECTS)
 	-@$(MKDIR) -p $(dir $@)
 	cp index.html $@
 
-$(BIN)/index.js: $(CORE_OBJECTS) $(WASM_OBJECTS) index.html js/_debug.js js/pre.js js/main.js
+$(BIN)/index.js: $(CORE_OBJECTS) $(WASM_OBJECTS) $(SHADERS) $(BOOTROM_OBJECTS) js/_debug.js js/pre.js js/main.js $(BIN)/service_worker.js $(CORE_DIR)/SDL/background.bmp
 	-@$(MKDIR) -p $(dir $@)
 	$(CC) \
 		$(CFLAGS) \
-		$(filter %.o, $^) \
-		-o $@ \
+		$(LDFLAGS) \
 		$(EMCCFLAGS) \
-		$(LDFLAGS)
+		$(filter %.o, $^) \
+		-o $@
 
 $(BIN)/%: ressources/%
+	-@$(MKDIR) -p $(dir $@)
+	cp -a $< $@
+
+$(BIN)/sameboy.webmanifest: sameboy.webmanifest
 	-@$(MKDIR) -p $(dir $@)
 	cp -a $< $@
 
