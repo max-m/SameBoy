@@ -1668,7 +1668,7 @@ static bool dma(GB_gameboy_t *gb, char *arguments, char *modifiers, const debugg
         return true;
     }
     
-    GB_log(gb, "Next DMA write: [$FF%02X] = [$%04X]\n", gb->dma_current_dest, gb->dma_current_src);
+    GB_log(gb, "Next DMA write: [$FE%02X] = [$%04X]\n", gb->dma_current_dest, gb->dma_current_src);
     
     return true;
 }
@@ -1924,6 +1924,8 @@ static bool wave(GB_gameboy_t *gb, char *arguments, char *modifiers, const debug
 static bool undo(GB_gameboy_t *gb, char *arguments, char *modifiers, const debugger_command_t *command)
 {
     NO_MODIFIERS
+    STOPPED_ONLY
+    
     if (strlen(lstrip(arguments))) {
         print_usage(gb, command);
         return true;
