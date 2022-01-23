@@ -2,6 +2,11 @@
   "name": "SameBoy",
   "short_name": "SameBoy",
   "description": "A Friendly and Powerful Game Boy Emulator",
+  "lang": "en-US",
+  "start_url": "index.html",
+  "display": "fullscreen",
+  "theme_color": "#00468d",
+  "background_color": "#00468d",
   "icons": [
     {
       "src": "img/icon-16x16.png",
@@ -28,6 +33,12 @@
       "purpose": "any"
     },
     {
+      "src": "img/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
       "src": "img/icon-256x256.png",
       "sizes": "256x256",
       "type": "image/png",
@@ -38,10 +49,18 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "img/icon-maskable-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "img/icon-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
-  ],
-  "start_url": "index.html",
-  "display": "fullscreen",
-  "theme_color": "#00468d",
-  "background_color": "#00468d"
+  ]
 }

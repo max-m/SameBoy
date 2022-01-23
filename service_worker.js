@@ -1,4 +1,4 @@
-const VERSION = "0.14.7_b3848cf";
+const VERSION = "0.14.7_85d0810";
 const FILES = [
 	"index.html",
 	"index.js",
@@ -17,9 +17,15 @@ const FILES = [
 	"img/download.svg",
 	"img/delete.svg",
 	"img/fullscreen.svg",
-	"img/favicon.png",
+	"img/favicon.ico",
+	"img/icon-maskable-512x512.png",
+	"img/icon-maskable-192x192.png",
+	"img/icon-192x192.png",
+	"img/apple-touch-icon-precomposed.png",
 	"img/noise.png",
+	"img/safari-pinned-tab.svg",
 	"img/flip.svg",
+	"img/apple-touch-icon.png",
 	"img/torch.svg",
 	"css/mobile-portrait.css",
 	"css/agb.css",
