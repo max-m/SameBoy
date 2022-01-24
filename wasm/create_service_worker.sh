@@ -28,4 +28,4 @@ echo "const FILES = [" >> "$OUT"
 echo "$list" >> "$OUT"
 printf "];\n" >> "$OUT"
 
-cat service_worker.js >> "$BIN_DIR/service_worker.js"
+cat web/service_worker.js >> "$BIN_DIR/service_worker.js"

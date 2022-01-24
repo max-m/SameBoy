@@ -122,7 +122,7 @@ bootroms: $(BOOTROM_OBJECTS)
 # Get a list of our source files and their respective object file targets
 
 # CORE_SOURCES_RAW := $(shell ls $(CORE_DIR)/Core/*.c)
-CORE_SOURCES_RAW := \
+CORE_SOURCES := \
 	$(CORE_DIR)/Core/gb.c \
 	$(CORE_DIR)/Core/sgb.c \
 	$(CORE_DIR)/Core/apu.c \
@@ -137,35 +137,35 @@ CORE_SOURCES_RAW := \
 	$(CORE_DIR)/Core/save_state.c \
 	$(CORE_DIR)/Core/random.c \
 	$(CORE_DIR)/Core/rumble.c \
-	# $(CORE_DIR)/Core/printer.c
+	#$(CORE_DIR)/Core/printer.c
+CORE_OBJECTS := $(patsubst $(CORE_DIR)/%,$(OBJ)/%.o,$(CORE_SOURCES))
 
-CORE_SOURCES := $(shell realpath --relative-to=$(CORE_DIR) $(CORE_SOURCES_RAW))
-CORE_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(CORE_SOURCES))
-
-WASM_SOURCES := \
-	$(shell ls *.c) \
+SDL_SOURCES := \
 	$(CORE_DIR)/SDL/audio/sdl.c \
 	$(CORE_DIR)/SDL/font.c \
 	$(CORE_DIR)/SDL/gui.c \
 	$(CORE_DIR)/SDL/utils.c
+SDL_OBJECTS := $(patsubst $(CORE_DIR)/%,$(OBJ)/%.o,$(SDL_SOURCES))
+
+WASM_SOURCES := $(shell ls src/*.c)
 WASM_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(WASM_SOURCES))
 
 ICON_SIZES := 16x16 32x32 64x64 128x128 256x256 512x512
 ICONS := $(foreach size,$(ICON_SIZES),$(BIN)/img/icon-$(size).png)
 
-WEB_SOURCES := $(shell find ressources/ -type f)
-WEB_OBJECTS := $(patsubst ressources/%,$(BIN)/%,$(WEB_SOURCES))
+WEB_SOURCES := $(shell find web/ressources/ -type f)
+WEB_OBJECTS := $(patsubst web/ressources/%,$(BIN)/%,$(WEB_SOURCES))
 
-JS_SOURCES := $(filter-out _debug.js pre.js main.js,$(shell ls js/.))
+JS_SOURCES := $(filter-out _debug.js pre.js main.js,$(shell ls web/js/.))
 JS_FILES := $(patsubst %,$(BIN)/js/%,$(JS_SOURCES))
 
 SHADERS := $(shell ls $(CORE_DIR)/Shaders/*.fsh)
 
-EMCCFLAGS := --post-js "js/main.js"
+EMCCFLAGS := --post-js "web/js/main.js"
 ifeq ($(CONF),debug)
-EMCCFLAGS += --pre-js "js/_debug.js"
+EMCCFLAGS += --pre-js "web/js/_debug.js"
 endif
-EMCCFLAGS += --pre-js "js/pre.js"
+EMCCFLAGS += --pre-js "web/js/pre.js"
 EMCCFLAGS += --preload-file $(BOOTROMS_DIR)@/BootROMs
 EMCCFLAGS += --preload-file $(CORE_DIR)/Shaders@/Shaders
 EMCCFLAGS += --preload-file $(CORE_DIR)/SDL/background.bmp@/background.bmp
@@ -178,9 +178,14 @@ all: wasm
 ifneq ($(filter-out clean %.bin, $(MAKECMDGOALS)),)
 -include $(CORE_OBJECTS:.o=.dep)
 ifneq ($(filter $(MAKECMDGOALS),wasm),)
+-include $(SDL_OBJECTS:.o=.dep)
 -include $(WASM_OBJECTS:.o=.dep)
 endif
 endif
+
+$(OBJ)/SDL/%.dep: $(CORE_DIR)/SDL/%
+	-@$(MKDIR) -p $(dir $@)
+	$(CC) $(CFLAGS) -MT $(OBJ)/$^.o -M $^ -c -o $@
 
 $(OBJ)/%.dep: %
 	-@$(MKDIR) -p $(dir $@)
@@ -195,7 +200,11 @@ $(OBJ)/Core/%.c.o: $(CORE_DIR)/Core/%.c
 	-@$(MKDIR) -p $(dir $@)
 	$(CC) $(CFLAGS) -DGB_INTERNAL -c $< -o $@
 
-$(OBJ)/%.c.o: %.c
+$(OBJ)/SDL/%.c.o: $(CORE_DIR)/SDL/%.c
+	-@$(MKDIR) -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJ)/src/%.c.o: src/%.c
 	-@$(MKDIR) -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -203,26 +212,24 @@ $(BIN)/img/icon-%.png: $(CORE_DIR)/FreeDesktop/AppIcon/%.png
 	-@$(MKDIR) -p $(dir $@)
 	cp $< $@
 
-$(BIN)/js/%.js: js/%.js
+$(BIN)/js/%.js: web/js/%.js
 	-@$(MKDIR) -p $(dir $@)
 	cp $< $@
 
-$(BIN)/service_worker.js: index.html $(BIN)/index.js $(JS_FILES) $(BIN)/sameboy.webmanifest $(ICONS) $(WEB_OBJECTS)
+$(BIN)/service_worker.js: $(JS_FILES) $(ICONS) $(WEB_OBJECTS)
 	# This script prepends the version number (plus git info, if available),
 	# the names of the files that should be cached to our service worker “template”
 	# and saves the result in $(BIN)/service_worker.js
 	sh create_service_worker.sh $(BIN) $(VERSION) \
 		$(BIN)/index.html $(BIN)/index.js $(BIN)/index.data $(BIN)/index.wasm \
 		$(BIN)/sameboy.webmanifest \
-		$(JS_FILES) \
-		$(ICONS) \
-		$(filter-out $(wildcard $(BIN)/demos/*),$(WEB_OBJECTS))
+		$(filter-out $(wildcard $(BIN)/demos/*),$^)
 
-$(BIN)/index.html: index.html $(BIN)/index.js $(JS_FILES) $(BIN)/sameboy.webmanifest $(ICONS) $(WEB_OBJECTS)
+$(BIN)/index.html: web/index.html $(BIN)/index.js $(BIN)/sameboy.webmanifest $(JS_FILES) $(ICONS) $(WEB_OBJECTS)
 	-@$(MKDIR) -p $(dir $@)
-	cp index.html $@
+	cp web/index.html $@
 
-$(BIN)/index.js: $(CORE_OBJECTS) $(WASM_OBJECTS) $(SHADERS) $(BOOTROM_OBJECTS) js/_debug.js js/pre.js js/main.js $(BIN)/service_worker.js $(CORE_DIR)/SDL/background.bmp
+$(BIN)/index.js: $(CORE_OBJECTS) $(SDL_OBJECTS) $(WASM_OBJECTS) $(SHADERS) $(BOOTROM_OBJECTS) web/js/_debug.js web/js/pre.js web/js/main.js $(BIN)/service_worker.js $(CORE_DIR)/SDL/background.bmp
 	-@$(MKDIR) -p $(dir $@)
 	$(CC) \
 		$(CFLAGS) \
@@ -231,11 +238,11 @@ $(BIN)/index.js: $(CORE_OBJECTS) $(WASM_OBJECTS) $(SHADERS) $(BOOTROM_OBJECTS) j
 		$(filter %.o, $^) \
 		-o $@
 
-$(BIN)/%: ressources/%
+$(BIN)/%: web/ressources/%
 	-@$(MKDIR) -p $(dir $@)
 	cp -a $< $@
 
-$(BIN)/sameboy.webmanifest: sameboy.webmanifest
+$(BIN)/sameboy.webmanifest: web/sameboy.webmanifest
 	-@$(MKDIR) -p $(dir $@)
 	cp -a $< $@
 
