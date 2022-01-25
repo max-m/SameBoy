@@ -3,7 +3,3 @@ rules:
   - base: wasm
     upstream: LIJI32:master
     mergeMethod: merge
-  - base: master
-    upstream: LIJI32:master
-    mergeMethod: hardreset
-
