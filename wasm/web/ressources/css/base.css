@@ -126,14 +126,19 @@ canvas {
   color: #ffffaa;
 }
 
-.download:hover,
-.download:active {
+.download:hover, .downloadAll:hover,
+.download:active, .downloadAll:active {
   color: #d0ffd0;
 }
 
-.delete:hover,
-.delete:active {
+.delete:hover, .deleteAll:hover,
+.delete:active, .deleteAll:active {
   color: #a03010;
+}
+
+.deleteAll,
+.downloadAll {
+  cursor: pointer;
 }
 
 svg.icon {
@@ -370,7 +375,7 @@ svg.icon {
   margin-top: 2vmin;
 }
 
-#printerDialog .dialogContent {
+#printerDialog .prints {
   --scale: 2.0;
 
   display: grid;
@@ -386,24 +391,40 @@ svg.icon {
   margin-top: calc(var(--margin-top) * var(--scale) * 8px);
   margin-bottom: calc(var(--margin-bottom) * var(--scale) * 8px);
   */
-
   width: calc(160px * var(--scale));
+  border: 1px solid;
+  border-radius: 0 0 8px 8px;
 }
 #printerDialog .wrapper > canvas {
   width: calc(160px * var(--scale));
   height: auto;
 }
-#printerDialog .buttonBar {
+#printerDialog .buttonBar > span {
     display: flex;
     flex-direction: row;
     justify-content: space-evenly;
     align-items: center;
     align-content: center;
-    border-width: 1px;
-    border-style: none solid solid solid;
     padding: 8px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 0 0 8px 8px;
+}
+#printerDialog .buttonBar {
+  user-select: none;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-evenly;
+  gap: 16px;
+}
+#printerDialog .dialogContent > .buttonBar {
+  padding: 1rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid;
+  justify-content: center;
+}
+#printerDialog .wrapper .buttonBar {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 8px;
 }
 
 /* Stylistic similarity to any other system is purely coincidental */

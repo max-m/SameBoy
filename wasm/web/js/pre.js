@@ -19,7 +19,7 @@ if (Module.SAMEBOY_DEBUG) {
 
 function on_escape(fn) {
 	return function (event) {
-		if (event.key === "Escape" || event.key === "Esc" || event.keyCode === 27) {
+		if (event.key === 'Escape' || event.key === 'Esc' || event.keyCode === 27) {
 			event.preventDefault();
 			fn(event)
 		}
@@ -555,6 +555,84 @@ Module.gb_close_printer_dialog = () => {
 	Module._resume();
 }
 Module.gb_close_printer_on_keyup = on_escape(Module.gb_close_printer_on_keyup);
+Module.gb_printer_delete_all = () => {
+	const parent = document.querySelector('#printerDialog .prints');
+
+	if (parent.querySelectorAll('canvas').length == 0) {
+		return;
+	}
+
+	if (window.confirm(`Are you sure you want to delete all prints?`)) {
+		while (parent.firstChild) {
+			parent.firstChild.remove()
+		}
+		delete parent.dataset.game;
+	}
+}
+Module.gb_printer_download_all = async () => {
+	const canvases = [...document.querySelectorAll('#printerDialog .prints canvas')];
+
+	if (canvases.length == 0) {
+		return;
+	}
+	else if (canvases.length == 1) {
+		canvases[0]
+			.parentElement
+			.querySelector('.download')
+			.dispatchEvent(new Event('click'));
+	}
+
+	Module.setStatus('Loading Zip module (0 / 1)');
+	const zip = await import('./js/zip-no-worker-deflate.min.js');
+	zip.configure({
+		useWebWorkers: false
+	});
+
+	const blob_writer = new zip.BlobWriter('application/zip');
+	const writer = new zip.ZipWriter(blob_writer);
+
+	const game_name = document.querySelector('#printerDialog .prints').dataset.game;
+
+	let i = 0;
+	const total = canvases.length;
+	Module.setStatus(`Zipping ... (0/${total})`);
+
+	await Promise.all(canvases.map(async canvas => {
+		const blob = await new Promise((resolve, reject) => {
+			canvas.toBlob(blob => {
+				if (blob == null) {
+					reject();
+				}
+				else {
+					resolve(blob);
+				}
+			}, 'image/png');
+		});
+
+		const date_str = canvas.parentElement.dataset.date_str;
+		const filename = `${date_str}.png`;
+		const reader = new zip.BlobReader(blob);
+
+		return writer.add(filename, reader).then(() => {
+			Module.setStatus(`Zipping ... (${++i}/${total})`);
+		});
+	}));
+
+	await writer.close();
+	Module.setStatus(null);
+
+	const blob = blob_writer.getData();
+	const url = window.URL.createObjectURL(blob);
+	setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+
+	const anchor = document.createElement('a');
+	anchor.href = url;
+	anchor.download = `${game_name}.zip`;
+	anchor.style.display = 'none';
+	document.body.appendChild(anchor);
+	anchor.click();
+	anchor.remove();
+}
 Module.gb_open_printer_dialog = () => {
 	Module._pause();
 
@@ -565,6 +643,12 @@ Module.gb_open_printer_dialog = () => {
 
 	const close = dialog.querySelector('.closeButton');
 	close.addEventListener('click', Module.gb_close_printer_dialog);
+
+	const deleteAll = dialog.querySelector('.deleteAll');
+	deleteAll.addEventListener('click', Module.gb_printer_delete_all);
+
+	const downloadAll = dialog.querySelector('.downloadAll');
+	downloadAll.addEventListener('click', Module.gb_printer_download_all);
 }
 
 Module.setStatus('Downloading ...');

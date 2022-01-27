@@ -116,24 +116,27 @@ static void printer_callback(GB_gameboy_t *gb, uint32_t *image, uint8_t height, 
 
     EM_ASM(({
         const image_ptr = $0;
-
-        const width = 160;
         const height = $1;
-
-        const size = width * height * 4;
-        const buf = new Uint8Array(Module.HEAPU8.buffer, image_ptr, size);
-
         const top_margin = $2;
         const bottom_margin = $3;
         const exposure = $4;
+        const filename_ptr = $5;
+        const filename_length = $6;
+
+        const width = 160;
+        const size = width * height * 4;
+        const buf = new Uint8Array(Module.HEAPU8.buffer, image_ptr, size);
+        const game_filename = UTF8ToString(filename_ptr, filename_length);
+
+        document.querySelector('#printerDialog .prints').dataset.game = game_filename;
 
         // If there’s a margin, we are most likely dealing with a new image
         const new_image = top_margin > 0 || bottom_margin > 0;
-        let canvas = document.querySelector('#printerDialog .dialogContent .wrapper:last-child > canvas');
+        let canvas = document.querySelector('#printerDialog .prints .wrapper:last-child > canvas');
 
         if (!canvas || new_image) {
             const date = new Date();
-            const filename = `${UTF8ToString($5, $6)}-${date.toISOString().replace(':', '-')}.png`;
+            const date_str = date.toISOString().replace(':', '-');
 
             const wrapper = document.createElement('div');
             wrapper.classList.add('wrapper');
@@ -149,6 +152,7 @@ static void printer_callback(GB_gameboy_t *gb, uint32_t *image, uint8_t height, 
 
             wrapper.style.setProperty('--margin-top', top_margin);
             wrapper.style.setProperty('--margin-bottom', bottom_margin);
+            wrapper.dataset.date_str = date_str;
 
             wrapper.appendChild(canvas);
 
@@ -167,7 +171,7 @@ static void printer_callback(GB_gameboy_t *gb, uint32_t *image, uint8_t height, 
                 const url = canvas.toDataURL('image/png');
                 const anchor = document.createElement('a');
                 anchor.href = url;
-                anchor.download = filename;
+                anchor.download = `${game_filename}-${wrapper.dataset.date_str}.png`;
                 anchor.style.display = 'none';
                 document.body.appendChild(anchor);
                 anchor.click();
@@ -176,7 +180,7 @@ static void printer_callback(GB_gameboy_t *gb, uint32_t *image, uint8_t height, 
 
             wrapper.appendChild(buttons);
 
-            document.querySelector('#printerDialog .dialogContent')
+            document.querySelector('#printerDialog .prints')
                 .appendChild(wrapper);
         }
         else {
