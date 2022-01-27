@@ -1,3 +1,4 @@
+#include <SDL2/SDL_events.h>
 #include <ctype.h>
 #include <errno.h>
 #include <stdbool.h>
@@ -27,9 +28,19 @@ const char *PREFS_PATH = "/persist/prefs.bin";
 static bool is_running = false;
 static bool paused = false;
 
+static bool underclock_down = false, turbo_down = false;
+static bool underclock_down_last = false, turbo_down_last = false;
+static bool disable_rendering = false; /* in turbo mode we render every other frame */
+static double clock_mutliplier = 1.0;
+
+#ifndef GB_DISABLE_REWIND
+static bool rewind_down = false, do_rewind = false, rewind_paused = false;
+#endif
+
 static uint32_t pixel_buffer_1[256 * 224], pixel_buffer_2[256 * 224];
 static uint32_t *active_pixel_buffer = pixel_buffer_1;
 static uint32_t *previous_pixel_buffer = pixel_buffer_2;
+
 char *battery_save_path_ptr = NULL;
 
 static SDL_GLContext gl_context = NULL;
@@ -478,9 +489,31 @@ static void handle_events(GB_gameboy_t *gb)
                 GB_set_key_state(gb, (GB_key_t)key, down);
                 continue;
             }
-            else if (key == VIRTUAL_MENU) {
-                event.type = down ? SDL_KEYDOWN : GB_KEY_UP;
-                event.key.keysym.scancode = SDL_SCANCODE_ESCAPE;
+            else {
+                switch (key) {
+                    case VIRTUAL_TURBO:
+                        event.type = down ? SDL_KEYDOWN : SDL_KEYUP;
+                        event.key.keysym.scancode = configuration.keys[8];
+                        break;
+
+                    case VIRTUAL_REWIND:
+                        event.type = down ? SDL_KEYDOWN : SDL_KEYUP;
+                        event.key.keysym.scancode = configuration.keys_2[0];
+                        break;
+
+                    case VIRTUAL_SLOWMOTION:
+                        event.type = down ? SDL_KEYDOWN : SDL_KEYUP;
+                        event.key.keysym.scancode = configuration.keys_2[1];
+                        break;
+
+                    case VIRTUAL_MENU:
+                        event.type = down ? SDL_KEYDOWN : SDL_KEYUP;
+                        event.key.keysym.scancode = SDL_SCANCODE_ESCAPE;
+                        break;
+
+                    default: /* do nothing */
+                        break;
+                }
             }
         }
 
@@ -504,6 +537,21 @@ static void handle_events(GB_gameboy_t *gb)
                 if ((GB_key_t) button < GB_KEY_MAX) {
                     GB_set_key_state(gb, (GB_key_t) button, event.type == SDL_JOYBUTTONDOWN);
                 }
+                else if (button == JOYPAD_BUTTON_TURBO) {
+                    GB_audio_clear_queue();
+                    turbo_down = event.type == SDL_JOYBUTTONDOWN;
+                }
+                else if (button == JOYPAD_BUTTON_SLOW_MOTION) {
+                    underclock_down = event.type == SDL_JOYBUTTONDOWN;
+                }
+#ifndef GB_DISABLE_REWIND
+                else if (button == JOYPAD_BUTTON_REWIND) {
+                    rewind_down = event.type == SDL_JOYBUTTONDOWN;
+                    if (event.type == SDL_JOYBUTTONUP) {
+                        rewind_paused = false;
+                    }
+                }
+#endif
                 break;
             }
 
@@ -632,9 +680,26 @@ static void handle_events(GB_gameboy_t *gb)
                 }
                 // Fall through
             case SDL_KEYUP: {
-                for (unsigned i = 0; i < GB_KEY_MAX; i++) {
-                    if (event.key.keysym.scancode == configuration.keys[i]) {
-                        GB_set_key_state(gb, i, event.type == SDL_KEYDOWN);
+                if (event.key.keysym.scancode == configuration.keys[8]) {
+                    turbo_down = event.type == SDL_KEYDOWN;
+                    GB_audio_clear_queue();
+                }
+#ifndef GB_DISABLE_REWIND
+                else if (event.key.keysym.scancode == configuration.keys_2[0]) {
+                    rewind_down = event.type == SDL_KEYDOWN;
+                    if (event.type == SDL_KEYUP) {
+                        rewind_paused = false;
+                    }
+                }
+#endif
+                else if (event.key.keysym.scancode == configuration.keys_2[1]) {
+                    underclock_down = event.type == SDL_KEYDOWN;
+                }
+                else {
+                    for (unsigned i = 0; i < GB_KEY_MAX; i++) {
+                        if (event.key.keysym.scancode == configuration.keys[i]) {
+                            GB_set_key_state(gb, i, event.type == SDL_KEYDOWN);
+                        }
                     }
                 }
 
@@ -649,28 +714,75 @@ static uint32_t rgb_encode(GB_gameboy_t *gb, uint8_t r, uint8_t g, uint8_t b)
     return SDL_MapRGB(pixel_format, r, g, b);
 }
 
+void start_main_loop(void);
 static void vblank(GB_gameboy_t *gb)
 {
-    if (osd_countdown && configuration.osd) {
-        unsigned width = GB_get_screen_width(gb);
-        unsigned height = GB_get_screen_height(gb);
-        draw_text(active_pixel_buffer,
-                  width, height, 8, height - 8 - osd_text_lines * 12, osd_text,
-                  rgb_encode(gb, 255, 255, 255), rgb_encode(gb, 0, 0, 0),
-                  true);
-        osd_countdown--;
+    if (underclock_down && clock_mutliplier > 0.5) {
+        clock_mutliplier = 0.5;
+        GB_set_clock_multiplier(gb, clock_mutliplier);
+    }
+    else if (turbo_down && clock_mutliplier < 2.0) {
+        clock_mutliplier = 2.0;
+        GB_set_clock_multiplier(gb, clock_mutliplier);
+    }
+    else if (!underclock_down && !turbo_down && clock_mutliplier != 1.0) {
+        clock_mutliplier = 1.0;
+        GB_set_clock_multiplier(gb, clock_mutliplier);
     }
 
-    if (configuration.blending_mode) {
-        render_texture(active_pixel_buffer, previous_pixel_buffer);
-        uint32_t *temp = active_pixel_buffer;
-        active_pixel_buffer = previous_pixel_buffer;
-        previous_pixel_buffer = temp;
-        GB_set_pixels_output(gb, active_pixel_buffer);
+    if (turbo_down) {
+        show_osd_text("Fast forward ...");
+        GB_set_rendering_disabled(gb, disable_rendering);
+        disable_rendering = !disable_rendering;
     }
-    else {
-        render_texture(active_pixel_buffer, NULL);
+    else if (underclock_down) {
+        show_osd_text("Slow motion ...");
     }
+#ifndef GB_DISABLE_REWIND
+    else if (rewind_down) {
+        show_osd_text("Rewinding ...");
+    }
+#endif
+
+    if (underclock_down != underclock_down_last) {
+        underclock_down_last = underclock_down;
+        start_main_loop();
+    }
+    else if (turbo_down != turbo_down_last) {
+        turbo_down_last = turbo_down;
+
+        disable_rendering = false;
+        GB_set_rendering_disabled(gb, disable_rendering);
+
+        start_main_loop();
+    }
+
+    if (!disable_rendering) {
+        if (osd_countdown && configuration.osd) {
+            unsigned width = GB_get_screen_width(gb);
+            unsigned height = GB_get_screen_height(gb);
+            draw_text(active_pixel_buffer,
+                      width, height, 8, height - 8 - osd_text_lines * 12, osd_text,
+                      rgb_encode(gb, 255, 255, 255), rgb_encode(gb, 0, 0, 0),
+                      true);
+            osd_countdown--;
+        }
+
+        if (configuration.blending_mode) {
+            render_texture(active_pixel_buffer, previous_pixel_buffer);
+            uint32_t *temp = active_pixel_buffer;
+            active_pixel_buffer = previous_pixel_buffer;
+            previous_pixel_buffer = temp;
+            GB_set_pixels_output(gb, active_pixel_buffer);
+        }
+        else {
+            render_texture(active_pixel_buffer, NULL);
+        }
+    }
+
+#ifndef GB_DISABLE_REWIND
+    do_rewind = rewind_down;
+#endif
 
     handle_events(gb);
 }
@@ -896,10 +1008,26 @@ void EMSCRIPTEN_KEEPALIVE run_frame(void)
         return;
     }
 
+#ifndef GB_DISABLE_REWIND
+    if (paused || rewind_paused) {
+#else
     if (paused) {
+#endif
         handle_events(&gb);
     }
     else {
+#ifndef GB_DISABLE_REWIND
+        if (do_rewind) {
+                GB_rewind_pop(&gb);
+                if (turbo_down) {
+                    GB_rewind_pop(&gb);
+                }
+                if (!GB_rewind_pop(&gb)) {
+                    rewind_paused = true;
+                }
+                do_rewind = false;
+            }
+#endif
         GB_run_frame(&gb);
     }
 
@@ -914,6 +1042,14 @@ void EMSCRIPTEN_KEEPALIVE run_frame(void)
 void start_main_loop(void)
 {
     emscripten_cancel_main_loop();
+
+    if (turbo_down || underclock_down) {
+        double frame_rate = ceil(GB_get_usual_frame_rate(&gb));
+        printf("New frame rate: %lf\n", frame_rate);
+
+        emscripten_set_main_loop(run_frame, frame_rate, false);
+        return;
+    }
 
     if (configuration.use_browser_timing) {
         printf("Running at your browser’s native refresh rate.\n");

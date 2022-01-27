@@ -1168,7 +1168,9 @@ static const struct menu_item controls_menu[] = {
     {"Select:", modify_key, key_name,},
     {"Start:", modify_key, key_name,},
     {"Turbo:", modify_key, key_name,},
+#ifndef GB_DISABLE_REWIND
     {"Rewind:", modify_key, key_name,},
+#endif
     {"Slow-Motion:", modify_key, key_name,},
 #ifdef __EMSCRIPTEN__
     {"Back", enter_options_menu},
@@ -1976,7 +1978,9 @@ bool run_gui_iteration(bool is_running) {
                                        "Start",
                                        "Open Menu",
                                        "Turbo",
+#ifndef GB_DISABLE_REWIND
                                        "Rewind",
+#endif
                                        "Slow-Motion",
                                        "",
                                    } [joypad_configuration_progress],
