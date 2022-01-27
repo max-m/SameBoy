@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -7,6 +8,7 @@
 
 #include <emscripten.h>
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_scancode.h>
 #include <SDL2/SDL_video.h>
 
 #include <Core/gb.h>
@@ -15,6 +17,7 @@
 
 #include "camera.h"
 #include "shader.h"
+#include "wasm_serial.h"
 #include "wasm_utils.h"
 
 GB_gameboy_t gb;
@@ -27,7 +30,7 @@ static bool paused = false;
 static uint32_t pixel_buffer_1[256 * 224], pixel_buffer_2[256 * 224];
 static uint32_t *active_pixel_buffer = pixel_buffer_1;
 static uint32_t *previous_pixel_buffer = pixel_buffer_2;
-static char *battery_save_path_ptr = NULL;
+char *battery_save_path_ptr = NULL;
 
 static SDL_GLContext gl_context = NULL;
 
@@ -37,6 +40,8 @@ static size_t previous_width = 0;
 
 extern SDL_Joystick *joystick;
 extern unsigned joypad_index;
+
+serial_device_t connected_device = SERIAL_DEVICE_NONE;
 
 bool uses_gl(void)
 {
@@ -352,6 +357,114 @@ static bool handle_pending_command(void)
     return false;
 }
 
+unsigned workboy_key_from_char(char c)
+{
+    switch (tolower(c)) {
+        case '`': return GB_WORKBOY_UMLAUT;
+        case '0': return GB_WORKBOY_0;
+        case '1': return GB_WORKBOY_1;
+        case '2': return GB_WORKBOY_2;
+        case '3': return GB_WORKBOY_3;
+        case '4': return GB_WORKBOY_4;
+        case '5': return GB_WORKBOY_5;
+        case '6': return GB_WORKBOY_6;
+        case '7': return GB_WORKBOY_7;
+        case '8': return GB_WORKBOY_8;
+        case '9': return GB_WORKBOY_9;
+
+        case '!': return GB_WORKBOY_EXCLAMATION_MARK;
+        case '$': return GB_WORKBOY_DOLLAR;
+        case '#': return GB_WORKBOY_HASH;
+        case '~': return GB_WORKBOY_TILDE;
+        case '*': return GB_WORKBOY_ASTERISK;
+        case '+': return GB_WORKBOY_PLUS;
+        case '-': return GB_WORKBOY_MINUS;
+        case '(': return GB_WORKBOY_LEFT_PARENTHESIS;
+        case ')': return GB_WORKBOY_RIGHT_PARENTHESIS;
+        case ';': return GB_WORKBOY_SEMICOLON;
+        case ':': return GB_WORKBOY_COLON;
+        case '%': return GB_WORKBOY_PERCENT;
+        case '=': return GB_WORKBOY_EQUAL;
+        case ',': return GB_WORKBOY_COMMA;
+        case '<': return GB_WORKBOY_LT;
+        case '.': return GB_WORKBOY_DOT;
+        case '>': return GB_WORKBOY_GT;
+        case '/': return GB_WORKBOY_SLASH;
+        case '?': return GB_WORKBOY_QUESTION_MARK;
+        case ' ': return GB_WORKBOY_SPACE;
+        case '\'': return GB_WORKBOY_QUOTE;
+        case '@': return GB_WORKBOY_AT;
+
+        case 'q': return GB_WORKBOY_Q;
+        case 'w': return GB_WORKBOY_W;
+        case 'e': return GB_WORKBOY_E;
+        case 'r': return GB_WORKBOY_R;
+        case 't': return GB_WORKBOY_T;
+        case 'y': return GB_WORKBOY_Y;
+        case 'u': return GB_WORKBOY_U;
+        case 'i': return GB_WORKBOY_I;
+        case 'o': return GB_WORKBOY_O;
+        case 'p': return GB_WORKBOY_P;
+        case 'a': return GB_WORKBOY_A;
+        case 's': return GB_WORKBOY_S;
+        case 'd': return GB_WORKBOY_D;
+        case 'f': return GB_WORKBOY_F;
+        case 'g': return GB_WORKBOY_G;
+        case 'h': return GB_WORKBOY_H;
+        case 'j': return GB_WORKBOY_J;
+        case 'k': return GB_WORKBOY_K;
+        case 'l': return GB_WORKBOY_L;
+        case 'z': return GB_WORKBOY_Z;
+        case 'x': return GB_WORKBOY_X;
+        case 'c': return GB_WORKBOY_C;
+        case 'v': return GB_WORKBOY_V;
+        case 'b': return GB_WORKBOY_B;
+        case 'n': return GB_WORKBOY_N;
+        case 'm': return GB_WORKBOY_M;
+
+        default: return GB_WORKBOY_NONE;
+    }
+}
+
+unsigned workboy_key_from_scancode(unsigned scancode)
+{
+    switch (scancode) {
+        case SDL_SCANCODE_F1: return GB_WORKBOY_CLOCK;
+        case SDL_SCANCODE_F2: return GB_WORKBOY_TEMPERATURE;
+        case SDL_SCANCODE_F3: return GB_WORKBOY_MONEY;
+        case SDL_SCANCODE_F4: return GB_WORKBOY_CALCULATOR;
+        case SDL_SCANCODE_F5: return GB_WORKBOY_DATE;
+        case SDL_SCANCODE_F6: return GB_WORKBOY_CONVERSION;
+        case SDL_SCANCODE_F7: return GB_WORKBOY_RECORD;
+        case SDL_SCANCODE_F8: return GB_WORKBOY_WORLD;
+        case SDL_SCANCODE_F9: return GB_WORKBOY_PHONE;
+        case SDL_SCANCODE_F10: return GB_WORKBOY_UNKNOWN;
+        case SDL_SCANCODE_DELETE: return GB_WORKBOY_BACKSPACE;
+        case SDL_SCANCODE_LSHIFT: return GB_WORKBOY_SHIFT_DOWN;
+        case SDL_SCANCODE_RSHIFT: return GB_WORKBOY_SHIFT_DOWN;
+        case SDL_SCANCODE_UP: return GB_WORKBOY_UP;
+        case SDL_SCANCODE_DOWN: return GB_WORKBOY_DOWN;
+        case SDL_SCANCODE_LEFT: return GB_WORKBOY_LEFT;
+        case SDL_SCANCODE_RIGHT: return GB_WORKBOY_RIGHT;
+        case SDL_SCANCODE_ESCAPE: return GB_WORKBOY_ESCAPE;
+        case SDL_SCANCODE_KP_DECIMAL: return GB_WORKBOY_DECIMAL_POINT;
+        case SDL_SCANCODE_KP_CLEAR: return GB_WORKBOY_M;
+        case SDL_SCANCODE_KP_MULTIPLY: return GB_WORKBOY_H;
+        case SDL_SCANCODE_KP_DIVIDE: return GB_WORKBOY_J;
+
+        case SDL_SCANCODE_RETURN:
+        case SDL_SCANCODE_RETURN2:
+            return GB_WORKBOY_ENTER;
+
+        case SDL_SCANCODE_KP_ENTER: return GB_WORKBOY_EQUAL;
+
+        case SDL_SCANCODE_GRAVE:
+            return GB_WORKBOY_UMLAUT;
+
+        default: return GB_WORKBOY_NONE;
+    }
+}
+
 static void handle_events(GB_gameboy_t *gb)
 {
     SDL_Event event;
@@ -448,7 +561,31 @@ static void handle_events(GB_gameboy_t *gb)
                 break;
             }
 
+            case SDL_TEXTINPUT:
+                if (GB_workboy_is_enabled(gb)) {
+                    char c = event.text.text[0];
+                    if (!isascii(c)) continue;
+
+                    unsigned workboy_key = workboy_key_from_char(c);
+
+                    if (workboy_key != GB_WORKBOY_NONE) {
+                        GB_workboy_set_key(gb, workboy_key);
+                    }
+                }
+                break;
+
             case SDL_KEYDOWN:
+                if (GB_workboy_is_enabled(gb)) {
+                    unsigned workboy_key = workboy_key_from_scancode(event.key.keysym.scancode);
+
+                    if (workboy_key != GB_WORKBOY_NONE) {
+                        GB_workboy_set_key(gb, workboy_key);
+                        // The scancodes have higher priority (multiply vs. asterisk for example)
+                        SDL_FlushEvent(SDL_TEXTINPUT);
+                        continue;
+                    }
+                }
+
                 switch (event_hotkey_code(&event)) {
                     case SDL_SCANCODE_ESCAPE: {
                         open_menu();
@@ -659,6 +796,9 @@ static void init_gb(void)
             battery_save_path_ptr = NULL;
         }
     }
+
+    connected_device = SERIAL_DEVICE_NONE;
+    SDL_StopTextInput();
 
     camera_free();
     update_palette();

@@ -472,17 +472,10 @@ void recalculate_menu_height(void)
 
 #ifdef __EMSCRIPTEN__
 extern void enter_examples_menu(unsigned index);
-extern void save_configuration(void);
-
-EM_JS(void, synchronize_save_files, (unsigned index), {
-    Module._save_configuration();
-    Module._save_battery();
-    Module.gb_syncfs();
-});
-
-EM_JS(void, open_save_manager, (unsigned index), {
-    Module.gb_open_save_manager();
-});
+extern void enter_serial_device_menu(unsigned index);
+extern void item_about(unsigned index) EM_IMPORT(item_about);
+extern void open_save_manager(unsigned index) EM_IMPORT(open_save_manager);
+extern void synchronize_save_files(unsigned index) EM_IMPORT(synchronize_save_files);
 
 static const struct menu_item options_menu[] = {
     {"Emulation Options", enter_emulation_menu},
@@ -502,10 +495,6 @@ static void enter_options_menu(unsigned index)
     recalculate_menu_height();
 }
 
-EM_JS(void, item_about, (unsigned index), {
-    Module.open_about_dialog();
-});
-
 static const struct menu_item paused_menu[] = {
     {"Resume", NULL},
     {"Open ROM", open_rom},
@@ -513,6 +502,7 @@ static const struct menu_item paused_menu[] = {
     {"Synchronize Saves", synchronize_save_files},
     {"Open Save Manager", open_save_manager},
     {"Options", enter_options_menu},
+    {"External Devices", enter_serial_device_menu},
     {"Help", item_help},
     {"About", item_about},
     {NULL,}

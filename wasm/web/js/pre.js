@@ -9,13 +9,21 @@ if ('serviceWorker' in navigator) {
 		.catch(err => console.error('Failed to register ServiceWorker:', err));
 };
 
-
 const statusElement = document.getElementById('status');
 const progressElement = document.getElementById('progress');
 const spinnerElement = document.getElementById('spinner');
 
 if (Module.SAMEBOY_DEBUG) {
 	window.SameBoy = Module;
+}
+
+function on_escape(fn) {
+	return function (event) {
+		if (event.key === "Escape" || event.key === "Esc" || event.keyCode === 27) {
+			event.preventDefault();
+			fn(event)
+		}
+	}
 }
 
 Module.logReadFiles = true;
@@ -274,33 +282,41 @@ Module.gb_list_save_files = () => {
 		.filter(entry => entry.endsWith('.sav'))
 }
 
+Module.gb_close_save_manager = () => {
+	document.removeEventListener('keyup', Module.gb_close_save_manager_on_keyup);
+
+	const manager = document.getElementById('saveManager');
+	manager.style.display = 'none';
+
+	const elem = manager.querySelector('.dialogContent');
+	elem.innerHTML = '';
+
+	Module._resume();
+}
+Module.gb_close_save_manager_on_keyup = on_escape(Module.gb_close_save_manager);
 Module.gb_open_save_manager = () => {
 	Module._pause();
 
-	const elem = document.getElementById('saveManager');
-	elem.style.display = '';
+	document.addEventListener('keyup', Module.gb_close_save_manager_on_keyup);
+
+	const manager = document.getElementById('saveManager');
+	manager.style.display = '';
+
+	const close = manager.querySelector('.closeButton');
+	close.addEventListener('click', Module.gb_close_save_manager);
+
+	const elem = manager.querySelector('.dialogContent');
 	elem.innerHTML = '';
 
 	const table = document.createElement('table');
 	const tbody = document.createElement('tbody');
 	table.appendChild(tbody);
 
-	const tr = document.createElement('tr');
-	const td = document.createElement('td');
-	td.setAttribute('colspan', '3');
-	const span = document.createElement('span');
-	span.innerText = 'CLOSE';
-	span.classList.add('closeButton');
-	span.addEventListener('click', Module.gb_close_save_manager);
-	td.appendChild(span);
-	tr.appendChild(td);
-	tbody.appendChild(tr);
-
 	for (let save of Module.gb_list_save_files()) {
 		const tr = document.createElement('tr');
 
 		const td1 = document.createElement('td');
-		td1.innerHTML = '<svg class="download"><use href="img/download.svg#i"></use></svg>'
+		td1.innerHTML = '<svg class="icon download"><use href="img/download.svg#i"></use></svg>'
 		td1.firstChild.addEventListener('click', () => {
 			const data = FS.readFile(`/persist/${save}`, { encoding: 'binary' });
 
@@ -323,7 +339,7 @@ Module.gb_open_save_manager = () => {
 		tr.append(td1);
 
 		const td2 = document.createElement('td');
-		td2.innerHTML = '<svg class="delete"><use href="img/delete.svg#i"></use></svg>'
+		td2.innerHTML = '<svg class="icon delete"><use href="img/delete.svg#i"></use></svg>'
 		td2.firstChild.addEventListener('click', async () => {
 			if (window.confirm(`Are you sure you want to delete “${save}”?`)) {
 				FS.unlink(`/persist/${save}`);
@@ -345,14 +361,6 @@ Module.gb_open_save_manager = () => {
 	}
 
 	elem.appendChild(table);
-}
-
-Module.gb_close_save_manager = () => {
-	const elem = document.getElementById('saveManager');
-	elem.style.display = 'none';
-	elem.innerHTML = '';
-
-	Module._resume();
 }
 
 Module.gb_set_system_color = (r, g, b) => {
@@ -491,10 +499,11 @@ Module.gb_rumble = (index, amp, duration) => {
 	// Try to use the Vibration API as fallback.
 	// Calls to this function get silently ignored in “Do not disturb“ mode for example.
 	if (navigator.vibrate) {
-		if (amp == 1.0) return navigator.vibrate(duration);
-		if (amp == 0.0) return navigator.vibrate(0);
+		if (amp >= 1.0) return navigator.vibrate(duration);
+		if (amp <= 0.0) return navigator.vibrate(0);
 
-		const steps = 10;
+		// Create a PWM pattern (amp% of duration = on at 100%)
+		const steps = 10; // number of on / off steps in the PWM patern
 		const on  = (duration / (steps / 2)) * amp;
 		const off = (duration / (steps / 2)) * (1.0 - amp);
 
@@ -518,22 +527,44 @@ Module.gb_rumble = (index, amp, duration) => {
 	}
 }
 
-Module.close_about_on_keyup = event => {
-	if (event.key === "Escape" || event.key === "Esc" || event.keyCode === 27) {
-		event.preventDefault();
-		Module.close_about_dialog();
-	}
-}
-Module.close_about_dialog = () => {
-	document.removeEventListener('keyup', Module.close_about_on_keydown);
+Module.gb_close_about_dialog = () => {
+	document.removeEventListener('keyup', Module.gb_close_about_on_keyup);
 	document.getElementById('about').style.display = 'none';
+
 	Module._resume();
 }
-Module.open_about_dialog = () => {
+Module.gb_close_about_on_keyup = on_escape(Module.gb_close_about_dialog);
+Module.gb_open_about_dialog = () => {
 	Module._pause();
 
-	document.getElementById('about').style.display = '';
-	document.addEventListener('keyup', Module.close_about_on_keyup);
+	document.addEventListener('keyup', Module.gb_close_about_on_keyup);
+
+	const about = document.getElementById('about');
+	about.style.display = '';
+
+	const close = about.querySelector('.closeButton');
+	close.addEventListener('click', Module.gb_close_about_dialog);
+}
+
+Module.gb_close_printer_dialog = () => {
+	document.removeEventListener('keyup', Module.gb_close_printer_on_keyup);
+
+	const dialog = document.getElementById('printerDialog');
+	dialog.style.display = 'none';
+
+	Module._resume();
+}
+Module.gb_close_printer_on_keyup = on_escape(Module.gb_close_printer_on_keyup);
+Module.gb_open_printer_dialog = () => {
+	Module._pause();
+
+	document.addEventListener('keyup', Module.gb_close_printer_on_keyup);
+
+	const dialog = document.getElementById('printerDialog');
+	dialog.style.display = '';
+
+	const close = dialog.querySelector('.closeButton');
+	close.addEventListener('click', Module.gb_close_printer_dialog);
 }
 
 Module.setStatus('Downloading ...');

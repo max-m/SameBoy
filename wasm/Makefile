@@ -137,7 +137,8 @@ CORE_SOURCES := \
 	$(CORE_DIR)/Core/save_state.c \
 	$(CORE_DIR)/Core/random.c \
 	$(CORE_DIR)/Core/rumble.c \
-	#$(CORE_DIR)/Core/printer.c
+	$(CORE_DIR)/Core/printer.c \
+	$(CORE_DIR)/Core/workboy.c
 CORE_OBJECTS := $(patsubst $(CORE_DIR)/%,$(OBJ)/%.o,$(CORE_SOURCES))
 
 SDL_SOURCES := \

@@ -254,8 +254,6 @@ function setup_controls() {
 	}
 }
 
-document.querySelector('#about .close').addEventListener('click', Module.close_about_dialog);
-
 window.addEventListener('dragover', handle_drag_over, false);
 window.addEventListener('drop', handle_file_select, false);
 
