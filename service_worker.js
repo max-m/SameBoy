@@ -1,4 +1,4 @@
-const VERSION = "0.14.7_cc0e59d";
+const VERSION = "0.14.7_61aaa0e";
 const FILES = [
 	"index.html",
 	"index.js",
@@ -8,6 +8,7 @@ const FILES = [
 	"js/camera.js",
 	"js/motion-sensors.js",
 	"js/sensor.js",
+	"js/zip-no-worker-deflate.min.js",
 	"img/icon-16x16.png",
 	"img/icon-32x32.png",
 	"img/icon-64x64.png",

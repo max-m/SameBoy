@@ -94,7 +94,7 @@ canvas {
   }
 }
 
-#saveManager {
+.dialog {
   position: absolute;
   z-index: 1000;
   top: 0;
@@ -113,27 +113,35 @@ canvas {
   margin: auto;
 }
 
-#saveManager .closeButton {
+.dialog .closeButton {
   font-size: 2rem;
-  margin: 1rem;
+  padding: 1rem;
+  margin-bottom: 0.5rem;
   cursor: pointer;
-  display: inline-block;
+  display: block;
+  text-align: center;
+  border-bottom: 1px solid;
 }
-#saveManager .closeButton:hover {
+.dialog .closeButton:hover {
   color: #ffffaa;
 }
 
-#saveManager .download:hover,
-#saveManager .download:active {
+.download:hover, .downloadAll:hover,
+.download:active, .downloadAll:active {
   color: #d0ffd0;
 }
 
-#saveManager .delete:hover,
-#saveManager .delete:active {
+.delete:hover, .deleteAll:hover,
+.delete:active, .deleteAll:active {
   color: #a03010;
 }
 
-#saveManager svg {
+.deleteAll,
+.downloadAll {
+  cursor: pointer;
+}
+
+svg.icon {
   width: 2.5rem;
   height: 2.5rem;
   margin-right: 0.5rem;
@@ -367,6 +375,58 @@ canvas {
   margin-top: 2vmin;
 }
 
+#printerDialog .prints {
+  --scale: 2.0;
+
+  display: grid;
+  grid-gap: 16px;
+  grid-template-columns: repeat(auto-fill, calc(160px * var(--scale)));
+  justify-content: space-evenly;
+}
+#printerDialog .wrapper {
+  --margin-top: 0;
+  --margin-bottom: 0;
+
+  /*
+  margin-top: calc(var(--margin-top) * var(--scale) * 8px);
+  margin-bottom: calc(var(--margin-bottom) * var(--scale) * 8px);
+  */
+  width: calc(160px * var(--scale));
+  border: 1px solid;
+  border-radius: 0 0 8px 8px;
+}
+#printerDialog .wrapper > canvas {
+  width: calc(160px * var(--scale));
+  height: auto;
+}
+#printerDialog .buttonBar > span {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-evenly;
+    align-items: center;
+    align-content: center;
+    padding: 8px;
+}
+#printerDialog .buttonBar {
+  user-select: none;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-evenly;
+  gap: 16px;
+}
+#printerDialog .dialogContent > .buttonBar {
+  padding: 1rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid;
+  justify-content: center;
+}
+#printerDialog .wrapper .buttonBar {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 8px;
+}
+
 /* Stylistic similarity to any other system is purely coincidental */
 #about {
   font-family: Helvetica, sans-serif;
@@ -406,7 +466,7 @@ canvas {
   grid-auto-flow: column;
   background: rgb(243, 241, 243);
 }
-#about .close {
+#about .closeButton {
   width: 30px;
   height: 30px;
 
@@ -415,7 +475,7 @@ canvas {
   left: 5px;
   top:  4px;
 }
-#about .close .inner {
+#about .closeButton .inner {
   display: block;
   background-color: #f66057;
   border: 1px solid #e04039;
@@ -426,11 +486,11 @@ canvas {
   left: 8px;
   top: 9px;
 }
-#about .close:hover .inner {
+#about .closeButton:hover .inner {
   background-color: #ed6a5e;
   border-color: #d05042;
 }
-#about .close:hover .inner::after {
+#about .closeButton:hover .inner::after {
   content: "⨯";
   color: #69180f;
   position: absolute;
