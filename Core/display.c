@@ -163,7 +163,7 @@ void GB_display_vblank(GB_gameboy_t *gb)
         GB_borrow_sgb_border(gb);
         uint32_t border_colors[16 * 4];
         
-        if (!gb->has_sgb_border && GB_is_cgb(gb) && gb->model != GB_MODEL_AGB) {
+        if (!gb->has_sgb_border && GB_is_cgb(gb) && gb->model <= GB_MODEL_CGB_E) {
             uint16_t colors[] = {
                 0x2095, 0x5129, 0x1EAF, 0x1EBA, 0x4648,
                 0x30DA, 0x69AD, 0x2B57, 0x2B5D, 0x632C,
@@ -295,7 +295,7 @@ uint32_t GB_convert_rgb15(GB_gameboy_t *gb, uint16_t color, bool for_border)
         b = scale_channel_with_curve_sgb(b);
     }
     else {
-        bool agb = gb->model == GB_MODEL_AGB;
+        bool agb = gb->model > GB_MODEL_CGB_E;
         r = agb? scale_channel_with_curve_agb(r) : scale_channel_with_curve(r);
         g = agb? scale_channel_with_curve_agb(g) : scale_channel_with_curve(g);
         b = agb? scale_channel_with_curve_agb(b) : scale_channel_with_curve(b);
@@ -455,16 +455,14 @@ void GB_lcd_off(GB_gameboy_t *gb)
     gb->display_cycles = 0;
     /* When the LCD is disabled, state is constant */
     
+    if (gb->hdma_on_hblank && (gb->io_registers[GB_IO_STAT] & 3)) {
+        gb->hdma_on = true;
+    }
+    
     /* When the LCD is off, LY is 0 and STAT mode is 0.  */
     gb->io_registers[GB_IO_LY] = 0;
     gb->io_registers[GB_IO_STAT] &= ~3;
-    if (gb->hdma_on_hblank) {
-        gb->hdma_on_hblank = false;
-        gb->hdma_on = false;
-        
-        /* Todo: is this correct? */
-        gb->hdma_steps_left = 0xff;
-    }
+    
     
     gb->oam_read_blocked = false;
     gb->vram_read_blocked = false;
@@ -714,7 +712,12 @@ static inline uint8_t vram_read(GB_gameboy_t *gb, uint16_t addr)
     if (unlikely(gb->vram_ppu_blocked)) {
         return 0xFF;
     }
-    if (unlikely(gb->dma_current_dest <= 0xa0 && gb->dma_current_dest > 0 && (gb->dma_current_src & 0xE000) == 0x8000)) { // TODO: what happens in the last and first M cycles?
+    if (unlikely(gb->hdma_in_progress)) {
+        gb->addr_for_hdma_conflict = addr;
+        return 0;
+    }
+    // TODO: what if both?
+    else if (unlikely(gb->dma_current_dest <= 0xa0 && gb->dma_current_dest > 0 && (gb->dma_current_src & 0xE000) == 0x8000)) { // TODO: what happens in the last and first M cycles?
         // DMAing from VRAM!
         /* TODO: AGS has its own, very different pattern, but AGS is not currently a supported model */
         /* TODO: Research this when researching odd modes */
@@ -1343,7 +1346,6 @@ void GB_display_run(GB_gameboy_t *gb, unsigned cycles, bool force)
         GB_STATE(gb, display, 22);
         GB_STATE(gb, display, 23);
         GB_STATE(gb, display, 24);
-        GB_STATE(gb, display, 25);
         GB_STATE(gb, display, 26);
         GB_STATE(gb, display, 27);
         GB_STATE(gb, display, 28);
@@ -1789,16 +1791,14 @@ skip_slow_mode_3:
             GB_SLEEP(gb, display, 33, 2);
             gb->cgb_palettes_blocked = !gb->cgb_double_speed;
             
+            if (gb->hdma_on_hblank) {
+                gb->hdma_on = true;
+            }
+            
             gb->cycles_for_line += 2;
             GB_SLEEP(gb, display, 36, 2);
             gb->cgb_palettes_blocked = false;
             
-            gb->cycles_for_line += 8;
-            GB_SLEEP(gb, display, 25, 8);
-            
-            if (gb->hdma_on_hblank) {
-                gb->hdma_on = true;
-            }
             GB_SLEEP(gb, display, 11, LINE_LENGTH - gb->cycles_for_line - 2);
             /*
              TODO: Verify double speed timing
