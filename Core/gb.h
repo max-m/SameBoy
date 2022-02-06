@@ -229,7 +229,7 @@ enum {
 
     /* Missing */
 
-    /* CGB Paletts */
+    /* CGB Palettes */
     GB_IO_BGPI       = 0x68, // CGB Mode Only - Background Palette Index
     GB_IO_BGPD       = 0x69, // CGB Mode Only - Background Palette Data
     GB_IO_OBPI       = 0x6a, // CGB Mode Only - Object Palette Index
@@ -597,7 +597,12 @@ struct GB_gameboy_internal_s {
         uint8_t objects_x[10];
         uint8_t objects_y[10];
         uint8_t object_tile_data[2];
-        uint8_t object_flags;
+        uint8_t mode2_y_bus;
+        // They're the same bus
+        union {
+            uint8_t mode2_x_bus;
+            uint8_t object_flags;
+        };
         uint8_t n_visible_objs;
         uint8_t oam_search_index;
         uint8_t accessed_oam_row;
