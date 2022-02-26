@@ -1,4 +1,4 @@
-const VERSION = "0.14.7_56f62b6";
+const VERSION = "0.14.7_d02b195";
 const FILES = [
 	"index.html",
 	"index.js",
