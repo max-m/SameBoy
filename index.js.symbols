@@ -399,8 +399,8 @@
 398:SDL_FreeSurface
 399:SDL_GL_GetProcAddress
 400:_printf
-401:SDL_snprintf
-402:free
+401:free
+402:SDL_snprintf
 403:SDL_PushEvent
 404:strcasecmp
 405:memcmp
@@ -416,9 +416,9 @@
 415:GB_update_joyp
 416:close_audio_device
 417:sin
-418:GB_STAT_update
-419:out
-420:memmove
+418:memmove
+419:GB_STAT_update
+420:out
 421:__multi3
 422:pad
 423:__ashlti3
@@ -757,9 +757,9 @@
 756:stackAlloc
 757:sn_write
 758:set_accelerometer_values
-759:serial_start.90
+759:serial_start.92
 760:serial_start
-761:serial_end.91
+761:serial_end.93
 762:serial_end
 763:scf
 764:sbc_a_r
