@@ -757,9 +757,9 @@
 756:stackAlloc
 757:sn_write
 758:set_accelerometer_values
-759:serial_start.92
+759:serial_start.93
 760:serial_start
-761:serial_end.93
+761:serial_end.94
 762:serial_end
 763:scf
 764:sbc_a_r
