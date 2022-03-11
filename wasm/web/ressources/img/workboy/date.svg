@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="i" fill="currentColor" viewBox="0 0 16 16">
+  <rect width="16" height="1" y="3" rx="0"/>
+  <rect width="16" height="1" y="5" rx="0"/>
+  <rect width="1" height="10" x="15" y="3" rx="0"/>
+  <rect width="1" height="7" y="3" rx="0"/>
+  <rect width="13" height="1" x="3" y="12" rx="0"/>
+  <path d="M0 10c0 1 1 1 1 1h1v1c0 1 1 1 1 1v-3Z"/>
+  <circle cx="2.5" cy="8.5" r=".5"/>
+  <circle cx="4.5" cy="8.5" r=".5"/>
+  <circle cx="6.5" cy="8.5" r=".5"/>
+  <circle cx="8.5" cy="8.5" r=".5"/>
+  <circle cx="10.5" cy="8.5" r=".5"/>
+  <circle cx="12.5" cy="8.5" r=".5"/>
+  <circle cx="14.5" cy="8.5" r=".5"/>
+  <circle cx="13.5" cy="6.5" r=".5"/>
+  <circle cx="11.5" cy="6.5" r=".5"/>
+  <circle cx="9.5" cy="6.5" r=".5"/>
+  <circle cx="7.5" cy="6.5" r=".5"/>
+  <circle cx="5.5" cy="6.5" r=".5"/>
+  <circle cx="3.5" cy="6.5" r=".5"/>
+</svg>

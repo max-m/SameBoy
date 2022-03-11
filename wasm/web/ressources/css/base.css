@@ -574,6 +574,102 @@ svg.icon {
   flex: 1 0 24ch;
 }
 
+.workboy {
+  font-size: 16px;
+
+  --keys-per-row: 12.5;
+  --key-width: calc(100vw / var(--keys-per-row));
+
+  display: none;
+}
+
+.show-workboy {
+  display: block;
+}
+
+.workboy .hg-rows .hg-row,
+.workboy .hg-row .hg-button-container {
+    column-gap: 5px;
+}
+
+.workboy .hg-rows .hg-row {
+    justify-content: end;
+    font-size: min(3vw, 16px);
+}
+
+.workboy .hg-button-M\+,
+.workboy .hg-button-M-,
+.workboy .hg-button-MR,
+.workboy .hg-button-MC,
+.workboy .hg-button-RET,
+.workboy .hg-button-NUM {
+    font-size: min(1.75vw, 16px);
+}
+
+.workboy .hg-button-ESC,
+.workboy .hg-button-DEL,
+.workboy .hg-button-INS {
+  font-size: min(1.25vw, 16px);
+}
+
+.workboy .hg-rows .hg-row:nth-child(2) {
+  margin-right: calc(var(--keys-per-row) / 2 * 1vw);
+  padding-left: calc(var(--keys-per-row) / 4 * 1vw);
+}
+
+.workboy .hg-rows .hg-row:nth-child(3) {
+  margin-right: calc(var(--keys-per-row) / 4 * 1vw);
+  padding-left: calc(var(--keys-per-row) / 2 * 1vw);
+}
+
+.workboy .hg-button {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  flex: 0 1 var(--key-width) !important;
+  padding: max(2px, min(1.25vw, 5px)) !important;
+}
+.workboy .svgButton {
+  position: relative;
+}
+.workboy .svgButton > span {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.workboy .svgButton svg.icon {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: default;
+}
+
+.workboy .hg-button-container {
+  flex: 0 0 calc(var(--key-width) * 3);
+}
+
+.workboy .hg-button.hg-button-space {
+  flex: 1 0 auto !important;
+}
+
+.workboy .hg-button.hg-button-num,
+.workboy .hg-button.hg-button-ret {
+  flex: 0 1 calc(var(--key-width) * 1.5) !important;
+}
+
+.workboy .hg-button.hg-button-caps {
+  flex: 0 1 calc(var(--key-width) * 2) !important;
+}
+
+.workboy .hg-button.specialButton {
+  background-color: rgb(198, 198, 198);
+}
+
+.workboy.hg-layout-num .hg-button.hg-button-num,
+.workboy.hg-layout-caps .hg-button.hg-button-caps {
+  background-color: rgb(147, 147, 147);
+  color: #fff;
+}
+
 @media (min-width: 720px) and (min-height: 720px) {
   html,
   body,

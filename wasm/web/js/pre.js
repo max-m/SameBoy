@@ -651,12 +651,285 @@ Module.gb_open_printer_dialog = () => {
 	downloadAll.addEventListener('click', Module.gb_printer_download_all);
 }
 
+Module.disable_workboy = () => {
+	Module.hide_workboy_osk();
+
+	let button = document.getElementById('workboyButton');
+	if (button) {
+		button.remove();
+	}
+}
+
+Module.enable_workboy = () => {
+	let button = document.getElementById('workboyButton');
+
+	if (!button) {
+		button = document.createElement('span');
+		button.id = 'workboyButton';
+		button.classList.add('button', 'small');
+		button.innerHTML = '<svg><use href="img/workboy.svg#i"></use></svg>';
+
+		button.addEventListener('click', event => {
+			event.preventDefault();
+
+			if (button.classList.contains('active')) {
+				Module.hide_workboy_osk();
+				button.classList.remove('active');
+			}
+			else {
+				Module.open_workboy_osk();
+				button.classList.add('active');
+			}
+		});
+
+		document.getElementById('controls').appendChild(button);
+	}
+}
+
+Module.hide_workboy_osk = () => {
+	if (Module.workboy_osk === null) {
+		return;
+	}
+
+	Module.workboy_osk.setOptions({
+		theme: 'hg-theme-default'
+	});
+}
+
+Module.workboy_osk = null;
+Module.open_workboy_osk = async () => {
+	if (Module.workboy_osk === null) {
+		Module._pause();
+
+		Module.setStatus('Loading On-Screen Keyboard (0/2)');
+		const Keyboard = (await import('./js/simple-keyboard.min.js')).default;
+
+		Module.setStatus('Loading On-Screen Keyboard (1/2)');
+		if (!document.getElementById('simple-keyboard-css')) {
+			await new Promise((resolve, reject) => {
+				const link = document.createElement('link');
+				link.setAttribute('id', 'simple-keyboard-css');
+				link.setAttribute('rel', 'stylesheet');
+				link.addEventListener('load', resolve);
+				link.addEventListener('error', reject);
+				link.setAttribute('href', './css/simple-keyboard.css');
+				document.head.appendChild(link);
+			});
+		}
+		Module.setStatus(null);
+
+		const node = document.createElement('div');
+		node.classList.add('workboy');
+		const controls = document.getElementById('controls');
+		controls.parentNode.insertBefore(node, controls.nextSibling);
+
+		function get_event_options(button, keypress = false) {
+			let options = {};
+
+			if (button[0] == '{') {
+				switch (button) {
+					case '{esc}':    options = { key: 'Escape', charCode: 0, keyCode: 27, which: 27 }; break
+					case '{del}':    options = { key: 'Delete', charCode: 0, keyCode: 46, which: 46 }; break
+
+					case '{ret}':    options = { key: 'Enter', charCode: 0, keyCode: 13, which: 13 }; break
+					case '{space}':  options = { key: ' ', charCode: 32, keyCode: 32, which: 32 }; break
+					case '{clear}':  options = { key: 'M', charCode: 109, keyCode: 77, which: 77 }; break
+					case '{MC}':     options = { key: 'U', charCode: 85, keyCode: 85, which: 85 }; break
+					case '{MR}':     options = { key: 'Y', charCode: 89, keyCode: 89, which: 89 }; break
+					case '{M+}':     options = { key: 'R', charCode: 82, keyCode: 82, which: 82 }; break
+					case '{M-}':     options = { key: 'T', charCode: 84, keyCode: 84, which: 84 }; break
+					case '{quotes}': options = { charCode: 96, keyCode: 192, which: 192 }; break
+					case '{pound}':  options = { charCode: 126, keyCode: 126, which: 126 }; break
+					case '{single_quote}': options = { charCode: 39, keyCode: 163, which: 163 }; break
+
+					case '{plus}':     options = { key: '+', charCode: 43, keyCode: 43, which: 43 }; break
+					case '{minus}':    options = { code: 'Slash', key: '-', charCode: 45, keyCode: 189, which: 189 }; break
+					case '{multiply}': options = { code: 'NumpadMultiply', key: '*', charCode: 106, keyCode: 106, which: 106 }; break
+					case '{divide}':   options = { code: 'NumpadDivide',   key: '/', charCode: 47, keyCode: 111, which: 111 }; break
+					case '{period}':   options = { code: 'Period',   key: '.', charCode: 46, keyCode: 190, which: 190 }; break
+					case '{decimal}':  options = { code: 'NumpadDecimal',   key: '.', charCode: 0, keyCode: 110, which: 110 }; break
+					case '{percent}':  options = { key: '%', charCode: 37, keyCode: 53, which: 53 }; break
+					case '{lparen}':  options = { key: '(', charCode: 40, keyCode: 56, which: 56 }; break
+					case '{rparen}':  options = { key: ')', charCode: 41, keyCode: 57, which: 57 }; break
+
+					case '{left}':  options = { key: 'ArrowLeft',  charCode: 0, keyCode: 37, which: 37 }; break;
+					case '{up}':    options = { key: 'ArrowUp',    charCode: 0, keyCode: 38, which: 38 }; break;
+					case '{right}': options = { key: 'ArrowRight', charCode: 0, keyCode: 39, which: 39 }; break;
+					case '{down}':  options = { key: 'ArrowDown',  charCode: 0, keyCode: 40, which: 40 }; break;
+
+					case '{clock}':      options = { key: 'F1',  charCode: 0, keyCode: 112, which: 112 }; break;
+					case '{temps}':      options = { key: 'F2',  charCode: 0, keyCode: 113, which: 113 }; break;
+					case '{money}':      options = { key: 'F3',  charCode: 0, keyCode: 114, which: 114 }; break;
+					case '{calc}':       options = { key: 'F4',  charCode: 0, keyCode: 115, which: 115 }; break;
+					case '{date}':       options = { key: 'F5',  charCode: 0, keyCode: 116, which: 116 }; break;
+					case '{conversion}': options = { key: 'F6',  charCode: 0, keyCode: 117, which: 117 }; break;
+					case '{records}':    options = { key: 'F7',  charCode: 0, keyCode: 118, which: 118 }; break;
+					case '{world}':      options = { key: 'F8',  charCode: 0, keyCode: 119, which: 119 }; break;
+					case '{phone}':      options = { key: 'F9',  charCode: 0, keyCode: 120, which: 120 }; break;
+					case '{ins}':        options = { key: 'F10', charCode: 0, keyCode: 121, which: 121 }; break;
+
+					case '{num}':  options = { key: 'Shift',   code: 'ShiftLeft',   charCode: 0, keyCode: 16, which: 16 }; break
+
+					default:
+						console.warn('Unhandled button:', button);
+						return;
+				}
+			}
+			else {
+				const keyCode  = button.toUpperCase().charCodeAt(0);
+				const charCode = button.charCodeAt(0);
+				options = {
+					key: button,
+					charCode,
+					keyCode,
+					which: keyCode,
+					shiftKey: Module.workboy_osk.layoutName == 'num'
+				};
+			}
+
+			options.bubbles = true;
+			return options;
+		}
+
+		const gb_pressed_keys = new Set();
+		function onKeyPress(button) {
+			if (gb_pressed_keys.has(button)) return;
+
+			if (button === '{caps}' || button === '{num}') {
+				const newLayout = button.slice(1, -1);
+				const previousLayout = Module.workboy_osk.options.layoutName;
+
+				Module.workboy_osk.setOptions({
+					layoutName: newLayout,
+				});
+
+				// Handle the "shift" key
+				if (newLayout == 'num') {
+					Module.canvas.dispatchEvent(new KeyboardEvent('keydown', get_event_options('{num}')));
+				}
+				else {
+					Module.canvas.dispatchEvent(new KeyboardEvent('keyup', get_event_options('{num}')));
+				}
+
+				return;
+			}
+
+			gb_pressed_keys.add(button);
+
+			let options = get_event_options(button);
+			Module.canvas.dispatchEvent(new KeyboardEvent('keydown', options));
+			setTimeout(() => {
+				Module.canvas.dispatchEvent(new KeyboardEvent('keyup', options));
+				gb_pressed_keys.delete(button);
+			}, 60);
+
+			options = get_event_options(button, true);
+			Module.canvas.dispatchEvent(new KeyboardEvent('keypress', options));
+		}
+
+		Module.workboy_osk = new Keyboard(node, {
+			debug: Module.SAMEBOY_DEBUG,
+			onKeyPress,
+
+			theme: 'hg-theme-default show-workboy',
+			disableButtonHold: true,
+			disableCaretPositioning: true,
+			maxLength: 1,
+			layoutName: 'caps',
+
+			layout: {
+				'caps': [
+					'{esc} {clock} {temps} {money} {calc} {date} {conversion} {records} {world} {phone} {del} {ins}',
+					'Q W E R T Y U I O P $',
+					'A S D F G H J K L ; {ret}',
+					'{num} Z X C V B N M , [{period} {up} /]',
+					'{caps} {quotes} {space} {single_quote} [{left} {down} {right}]'
+				],
+				'num': [
+					'{esc} {clock} {temps} {money} {calc} {date} {conversion} {records} {world} {phone} {del} {ins}',
+					'1 2 3 {M+} {M-} {MR} {MC} ! {pound} * #',
+					'4 5 6 {plus} {minus} {multiply} {divide} {lparen} {rparen} : {ret}',
+					'{num} 7 8 9 {decimal} = {percent} {clear} < [> {up} ?]',
+					'{caps} 0 {space} @ [{left} {down} {right}]'
+				],
+			},
+
+			display: {
+				'{esc}': 'ESC',
+				'{clock}': '<svg class="icon"><use href="img/workboy/clock.svg#i"></use></svg>',
+				'{temps}': '<svg class="icon"><use href="img/workboy/temps.svg#i"></use></svg>',
+				'{money}': '<svg class="icon"><use href="img/workboy/money.svg#i"></use></svg>',
+				'{calc}': '<svg class="icon"><use href="img/workboy/calc.svg#i"></use></svg>',
+				'{date}': '<svg class="icon"><use href="img/workboy/date.svg#i"></use></svg>',
+				'{conversion}': '<svg class="icon"><use href="img/workboy/conversion.svg#i"></use></svg>',
+				'{records}': '<svg class="icon"><use href="img/workboy/records.svg#i"></use></svg>',
+				'{world}': '<svg class="icon"><use href="img/workboy/world.svg#i"></use></svg>',
+				'{phone}': '<svg class="icon"><use href="img/workboy/phone.svg#i"></use></svg>',
+				'{del}': 'DEL',
+				'{ins}': 'INS',
+
+				'{caps}': 'CAPS',
+				'{num}': 'NUM',
+				'{ret}': 'RTN',
+				'{space}': 'SPACE',
+
+				'{clear}': '🆑',
+				'{MC}': 'MC',
+				'{MR}': 'MR',
+				'{M+}': 'M+',
+				'{M-}': 'M-',
+				'{quotes}': ',,',
+				'{single_quote}': '\'',
+				'{pound}': '£',
+
+				'{plus}': '+',
+				'{minus}': '–',
+				'{multiply}': '×',
+				'{divide}': '÷',
+				'{period}': '.',
+				'{decimal}': '.',
+				'{percent}': '%',
+				'{lparen}': '(',
+				'{rparen}': ')',
+
+				'{left}': '←',
+				'{right}': '→',
+				'{up}': '↑',
+				'{down}': '↓',
+			},
+
+			buttonTheme: [
+				{
+					class: 'svgButton',
+					buttons: '{clock} {temps} {money} {calc} {date} {conversion} {records} {world} {phone}'
+				},
+				{
+					class: 'specialButton',
+					buttons: '{esc} {del} {ins} {num} {caps} {ret} {up} {down} {left} {right}'
+				}
+			]
+		});
+
+		Module._resume();
+	}
+	else {
+		Module.workboy_osk.setOptions({
+			theme: 'hg-theme-default show-workboy'
+		});
+	}
+}
+
+window.enable_workboy = Module.enable_workboy;
+window.disable_workboy = Module.disable_workboy;
+window.open_osk = Module.open_workboy_osk; // TODO: REMOVE!!
+window.close_osk = Module.close_workboy_osk; // TODO: REMOVE!!
+
 Module.setStatus('Downloading ...');
 
-window.onerror = function() {
+window.onerror = () => {
 	Module.setStatus('Exception thrown, see JavaScript console');
 	spinnerElement.style.display = 'none';
-	Module.setStatus = function(text) {
+	Module.setStatus = text => {
 		if (text) Module.printErr('[post-exception status] ' + text);
 	};
 };

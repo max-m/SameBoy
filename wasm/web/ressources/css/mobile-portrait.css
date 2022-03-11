@@ -86,7 +86,8 @@
   #menuButton,
   #fullscreenButton,
   #cameraFlipButton,
-  #cameraTorchButton {
+  #cameraTorchButton,
+  #workboyButton {
     grid-area: a;
     align-self: center;
   }
@@ -104,7 +105,10 @@
     margin: 0 3%;
   }
   #cameraTorchButton {
-    margin: 0 3% 0 calc(33.3% - 9vmin);
+    margin: 0 3% 0 calc(100% / 3 - 9vmin);
+  }
+  #workboyButton {
+    margin: 0 3% 0 calc(100% / 3 * 2);
   }
 
   #menu {
@@ -120,5 +124,11 @@
     border-radius: 2.5vw;
     max-height: calc(100vh - 15vw);
     overflow: auto;
+  }
+
+  .workboy {
+    position: absolute;
+    bottom: 0;
+    z-index: 1000;
   }
 }

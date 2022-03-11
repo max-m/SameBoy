@@ -105,6 +105,8 @@ static void disconnect_serial(unsigned index)
     GB_disconnect_serial(&gb);
     SDL_StopTextInput();
 
+    EM_ASM({ Module.disable_workboy(); });
+
     connected_device = SERIAL_DEVICE_NONE;
     reset_menus();
 }
@@ -231,6 +233,8 @@ static void connect_workboy(unsigned index)
 {
     SDL_StartTextInput();
     GB_connect_workboy(&gb, workboy_set_time_callback, workboy_get_time_callback);
+
+    EM_ASM({ Module.enable_workboy(); });
 
     connected_device = SERIAL_DEVICE_WORKBOY;
     reset_menus();

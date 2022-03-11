@@ -437,8 +437,12 @@ unsigned workboy_key_from_char(char c)
     }
 }
 
-unsigned workboy_key_from_scancode(unsigned scancode)
+unsigned workboy_key_from_scancode(unsigned scancode, unsigned sym)
 {
+    if (sym == SDLK_KP_PERIOD) {
+        return GB_WORKBOY_DECIMAL_POINT;
+    }
+
     switch (scancode) {
         case SDL_SCANCODE_F1: return GB_WORKBOY_CLOCK;
         case SDL_SCANCODE_F2: return GB_WORKBOY_TEMPERATURE;
@@ -459,6 +463,7 @@ unsigned workboy_key_from_scancode(unsigned scancode)
         case SDL_SCANCODE_RIGHT: return GB_WORKBOY_RIGHT;
         case SDL_SCANCODE_ESCAPE: return GB_WORKBOY_ESCAPE;
         case SDL_SCANCODE_KP_DECIMAL: return GB_WORKBOY_DECIMAL_POINT;
+        case SDL_SCANCODE_DECIMALSEPARATOR: return GB_WORKBOY_DECIMAL_POINT;
         case SDL_SCANCODE_KP_CLEAR: return GB_WORKBOY_M;
         case SDL_SCANCODE_KP_MULTIPLY: return GB_WORKBOY_H;
         case SDL_SCANCODE_KP_DIVIDE: return GB_WORKBOY_J;
@@ -624,7 +629,7 @@ static void handle_events(GB_gameboy_t *gb)
 
             case SDL_KEYDOWN:
                 if (GB_workboy_is_enabled(gb)) {
-                    unsigned workboy_key = workboy_key_from_scancode(event.key.keysym.scancode);
+                    unsigned workboy_key = workboy_key_from_scancode(event.key.keysym.scancode, event.key.keysym.sym);
 
                     if (workboy_key != GB_WORKBOY_NONE) {
                         GB_workboy_set_key(gb, workboy_key);
@@ -680,6 +685,17 @@ static void handle_events(GB_gameboy_t *gb)
                 }
                 // Fall through
             case SDL_KEYUP: {
+                if (GB_workboy_is_enabled(gb)) {
+                    if (event.key.keysym.scancode == SDL_SCANCODE_LSHIFT || event.key.keysym.scancode == SDL_SCANCODE_RSHIFT) {
+                        GB_workboy_set_key(gb, GB_WORKBOY_SHIFT_UP);
+                    }
+                    else {
+                        GB_workboy_set_key(gb, GB_WORKBOY_NONE);
+                    }
+
+                    continue;
+                }
+
                 if (event.key.keysym.scancode == configuration.keys[8]) {
                     turbo_down = event.type == SDL_KEYDOWN;
                     GB_audio_clear_queue();
