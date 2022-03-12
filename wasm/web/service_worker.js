@@ -1,8 +1,5 @@
 const cache_name = VERSION;
-const EXTRA_FILES = [
-	'./',
-	'https://fonts.googleapis.com/css2?family=Open+Sans+Condensed:wght@300&family=Raleway:wght@300&display=swap',
-];
+const EXTRA_FILES = [ './' ];
 
 self.addEventListener('install', event => {
 	console.log('[Service Worker] Install');

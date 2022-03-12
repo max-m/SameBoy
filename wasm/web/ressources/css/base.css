@@ -15,8 +15,10 @@ html, body {
   margin: 0;
   padding: 0;
   background: #fff !important;
-  font-family: "Raleway", sans-serif;
   height: 100%;
+
+  font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, "Liberation Sans", Arial, "Lucida Grande", sans-serif;
+  font-weight: 300;
 }
 
 canvas {
@@ -195,31 +197,34 @@ svg.icon {
   background-color: var(--button-bg-active);
   box-shadow: none;
 }
+
 #aButton,
 #bButton {
   display: block;
   width: 85%;
   height: auto;
-  border-radius: 50%;
-  font-family: "Open Sans Condensed", sans-serif;
   aspect-ratio: 1 / 1;
-  margin: auto;
   position: relative;
+  margin: auto;
+  border-radius: 50%;
 }
 #aButton::after,
 #bButton::after {
-  color: var(--button-label-color);
-  position: absolute;
-  font-size: 20vw;
-  transform: translate(-50%, -50%);
-  left: 40%;
-  top: 50%;
+  content: "";
+  background-color: var(--button-label-color);
+  display: block;
+  width: auto;
+  height: 80%;
+  aspect-ratio: 1 / 1;
+  transform: translate(-3%, 13%);
 }
 #aButton::after {
-  content: "A";
+  mask-image: url(../img/front_text.svg#cgbAv);
+  -webkit-mask-image: url(../img/front_text.svg#cgbAv);
 }
 #bButton::after {
-  content: "B";
+  mask-image: url(../img/front_text.svg#cgbBv);
+  -webkit-mask-image: url(../img/front_text.svg#cgbBv);
 }
 
 #startButton,
@@ -239,18 +244,28 @@ svg.icon {
 #selectButton.active {
   background-color: var(--start-button-bg-active);
 }
+
 #startButton::after,
 #selectButton::after {
-  font-family: "Raleway", sans-serif;
-  font-size: 5vmin;
-  color: var(--start-button-label);
+  content: "";
+  background-color: var(--start-button-label);
+  width: 80%;
+  height: auto;
+  aspect-ratio: 4 / 1;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
 #startButton::after {
-  content: "Start";
+  mask-image: url(../img/front_text.svg#cgbSTARTv);
+  -webkit-mask-image: url(../img/front_text.svg#cgbSTARTv);
 }
 #selectButton::after {
-  content: "Select";
+  mask-image: url(../img/front_text.svg#cgbSELECTv);
+  -webkit-mask-image: url(../img/front_text.svg#cgbSELECTv);
 }
+
 #dpad {
   position: relative;
   pointer-events: all;
@@ -429,7 +444,6 @@ svg.icon {
 
 /* Stylistic similarity to any other system is purely coincidental */
 #about {
-  font-family: Helvetica, sans-serif;
   text-align: justify;
   font-size: 12px;
   color: #2e2e2e;

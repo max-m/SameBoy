@@ -26,14 +26,6 @@
   --dpad-dimple-shadow:  #373535;
 }
 
-@media (orientation: landscape) {
-  .isCGB #startButton,
-  .isCGB #selectButton {
-    --start-button-label: var(--button-label-color);
-    font-weight: bold;
-  }
-}
-
 @media (prefers-color-scheme: dark) {
   .isCGB:not(.forceLight) {
     --system-color: hsl(207.7, 14.6%, 17.5%);

@@ -63,12 +63,10 @@
 
 .isSGB #aButton::after,
 .isSGB #bButton::after {
-  color: var(--start-button-label);
-  position: relative;
-  font-size: 5vmin;
-  font-weight: bold;
+  background-color: var(--start-button-label);
   transform: translate(-50%, -50%);
   position: absolute;
+  height: 30%;
 }
 .isSGB #aButton::after {
   left: 100%;
@@ -88,7 +86,7 @@
     top: 0;
   }
   .isSGB #bButton::after {
-    left: -8%;
+    left: 0%;
     top: 100%;
   }
 }
@@ -106,19 +104,46 @@
 
   .isSGB .startButtonWrapper::after,
   .isSGB .selectButtonWrapper::after {
-    font-family: "Raleway", sans-serif;
-    font-size: 5vmin;
-    color: var(--start-button-label);
+    background-color: var(--start-button-label);
     position: absolute;
-    top: 130%;
+    top: 170%;
     left: 50%;
     transform: translate(-50%, 50%);
-    font-weight: bold;
+  }
+  .isSGB .startButtonWrapper::after,
+  .isSGB .selectButtonWrapper::after {
+    content: "";
+    aspect-ratio: 5 / 1;
+    width: 100%;
+    height: auto;
   }
   .isSGB .startButtonWrapper::after {
-    content: "Start";
+    mask-image: url(../img/front_text.svg#sgbSTARTv);
+    -webkit-mask-image: url(../img/front_text.svg#sgbSTARTv);
   }
   .isSGB .selectButtonWrapper::after {
-    content: "Select";
+    mask-image: url(../img/front_text.svg#sgbSELECTv);
+    -webkit-mask-image: url(../img/front_text.svg#sgbSELECTv);
   }
+}
+
+.isSGB #aButton::after {
+  mask-image: url(../img/front_text.svg#sgbAv);
+  -webkit-mask-image: url(../img/front_text.svg#sgbAv);
+}
+.isSGB #bButton::after {
+  mask-image: url(../img/front_text.svg#sgbBv);
+  -webkit-mask-image: url(../img/front_text.svg#sgbBv);
+}
+.isSGB #startButton::after {
+  mask-image: url(../img/front_text.svg#sgbSTARTv);
+  -webkit-mask-image: url(../img/front_text.svg#sgbSTARTv);
+}
+.isSGB #selectButton::after {
+  mask-image: url(../img/front_text.svg#sgbSELECTv);
+  -webkit-mask-image: url(../img/front_text.svg#sgbSELECTv);
+}
+.isSGB #startButton::after,
+.isSGB #selectButton::after {
+  aspect-ratio: 5 / 1;
 }

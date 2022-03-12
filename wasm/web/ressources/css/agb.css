@@ -40,21 +40,37 @@
 .isAGB #aButton::after,
 .isAGB #bButton::after {
   position: absolute;
-  font-weight: bold;
   left: 45%;
   top: 50%;
   transform: translate(-50%, -50%);
-  font-size: 16vw;
 }
 
 @media (orientation: landscape) {
-  .isAGB #aButton::after,
-  .isAGB #bButton::after {
-    font-size: 8vw;
-  }
-
   .isAGB #startButton,
   .isAGB #selectButton {
     transform: rotate(10deg);
   }
+}
+
+.isAGB #aButton::after {
+  mask-image: url(../img/front_text.svg#agbAv);
+  -webkit-mask-image: url(../img/front_text.svg#agbAv);
+}
+.isAGB #bButton::after {
+  mask-image: url(../img/front_text.svg#agbBv);
+  -webkit-mask-image: url(../img/front_text.svg#agbBv);
+}
+.isAGB #startButton::after {
+  mask-image: url(../img/front_text.svg#agbSTARTv);
+  -webkit-mask-image: url(../img/front_text.svg#agbSTARTv);
+}
+.isAGB #selectButton::after {
+  mask-image: url(../img/front_text.svg#agbSELECTv);
+  -webkit-mask-image: url(../img/front_text.svg#agbSELECTv);
+}
+.isAGB #startButton::after,
+.isAGB #selectButton::after {
+  height: 100%;
+  width: auto;
+  aspect-ratio: 3 / 1;
 }
