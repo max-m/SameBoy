@@ -19,9 +19,12 @@
 #include "camera.h"
 #include "shader.h"
 #include "wasm_serial.h"
+#include "menu_items.h"
 #include "wasm_utils.h"
 
 GB_gameboy_t gb;
+char *battery_save_path_ptr = NULL;
+serial_device_t connected_device = SERIAL_DEVICE_NONE;
 
 const char *PREFS_PATH = "/persist/prefs.bin";
 
@@ -41,8 +44,6 @@ static uint32_t pixel_buffer_1[256 * 224], pixel_buffer_2[256 * 224];
 static uint32_t *active_pixel_buffer = pixel_buffer_1;
 static uint32_t *previous_pixel_buffer = pixel_buffer_2;
 
-char *battery_save_path_ptr = NULL;
-
 static SDL_GLContext gl_context = NULL;
 
 static bool had_audio_playing = false;
@@ -51,8 +52,6 @@ static size_t previous_width = 0;
 
 extern SDL_Joystick *joystick;
 extern unsigned joypad_index;
-
-serial_device_t connected_device = SERIAL_DEVICE_NONE;
 
 bool uses_gl(void)
 {
@@ -926,15 +925,8 @@ static void init_gb(void)
         }
     }
 
-    // (re)connect serial device
-    extern void connect_printer(unsigned index);
-    extern void connect_workboy(unsigned index);
-    extern void disconnect_serial(unsigned index);
-    switch (connected_device) {
-        case SERIAL_DEVICE_PRINTER: connect_printer(0); break;
-        case SERIAL_DEVICE_WORKBOY: connect_workboy(0); break;
-        default: disconnect_serial(0); break;
-    }
+    // (re)connect the selected serial device
+    connect_serial();
 
     camera_free();
     update_palette();
