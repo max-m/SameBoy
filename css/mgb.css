@@ -59,12 +59,28 @@
 
 .isMGB #aButton::after,
 .isMGB #bButton::after {
-  color: var(--start-button-label);
+  background-color: var(--start-button-label);
   position: relative;
-  font-size: 4vmax;
-  font-weight: bold;
   left: 50%;
   top: 100%;
-  transform: translate(-50%, 0%);
+  transform: translate(-50%, 50%);
   position: absolute;
+  height: 30%;
+}
+
+.isMGB #aButton::after {
+  mask-image: url(../img/front_text.svg#mgbAv);
+  -webkit-mask-image: url(../img/front_text.svg#mgbAv);
+}
+.isMGB #bButton::after {
+  mask-image: url(../img/front_text.svg#mgbBv);
+  -webkit-mask-image: url(../img/front_text.svg#mgbBv);
+}
+.isMGB #startButton::after {
+  mask-image: url(../img/front_text.svg#mgbSTARTv);
+  -webkit-mask-image: url(../img/front_text.svg#mgbSTARTv);
+}
+.isMGB #selectButton::after {
+  mask-image: url(../img/front_text.svg#mgbSELECTv);
+  -webkit-mask-image: url(../img/front_text.svg#mgbSELECTv);
 }

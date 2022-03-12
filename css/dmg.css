@@ -78,11 +78,6 @@
   background-color: var(--start-button-bg-active);
 }
 
-.isDMG #startButton::after,
-.isDMG #selectButton::after {
-  font-weight: bold;
-}
-
 @media not (prefers-color-scheme: dark) {
   .isDMG #aButton,
   .isDMG #bButton {
@@ -95,12 +90,31 @@
 }
 .isDMG #aButton::after,
 .isDMG #bButton::after {
-  color: var(--start-button-label);
-  position: relative;
-  font-size: 4vmax;
-  font-weight: bold;
+  background-color: var(--start-button-label);
   left: 50%;
   top: 100%;
   transform: translate(-50%, 0%);
   position: absolute;
+  height: 30%;
+}
+
+.isDMG #aButton::after {
+  mask-image: url(../img/front_text.svg#dmgAv);
+  -webkit-mask-image: url(../img/front_text.svg#dmgAv);
+}
+.isDMG #bButton::after {
+  mask-image: url(../img/front_text.svg#dmgBv);
+  -webkit-mask-image: url(../img/front_text.svg#dmgBv);
+}
+.isDMG #startButton::after {
+  mask-image: url(../img/front_text.svg#dmgSTARTv);
+  -webkit-mask-image: url(../img/front_text.svg#dmgSTARTv);
+}
+.isDMG #selectButton::after {
+  mask-image: url(../img/front_text.svg#dmgSELECTv);
+  -webkit-mask-image: url(../img/front_text.svg#dmgSELECTv);
+}
+.isAGB #startButton::after,
+.isAGB #selectButton::after {
+  aspect-ratio: 5 / 1;
 }

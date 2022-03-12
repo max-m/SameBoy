@@ -1,4 +1,4 @@
-const VERSION = "0.14.7_6696dba";
+const VERSION = "0.14.7_dbe5e91";
 const FILES = [
 	"index.html",
 	"index.js",
@@ -39,6 +39,7 @@ const FILES = [
 	"img/apple-touch-icon-precomposed.png",
 	"img/workboy.svg",
 	"img/fullscreen.svg",
+	"img/front_text.svg",
 	"css/dmg.css",
 	"css/mobile-landscape.css",
 	"css/simple-keyboard.css",
@@ -52,38 +53,88 @@ const FILES = [
 
 ];
 const cache_name = VERSION;
-const EXTRA_FILES = [
-	'./',
-	'https://fonts.googleapis.com/css2?family=Open+Sans+Condensed:wght@300&family=Raleway:wght@300&display=swap',
-];
+const EXTRA_FILES = [ './' ];
 
 self.addEventListener('install', event => {
 	console.log('[Service Worker] Install');
 
+	self.skipWaiting();
+
 	event.waitUntil((async () => {
-		const cache = await caches.open(cache_name);
+		try {
+			const cache = await caches.open(cache_name);
+			const files = EXTRA_FILES.concat(FILES);
+			const total = files.length;
+			let cached = 0;
 
-		console.log('[Service Worker] Caching files');
+			console.log(`[Service Worker] Caching ${total} files`);
 
-		await cache.addAll(EXTRA_FILES.concat(FILES));
+			await Promise.all(files.map(async (url) => {
+				let controller;
+
+				try {
+					controller = new AbortController();
+					const signal = controller.signal;
+
+					const req = new Request(url, { cache: 'reload' });
+					const res = await fetch(req, { signal });
+
+					if (res && res.status === 200) {
+						await cache.put(req, res.clone());
+						cached += 1;
+					}
+					else {
+						console.error(`[Service Worker] Failed to fetch ${url}:`, res);
+					}
+				}
+				catch (e) {
+					console.error(`[Service Worker] Failed to fetch ${url}:`, e);
+					controller.abort();
+				}
+			}));
+
+			if (cached === total) {
+				console.log('[Service Worker] All files cached successfully.');
+			}
+			else {
+				console.warn(`[Service Worker] Failed to cache ${total - cached} of ${total} files.`)
+			}
+		}
+		catch (e) {
+			console.error('[Service Worker] Failed to install:', e)
+		}
 	})());
 });
 
 self.addEventListener('fetch', event => {
 	event.respondWith((async () => {
-		const request = await caches.match(event.request);
+		const cachedResponse = await caches.match(event.request);
 
 		console.log(`[Service Worker] Fetching resource: ${event.request.url}`);
 
-		if (request) {
-			return request;
+		if (cachedResponse) {
+			// TODO: Should we also check the Cache-Control header?
+			const expires = cachedResponse.headers.get('Expires');
+
+			// `new Date(null)` returns the current date
+			if (expires) {
+				const date = new Date(expires);
+
+				// Date.getTime() returns NaN for invalid dates
+				if (date.getTime() === date.getTime() && new Date() <= date) {
+					return cachedResponse;
+				}
+			}
+			else {
+				return cachedResponse;
+			}
 		}
 
 		const response = await fetch(event.request);
 		const cache = await caches.open(cache_name);
 
 		console.log(`[Service Worker] Caching new resource: ${event.request.url}`);
-		cache.put(event.request, response.clone());
+		await cache.put(event.request, response.clone());
 
 		return response;
 	})());

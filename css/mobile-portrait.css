@@ -55,7 +55,7 @@
   #selectButton::after {
     position: absolute;
     left: 50%;
-    transform: translate(-50%, 100%);
+    transform: translate(-50%, 150%);
   }
   .startButtonWrapper {
     grid-area: f;
