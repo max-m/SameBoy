@@ -55,7 +55,7 @@ EM_JS(void, open_printout, (unsigned index), {
     Module.gb_open_printer_dialog();
 });
 
-static void connect_printer(unsigned index);
+void connect_printer(unsigned index);
 static struct menu_item printer_menu[] = {
     {"Connect", connect_printer},
     {"Open Printout", open_printout},
@@ -63,14 +63,14 @@ static struct menu_item printer_menu[] = {
     {NULL,}
 };
 
-static void connect_workboy(unsigned index);
+void connect_workboy(unsigned index);
 static struct menu_item workboy_menu[] = {
     {"Connect", connect_workboy},
     {"Back", return_to_root_menu},
     {NULL,}
 };
 
-static void disconnect_serial(unsigned index);
+void disconnect_serial(unsigned index);
 static void reset_menus(void)
 {
     switch (connected_device) {
@@ -100,7 +100,7 @@ static void reset_menus(void)
     }
 }
 
-static void disconnect_serial(unsigned index)
+void disconnect_serial(unsigned index)
 {
     GB_disconnect_serial(&gb);
     SDL_StopTextInput();
@@ -200,7 +200,7 @@ static void printer_callback(GB_gameboy_t *gb, uint32_t *image, uint8_t height, 
     }), image, height, top_margin, bottom_margin, exposure, filename, strlen(filename));
 }
 
-static void connect_printer(unsigned index)
+void connect_printer(unsigned index)
 {
     GB_connect_printer(&gb, printer_callback);
 
@@ -229,7 +229,7 @@ time_t workboy_get_time_callback(GB_gameboy_t *gb)
     return time(NULL) - workboy_time;
 }
 
-static void connect_workboy(unsigned index)
+void connect_workboy(unsigned index)
 {
     SDL_StartTextInput();
     GB_connect_workboy(&gb, workboy_set_time_callback, workboy_get_time_callback);

@@ -512,9 +512,10 @@ static void handle_events(GB_gameboy_t *gb)
                         break;
 
                     case VIRTUAL_MENU:
-                        event.type = down ? SDL_KEYDOWN : SDL_KEYUP;
-                        event.key.keysym.scancode = SDL_SCANCODE_ESCAPE;
-                        break;
+                        if (down) {
+                            open_menu();
+                        }
+                        continue;
 
                     default: /* do nothing */
                         break;
@@ -925,8 +926,15 @@ static void init_gb(void)
         }
     }
 
-    connected_device = SERIAL_DEVICE_NONE;
-    SDL_StopTextInput();
+    // (re)connect serial device
+    extern void connect_printer(unsigned index);
+    extern void connect_workboy(unsigned index);
+    extern void disconnect_serial(unsigned index);
+    switch (connected_device) {
+        case SERIAL_DEVICE_PRINTER: connect_printer(0); break;
+        case SERIAL_DEVICE_WORKBOY: connect_workboy(0); break;
+        default: disconnect_serial(0); break;
+    }
 
     camera_free();
     update_palette();
