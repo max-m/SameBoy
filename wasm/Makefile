@@ -29,6 +29,10 @@ CORE_DIR += ..
 include $(CORE_DIR)/version.mk
 
 CFLAGS += -DGB_VERSION=\"$(VERSION)\"
+ifdef GIT_COMMIT
+CFLAGS += -DGB_GIT_COMMIT=\"$(GIT_COMMIT)\"
+endif
+CFLAGS += -DGB_LONG_VERSION=\"$(LONG_VERSION)\"
 CONF ?= debug
 
 BIN := $(CORE_DIR)/build/wasm_bin
@@ -230,7 +234,7 @@ $(BIN)/service_worker.js: $(JS_FILES) $(ICONS) $(WEB_OBJECTS)
 	# This script prepends the version number (plus git info, if available),
 	# the names of the files that should be cached to our service worker “template”
 	# and saves the result in $(BIN)/service_worker.js
-	sh create_service_worker.sh $(BIN) $(VERSION) \
+	sh create_service_worker.sh "$(BIN)" "$(VERSION)" "$(GIT_COMMIT)" \
 		$(BIN)/index.html $(BIN)/index.js $(BIN)/index.data $(BIN)/index.wasm \
 		$(BIN)/sameboy.webmanifest \
 		$(filter-out $(wildcard $(BIN)/demos/*),$^)

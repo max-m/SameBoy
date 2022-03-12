@@ -3,9 +3,11 @@ BIN_DIR="$1"
 shift
 VERSION="$1"
 shift
+GIT_COMMIT="$1"
+shift
 
-if command -v git >/dev/null 2>&1; then
-	VERSION="$VERSION"_"$($(command -v git) describe --always --dirty=-modified)"
+if [ ! -z "$GIT_COMMIT" ]; then
+	VERSION="$VERSION"_"$GIT_COMMIT"
 fi
 
 OUT="$BIN_DIR/service_worker.js"
