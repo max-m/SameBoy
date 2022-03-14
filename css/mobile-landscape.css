@@ -1,127 +1,125 @@
-@media (max-height: 719px) and (orientation: landscape) {
-  #system {
-    background-color: var(--system-color);
-  }
+html.mobile.landscape #system {
+  background-color: var(--system-color);
+}
 
-  #spinner {
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-  }
+html.mobile.landscape #spinner {
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
 
-  #display,
-  #controls {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-  }
+html.mobile.landscape #display,
+html.mobile.landscape #controls {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
 
-  #canvasWrapper, #spinner {
-    --wrapper-width: min(50vw, calc(100vh * var(--width) / var(--height)));
-    width: var(--wrapper-width);
-    height: calc(var(--wrapper-width) * var(--height) / var(--width));
-    margin: auto;
+html.mobile.landscape #canvasWrapper, #spinner {
+  --wrapper-width: min(50vw, calc(100vh * var(--width) / var(--height)));
+  width: var(--wrapper-width);
+  height: calc(var(--wrapper-width) * var(--height) / var(--width));
+  margin: auto;
 
-  }
-  #canvasWrapper {
-    position: relative;
-    top: 50%;
-    transform: translate(0, -50%);
-  }
-  #system.hasScreenBorder #canvasWrapper {
-    height: calc(min(50vw, 100vh) * var(--bordered-height) / var(--bordered-width));
-  }
+}
+html.mobile.landscape #canvasWrapper {
+  position: relative;
+  top: 50%;
+  transform: translate(0, -50%);
+}
+html.mobile.landscape #system.hasScreenBorder #canvasWrapper {
+  height: calc(min(50vw, 100vh) * var(--bordered-height) / var(--bordered-width));
+}
 
-  .aButtonWrapper,
-  .bButtonWrapper {
-    position: absolute;
-    transform: translate(0, -50%);
-  }
-  .aButtonWrapper {
-    top: 43vh;
-    right: 0.25vw;
-    width: 12.5vw;
-    height: 12.5vw;
-  }
-  .bButtonWrapper {
-    top: 58vh;
-    right: calc(25vw - calc(20vmax / 2) - 3vw);
-    width: 12.5vw;
-    height: 12.5vw;
-  }
+html.mobile.landscape .aButtonWrapper,
+html.mobile.landscape .bButtonWrapper {
+  position: absolute;
+  transform: translate(0, -50%);
+}
+html.mobile.landscape .aButtonWrapper {
+  top: 43vh;
+  right: 0.25vw;
+  width: 12.5vw;
+  height: 12.5vw;
+}
+html.mobile.landscape .bButtonWrapper {
+  top: 58vh;
+  right: calc(25vw - calc(20vmax / 2) - 3vw);
+  width: 12.5vw;
+  height: 12.5vw;
+}
 
-  .startButtonWrapper,
-  .selectButtonWrapper {
-    width: 16vw;
-    height: 3vw;
-    left: 4.5vw;
-    text-align: center;
-    position: absolute;
-  }
-  .startButtonWrapper {
-    bottom: 9vw;
-  }
-  .selectButtonWrapper {
-    bottom: 3vw;
-  }
+html.mobile.landscape .startButtonWrapper,
+html.mobile.landscape .selectButtonWrapper {
+  width: 16vw;
+  height: 3vw;
+  left: 4.5vw;
+  text-align: center;
+  position: absolute;
+}
+html.mobile.landscape .startButtonWrapper {
+  bottom: 9vw;
+}
+html.mobile.landscape .selectButtonWrapper {
+  bottom: 3vw;
+}
 
-  .dpadWrapper {
-    z-index: 1000;
-    width: 25vw;
-    height: 25vw;
-    bottom: 55vmin;
-    left: 0;
-    transform: translate(0, 50%);
-    position: absolute;
-    display: flex;
-  }
+html.mobile.landscape .dpadWrapper {
+  z-index: 1000;
+  width: 25vw;
+  height: 25vw;
+  bottom: 55vmin;
+  left: 0;
+  transform: translate(0, 50%);
+  position: absolute;
+  display: flex;
+}
 
-  #menuButton {
-    right: calc(25vw - min(100px, 12.5vmin) - 2%);
-    top: 5%;
-  }
-  #workboyButton {
-    top: 5%;
-    right: calc(min(100px, 12.5vmin) + 2%);
-  }
-  #fullscreenButton {
-    top: 5%;
-    right: 2%;
-  }
+html.mobile.landscape #menuButton {
+  right: calc(25vw - min(100px, 12.5vmin) - 2%);
+  top: 5%;
+}
+html.mobile.landscape #workboyButton {
+  top: 5%;
+  right: calc(min(100px, 12.5vmin) + 2%);
+}
+html.mobile.landscape #fullscreenButton {
+  top: 5%;
+  right: 2%;
+}
 
-  #cameraFlipButton {
-    top: 5%;
-    left: 2%;
-  }
-  #cameraTorchButton {
-    left: calc(25vw - min(100px, 12.5vmin) - 2%);
-    top: 5%;
-  }
+html.mobile.landscape #cameraFlipButton {
+  top: 5%;
+  left: 2%;
+}
+html.mobile.landscape #cameraTorchButton {
+  left: calc(25vw - min(100px, 12.5vmin) - 2%);
+  top: 5%;
+}
 
-  #menu {
-    display: none;
-    position: fixed;
-    z-index: 2000;
-    top: 2.5vw;
-    right: 2.5vw;
-    left: 2.5vw;
-    padding: 5vw;
-    backdrop-filter: blur(5px);
-    background-color: rgba(0, 0, 0, 0.5);
-    border-radius: 2.5vw;
-    max-height: calc(100vh - 15vw);
-    overflow: auto;
-    max-width: 50vw;
-    margin: auto;
-  }
+html.mobile.landscape #menu {
+  display: none;
+  position: fixed;
+  z-index: 2000;
+  top: 2.5vw;
+  right: 2.5vw;
+  left: 2.5vw;
+  padding: 5vw;
+  backdrop-filter: blur(5px);
+  background-color: rgba(0, 0, 0, 0.5);
+  border-radius: 2.5vw;
+  max-height: calc(100vh - 15vw);
+  overflow: auto;
+  max-width: 50vw;
+  margin: auto;
+}
 
-  /* TODO  */
-  .workboy {
-    position: absolute;
-    bottom: 0;
-    z-index: 1000;
-  }
+/* TODO  */
+html.mobile.landscape .workboy {
+  position: absolute;
+  bottom: 0;
+  z-index: 1000;
 }

@@ -1,134 +1,132 @@
-@media (max-width: 719px) and (orientation: portrait) {
-  #system {
-    background-color: var(--system-color);
-  }
+html.mobile.portrait #system {
+  background-color: var(--system-color);
+}
 
-  #system {
-    display: flex;
-    flex-direction: column;
-  }
-  #display {
-    flex: 1 1 50%;
-  }
-  #canvasWrapper, #spinner {
-    width: 100vw;
-    height: min(100%, calc(100vw * var(--height) / var(--width)));
-    margin: auto;
-  }
-  #system.hasScreenBorder #canvasWrapper {
-    height: min(100%, calc(100vw * var(--bordered-height) / var(--bordered-width)));
-  }
-  #controls {
-    flex: 1 1 50%;
-    position: relative;
-    display: grid;
-    grid-template-rows: 10vh auto 12vh;
-    grid-template-columns: 1fr 1fr 1fr 1fr;
-    grid-template-areas:
-      "a a a a"
-      "b b c d"
-      "e e f f";
-  }
-  .aButtonWrapper {
-    grid-area: d;
-    position: relative;
-    flex-direction: column;
-    display: flex;
-    bottom: 10%;
-  }
-  .bButtonWrapper {
-    grid-area: c;
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    top: 10%;
-  }
-  .startButtonWrapper,
-  .selectButtonWrapper {
-    align-self: center;
-    margin-bottom: 5vmin;
-    width: 20vmin;
-    height: 5vmin;
-    position: relative;
-  }
-  #startButton::after,
-  #selectButton::after {
-    position: absolute;
-    left: 50%;
-    transform: translate(-50%, 150%);
-  }
-  .startButtonWrapper {
-    grid-area: f;
-    justify-self: start;
-    margin-left: 2.5vmin;
-  }
-  .selectButtonWrapper {
-    justify-self: end;
-    grid-area: e;
-    margin-right: 2.5vmin;
-  }
+html.mobile.portrait #system {
+  display: flex;
+  flex-direction: column;
+}
+html.mobile.portrait #display {
+  flex: 1 1 50%;
+}
+html.mobile.portrait #canvasWrapper, #spinner {
+  width: 100vw;
+  height: min(100%, calc(100vw * var(--height) / var(--width)));
+  margin: auto;
+}
+html.mobile.portrait #system.hasScreenBorder #canvasWrapper {
+  height: min(100%, calc(100vw * var(--bordered-height) / var(--bordered-width)));
+}
+html.mobile.portrait #controls {
+  flex: 1 1 50%;
+  position: relative;
+  display: grid;
+  grid-template-rows: 10vh auto 12vh;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  grid-template-areas:
+    "a a a a"
+    "b b c d"
+    "e e f f";
+}
+html.mobile.portrait .aButtonWrapper {
+  grid-area: d;
+  position: relative;
+  flex-direction: column;
+  display: flex;
+  bottom: 10%;
+}
+html.mobile.portrait .bButtonWrapper {
+  grid-area: c;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  top: 10%;
+}
+html.mobile.portrait .startButtonWrapper,
+html.mobile.portrait .selectButtonWrapper {
+  align-self: center;
+  margin-bottom: 5vmin;
+  width: 20vmin;
+  height: 5vmin;
+  position: relative;
+}
+html.mobile.portrait #startButton::after,
+html.mobile.portrait #selectButton::after {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, 150%);
+}
+html.mobile.portrait .startButtonWrapper {
+  grid-area: f;
+  justify-self: start;
+  margin-left: 2.5vmin;
+}
+html.mobile.portrait .selectButtonWrapper {
+  justify-self: end;
+  grid-area: e;
+  margin-right: 2.5vmin;
+}
 
-  .dpadWrapper {
-    display: flex;
-    position: relative;
-    width: min(45vw, 28vh);
-    height: min(45vw, 28vh);
-    grid-area: b;
-    align-self: center;
-    justify-self: start;
-    margin-left: 2.5vw;
-  }
+html.mobile.portrait .dpadWrapper {
+  display: flex;
+  position: relative;
+  width: min(45vw, 28vh);
+  height: min(45vw, 28vh);
+  grid-area: b;
+  align-self: center;
+  justify-self: start;
+  margin-left: 2.5vw;
+}
 
-  .button.small {
-    position: unset;
-  }
+html.mobile.portrait .button.small {
+  position: unset;
+}
 
-  #menuButton,
-  #fullscreenButton,
-  #cameraFlipButton,
-  #cameraTorchButton,
-  #workboyButton {
-    grid-area: a;
-    align-self: center;
-  }
+html.mobile.portrait #menuButton,
+html.mobile.portrait #fullscreenButton,
+html.mobile.portrait #cameraFlipButton,
+html.mobile.portrait #cameraTorchButton,
+html.mobile.portrait #workboyButton {
+  grid-area: a;
+  align-self: center;
+}
 
-  #menuButton {
-    justify-self: center;
-    margin: 0 3%;
-  }
-  #fullscreenButton {
-    justify-self: end;
-    margin: 0 3%;
-  }
-  #cameraFlipButton {
-    justify-self: start;
-    margin: 0 3%;
-  }
-  #cameraTorchButton {
-    margin: 0 3% 0 calc(100% / 3 - 9vmin);
-  }
-  #workboyButton {
-    margin: 0 3% 0 calc(100% / 3 * 2);
-  }
+html.mobile.portrait #menuButton {
+  justify-self: center;
+  margin: 0 3%;
+}
+html.mobile.portrait #fullscreenButton {
+  justify-self: end;
+  margin: 0 3%;
+}
+html.mobile.portrait #cameraFlipButton {
+  justify-self: start;
+  margin: 0 3%;
+}
+html.mobile.portrait #cameraTorchButton {
+  margin: 0 3% 0 calc(100% / 3 - 9vmin);
+}
+html.mobile.portrait #workboyButton {
+  margin: 0 3% 0 calc(100% / 3 * 2);
+}
 
-  #menu {
-    display: none;
-    position: fixed;
-    z-index: 2000;
-    top: 2.5vw;
-    right: 2.5vw;
-    left: 2.5vw;
-    padding: 5vw;
-    backdrop-filter: blur(5px);
-    background-color: rgba(0, 0, 0, 0.5);
-    border-radius: 2.5vw;
-    max-height: calc(100vh - 15vw);
-    overflow: auto;
-  }
+html.mobile.portrait #menu {
+  display: none;
+  position: fixed;
+  z-index: 2000;
+  top: 2.5vw;
+  right: 2.5vw;
+  left: 2.5vw;
+  padding: 5vw;
+  backdrop-filter: blur(5px);
+  background-color: rgba(0, 0, 0, 0.5);
+  border-radius: 2.5vw;
+  max-height: calc(100vh - 15vw);
+  overflow: auto;
+}
 
-  .workboy {
-    position: absolute;
-    bottom: 0;
-    z-index: 1000;
-  }
+html.mobile.portrait .workboy {
+  position: absolute;
+  bottom: 0;
+  z-index: 1000;
 }

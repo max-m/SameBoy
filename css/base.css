@@ -11,10 +11,14 @@
   display: none !important;
 }
 
+html.ready body {
+  display: block !important;
+}
+
 html, body {
   margin: 0;
   padding: 0;
-  background: #fff !important;
+  background: #000 !important;
   height: 100%;
 
   font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, "Liberation Sans", Arial, "Lucida Grande", sans-serif;
@@ -684,28 +688,27 @@ svg.icon {
   color: #fff;
 }
 
-@media (min-width: 720px) and (min-height: 720px) {
-  html,
-  body,
-  #system,
-  #display {
-    width: 100%;
-    height: 100%;
-  }
+/* Desktop styles  */
+html:not(.mobile),
+html:not(.mobile) body,
+html:not(.mobile) #system,
+html:not(.mobile) #display {
+  width: 100%;
+  height: 100%;
+}
 
-  #controls {
-    display: none;
-  }
+html:not(.mobile) #controls {
+  display: none;
+}
 
-  #menu {
-    padding: 5vw;
-    padding-top: 0;
-  }
+html:not(.mobile) #menu {
+  padding: 5vw;
+  padding-top: 0;
+}
 
-  #spinner {
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-    }
+html:not(.mobile) #spinner {
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
