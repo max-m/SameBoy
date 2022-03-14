@@ -112,6 +112,8 @@ static time_t workboy_get_time_callback(GB_gameboy_t *gb)
 
 void connect_printer(unsigned index)
 {
+    disconnect_serial(0);
+
     GB_connect_printer(&gb, printer_callback);
 
     connected_device = SERIAL_DEVICE_PRINTER;
@@ -120,6 +122,8 @@ void connect_printer(unsigned index)
 
 void connect_workboy(unsigned index)
 {
+    disconnect_serial(0);
+
     SDL_StartTextInput();
     GB_connect_workboy(&gb, workboy_set_time_callback, workboy_get_time_callback);
 
