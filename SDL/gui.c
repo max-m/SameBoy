@@ -171,6 +171,7 @@ configuration_t configuration =
     .color_temperature = 10,
 #ifdef __EMSCRIPTEN__
     .use_browser_timing = true,
+    .touch_controls_mode = TOUCH_CONTROLS_AUTOMATIC,
 #endif
 };
 
@@ -477,12 +478,43 @@ extern void item_about(unsigned index) EM_IMPORT(item_about);
 extern void open_save_manager(unsigned index) EM_IMPORT(open_save_manager);
 extern void synchronize_save_files(unsigned index) EM_IMPORT(synchronize_save_files);
 
+static void cycle_touch_controls(unsigned index)
+{
+    configuration.touch_controls_mode++;
+    if (configuration.touch_controls_mode == TOUCH_CONTROLS_MAX) {
+        configuration.touch_controls_mode = 0;
+    }
+
+    EM_ASM({
+        Module.gb_set_touch_controls_mode($0);
+    }, configuration.touch_controls_mode);
+}
+
+static void cycle_touch_controls_backwards(unsigned index)
+{
+    if (configuration.touch_controls_mode == 0) {
+        configuration.touch_controls_mode = TOUCH_CONTROLS_MAX;
+    }
+    configuration.touch_controls_mode--;
+
+    EM_ASM({
+        Module.gb_set_touch_controls_mode($0);
+    }, configuration.touch_controls_mode);
+}
+
+const char *current_touch_controls_string(unsigned index)
+{
+    return (const char *[]){"Disabled", "Enabled", "Automatic"}
+        [configuration.touch_controls_mode];
+}
+
 static const struct menu_item options_menu[] = {
     {"Emulation Options", enter_emulation_menu},
     {"Graphic Options", enter_graphics_menu},
     {"Audio Options", enter_audio_menu},
     {"Keyboard", enter_controls_menu},
     {"Joypad", enter_joypad_menu},
+    {"Touch Controls:", cycle_touch_controls, current_touch_controls_string, cycle_touch_controls_backwards},
     {"Back", return_to_root_menu},
     {NULL,}
 };

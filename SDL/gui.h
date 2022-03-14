@@ -131,6 +131,13 @@ typedef struct {
 
 #ifdef __EMSCRIPTEN__
     bool use_browser_timing;
+    
+    enum {
+        TOUCH_CONTROLS_DISABLED,
+        TOUCH_CONTROLS_ENABLED,
+        TOUCH_CONTROLS_AUTOMATIC,
+        TOUCH_CONTROLS_MAX,
+    } touch_controls_mode;
 #endif
 } configuration_t;
 

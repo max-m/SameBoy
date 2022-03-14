@@ -26,6 +26,45 @@ function on_escape(fn) {
 	}
 }
 
+(() => {
+	const portrait = window.matchMedia('(orientation: portrait)');
+	const portrait_listener = event => {
+		if (event.matches) {
+			document.documentElement.classList.add('portrait');
+			document.documentElement.classList.remove('landscape');
+		}
+		else {
+			document.documentElement.classList.remove('portrait');
+			document.documentElement.classList.add('landscape');
+		}
+	};
+	portrait.addEventListener('change', portrait_listener);
+
+	const desktop = window.matchMedia('(min-width: 720px) and (min-height: 720px)');
+	const desktop_listener = event => {
+		if (Module.gb_touch_controls_mode != 2) return;
+
+		if (event.matches) {
+			document.documentElement.classList.add('desktop');
+			document.documentElement.classList.remove('mobile');
+		}
+		else {
+			document.documentElement.classList.remove('desktop');
+			document.documentElement.classList.add('mobile');
+		}
+	};
+	desktop.addEventListener('change', desktop_listener);
+
+	Module.evaluate_media_queries = () => {
+		portrait_listener(portrait);
+		desktop_listener(desktop);
+	}
+
+	Module.evaluate_media_queries();
+
+	document.documentElement.classList.add('ready');
+})();
+
 Module.logReadFiles = true;
 
 Module.printWithColors = false;
@@ -367,6 +406,32 @@ Module.gb_set_system_color = (r, g, b) => {
 	const system = document.getElementById('system');
 	system.classList.add('forceLight');
 	system.style.setProperty('--system-color', `rgb(${r}, ${g}, ${b})`);
+}
+
+Module.gb_touch_controls_mode = 2;
+Module.gb_set_touch_controls_mode = (mode) => {
+	Module.gb_touch_controls_mode = mode;
+
+	switch (mode) {
+		// DISABLED
+		case 0:
+			document.documentElement.classList.remove('mobile');
+			document.documentElement.classList.add('desktop');
+		break;
+
+		// ENABLED
+		case 1:
+			document.documentElement.classList.remove('desktop');
+			document.documentElement.classList.add('mobile');
+		break;
+
+		// AUTOMATIC
+		case 2:
+			Module.evaluate_media_queries();
+		break;
+	}
+
+	window.dispatchEvent(new Event('resize'));
 }
 
 Module.GbCamera = 'unloaded';
@@ -918,11 +983,6 @@ Module.open_workboy_osk = async () => {
 		});
 	}
 }
-
-window.enable_workboy = Module.enable_workboy;
-window.disable_workboy = Module.disable_workboy;
-window.open_osk = Module.open_workboy_osk; // TODO: REMOVE!!
-window.close_osk = Module.close_workboy_osk; // TODO: REMOVE!!
 
 Module.setStatus('Downloading ...');
 

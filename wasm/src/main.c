@@ -1134,6 +1134,10 @@ int EMSCRIPTEN_KEEPALIVE init(void)
     // Useless in the browser
     configuration.default_scale = 1;
 
+    EM_ASM({
+        Module.gb_set_touch_controls_mode($0);
+    }, configuration.touch_controls_mode);
+
     window = SDL_CreateWindow(
         "SameBoy v" GB_VERSION,
         SDL_WINDOWPOS_UNDEFINED,
