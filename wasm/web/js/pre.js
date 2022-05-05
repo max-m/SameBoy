@@ -158,7 +158,12 @@ Module.gb_load_rom_buffer = function (name, data) {
 
 	const pos = name.lastIndexOf('.');
 	const battery_name = name.substr(0, pos < 0 ? name.length : pos) + '.sav';
-	const battery_path = allocate(intArrayFromString(`/persist/${battery_name}`), ALLOC_NORMAL);
+
+	const battery_str  = `/persist/${battery_name}`;
+	const battery_str_len = lengthBytesUTF8(battery_str) + 1;
+	const battry_path_ptr = Module._malloc(battery_str_len);
+	const battery_path = new Uint8Array(Module.HEAPU8.buffer, battry_path_ptr, battery_str_len);
+	battery_path.set(intArrayFromString(battery_str));
 
 	// Copy data into WASM memory
 	const ptr = Module._malloc(data.byteLength);
@@ -261,7 +266,12 @@ Module.gb_open_file = function (event) {
 
 			const pos = name.lastIndexOf('.');
 			const battery_name = name.substr(0, pos < 0 ? name.length : pos) + '.sav';
-			const battery_path = allocate(intArrayFromString(`/persist/${battery_name}`), ALLOC_NORMAL);
+
+			const battery_str  = `/persist/${battery_name}`;
+			const battery_str_len = lengthBytesUTF8(battery_str) + 1;
+			const battry_path_ptr = Module._malloc(battery_str_len);
+			const battery_path = new Uint8Array(Module.HEAPU8.buffer, battry_path_ptr, battery_str_len);
+			battery_path.set(intArrayFromString(battery_str));
 
 			// Copy data into WASM memory
 			const ptr = Module._malloc(data.byteLength);
