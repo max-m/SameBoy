@@ -107,9 +107,9 @@ LDFLAGS += -s RETAIN_COMPILER_SETTINGS=1
 CFLAGS += -s STRICT=1
 # SDL2 uses symbols (behind a runtime check) that are only available when built with ASYNCIFY=1
 LDFLAGS += -s ERROR_ON_UNDEFINED_SYMBOLS=0
-else ifeq ($(CONF), release)
+else ifeq ($(CONF),release)
 CFLAGS += -O3 -flto -DNDEBUG
-LDFLAGS += -flto --emit-symbol-map
+LDFLAGS += -flto
 LDFLAGS += -s GL_TRACK_ERRORS=0
 else
 $(error Invalid value for CONF: $(CONF). Use "debug", "release" or "native_release")
