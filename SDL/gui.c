@@ -81,7 +81,7 @@ SDL_Scancode event_hotkey_code(SDL_Event *event)
     if (event->key.keysym.sym >= SDLK_a && event->key.keysym.sym < SDLK_z) {
         return SDL_SCANCODE_A + event->key.keysym.sym - SDLK_a;
     }
-    
+
     return event->key.keysym.scancode;
 }
 
@@ -1546,17 +1546,17 @@ bool run_gui_iteration(bool is_running) {
                 else if (gui_state == SHOWING_MENU) {
                     signed x = (menu_state.event.button.x - rect.x / factor) * width / (rect.w / factor) - x_offset;
                     signed y = (menu_state.event.button.y - rect.y / factor) * height / (rect.h / factor) - y_offset;
-                    
+
                     if (strcmp("CRT", configuration.filter) == 0) {
                         y = y * 8 / 7;
                         y -= 144 / 16;
                     }
                     y += scroll;
-                    
+
                     if (x < 0 || x >= 160 || y < 24) {
                         return false;
                     }
-                    
+
                     unsigned item_y = 24;
                     unsigned index = 0;
                     for (const struct menu_item *item = current_menu; item->string; item++, index++) {
@@ -1573,9 +1573,9 @@ bool run_gui_iteration(bool is_running) {
                             item_y += 24;
                         }
                     }
-                    
+
                     if (!current_menu[index].string) return false;
-                    
+
                     current_selection = index;
                     menu_state.event.type = SDL_KEYDOWN;
                     if (current_menu[index].backwards_handler) {
@@ -1701,7 +1701,7 @@ bool run_gui_iteration(bool is_running) {
             }
             break;
         }
-            
+
         case SDL_JOYAXISMOTION: {
             if (gui_state == WAITING_FOR_JBUTTON &&
                 joypad_configuration_progress == JOYPAD_BUTTONS_MAX &&
@@ -1718,14 +1718,14 @@ bool run_gui_iteration(bool is_running) {
                         configuration.joypad_axises[JOYPAD_AXISES_Y] = joypad_axis_temp;
                         configuration.joypad_axises[JOYPAD_AXISES_X] = menu_state.event.jaxis.axis;
                     }
-                    
+
                     gui_state = SHOWING_MENU;
                     menu_state.should_render = true;
                 }
             }
             break;
         }
-            
+
         case SDL_MOUSEWHEEL: {
             if (menu_height > 144) {
                 scroll -= menu_state.event.wheel.y;
@@ -1741,7 +1741,7 @@ bool run_gui_iteration(bool is_running) {
             }
             break;
         }
-            
+
         case SDL_KEYDOWN: {
             enum menu_key key = get_menu_key(menu_state.event.key.keysym.scancode);
 
@@ -1791,7 +1791,7 @@ bool run_gui_iteration(bool is_running) {
                     configuration.joypad_axises[1] = -1;
                 }
                 joypad_configuration_progress++;
-                
+
                 if (joypad_configuration_progress > JOYPAD_BUTTONS_MAX) {
                     gui_state = SHOWING_MENU;
                 }
@@ -1880,7 +1880,7 @@ bool run_gui_iteration(bool is_running) {
             break;
         }
     }
-    
+
     if (menu_state.should_render) {
         /* Draw the background screen */
         static SDL_Surface *converted_background = NULL;
@@ -1891,12 +1891,12 @@ bool run_gui_iteration(bool is_running) {
             if (!background) {
                 background = SDL_CreateRGBSurface(0, 160, 144, 8, 0, 0, 0, 0);
             }
-            
+
             SDL_SetPaletteColors(background->format->palette, gui_palette, 0, 4);
             converted_background = SDL_ConvertSurface(background, pixel_format, 0);
             SDL_LockSurface(converted_background);
             SDL_FreeSurface(background);
-            
+
             for (unsigned i = 4; i--; ) {
                 gui_palette_native[i] = SDL_MapRGB(pixel_format, gui_palette[i].r, gui_palette[i].g, gui_palette[i].b);
             }
@@ -1912,7 +1912,7 @@ bool run_gui_iteration(bool is_running) {
                 memcpy(menu_state.pixels + x_offset + width * (y + y_offset), ((uint32_t *)converted_background->pixels) + 160 * y, 160 * 4);
             }
         }
-        
+
         switch (gui_state) {
             case SHOWING_DROP_MESSAGE:
                 draw_text_centered(menu_state.pixels, width, height, 8 + y_offset, "Press ESC for menu", gui_palette_native[3], gui_palette_native[0], false);
@@ -1947,7 +1947,7 @@ bool run_gui_iteration(bool is_running) {
                         draw_text_centered(menu_state.pixels, width, height, y + y_offset, line, gui_palette_native[3], gui_palette_native[0],
                                            i == current_selection ? DECORATION_SELECTION : DECORATION_NONE);
                         y += 12;
-                        
+
                     }
                     else {
                         draw_text_centered(menu_state.pixels, width, height, y + y_offset, item->string, gui_palette_native[3], gui_palette_native[0],
@@ -1983,7 +1983,7 @@ bool run_gui_iteration(bool is_running) {
                         else {
                             pixel[0] = pixel[1]= gui_palette_native[1];
                         }
-                        
+
                     }
                 }
                 break;
@@ -2020,7 +2020,7 @@ bool run_gui_iteration(bool is_running) {
                 draw_text_centered(menu_state.pixels, width, height, 104 + y_offset, "Press Enter to skip", gui_palette_native[3], gui_palette_native[0], DECORATION_NONE);
                 break;
         }
-        
+
         render_texture(menu_state.pixels, NULL);
 #ifdef _WIN32
         /* Required for some Windows 10 machines, god knows why */
@@ -2035,7 +2035,8 @@ void run_gui(bool is_running)
 {
     init_gui(is_running);
 
-    do {
+    while (true) {
+        SDL_WaitEvent(&menu_state.event);
         if (run_gui_iteration(is_running)) break;
-    } while (SDL_WaitEvent(&menu_state.event));
+    }
 }
