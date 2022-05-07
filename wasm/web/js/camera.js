@@ -88,6 +88,11 @@ export default Module => {
 		const size = canvas.width * canvas.height * 4;
 		const ptr = Module._malloc(size);
 
+		if (!ptr) {
+			console.error(`Failed to allocate ${size} bytes of memory`);
+			return;
+		}
+
 		buf = new Uint8Array(Module.HEAPU8.buffer, ptr, size);
 
 		Module._camera_set_buf(ptr, size, width, height);

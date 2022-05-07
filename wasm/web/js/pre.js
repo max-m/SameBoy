@@ -153,20 +153,31 @@ Module.gb_touch_keymap = {
 	menu:   { keyCode: 27 }, // Escape
 };
 
+Module.allocate_utf8 = function (str) {
+	const size = lengthBytesUTF8(str) + 1;
+	const buffer = _malloc(size);
+
+	if (buffer) {
+		stringToUTF8Array(str, HEAP8, buffer, size);
+	}
+
+	return buffer;
+}
+
 Module.gb_load_rom_buffer = function (name, data) {
 	document.body.dispatchEvent(new Event('click'));
 
 	const pos = name.lastIndexOf('.');
 	const battery_name = name.substr(0, pos < 0 ? name.length : pos) + '.sav';
-
-	const battery_str  = `/persist/${battery_name}`;
-	const battery_str_len = lengthBytesUTF8(battery_str) + 1;
-	const battry_path_ptr = Module._malloc(battery_str_len);
-	const battery_path = new Uint8Array(Module.HEAPU8.buffer, battry_path_ptr, battery_str_len);
-	battery_path.set(intArrayFromString(battery_str));
+	const battery_path = Module.allocate_utf8(`/persist/${battery_name}`);
 
 	// Copy data into WASM memory
 	const ptr = Module._malloc(data.byteLength);
+
+	if (!battery_path || !ptr) {
+		throw new Error('Failed to allocate memory');
+	}
+
 	const wasm_buf = new Uint8Array(Module.HEAPU8.buffer, ptr, data.byteLength);
 	wasm_buf.set(data);
 
@@ -266,15 +277,15 @@ Module.gb_open_file = function (event) {
 
 			const pos = name.lastIndexOf('.');
 			const battery_name = name.substr(0, pos < 0 ? name.length : pos) + '.sav';
-
-			const battery_str  = `/persist/${battery_name}`;
-			const battery_str_len = lengthBytesUTF8(battery_str) + 1;
-			const battry_path_ptr = Module._malloc(battery_str_len);
-			const battery_path = new Uint8Array(Module.HEAPU8.buffer, battry_path_ptr, battery_str_len);
-			battery_path.set(intArrayFromString(battery_str));
+			const battery_path = Module.allocate_utf8(`/persist/${battery_name}`);
 
 			// Copy data into WASM memory
 			const ptr = Module._malloc(data.byteLength);
+
+			if (!battery_path || !ptr) {
+				throw new Error('Failed to allocate memory');
+			}
+
 			const wasm_buf = new Uint8Array(Module.HEAPU8.buffer, ptr, data.byteLength);
 			wasm_buf.set(new Uint8Array(data));
 
