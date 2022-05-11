@@ -9,27 +9,31 @@
 
 static inline unsigned fifo_size(GB_fifo_t *fifo)
 {
-    return (fifo->write_end - fifo->read_end) & (GB_FIFO_LENGTH - 1);
+    return fifo->size;
 }
 
 static void fifo_clear(GB_fifo_t *fifo)
 {
-    fifo->read_end = fifo->write_end = 0;
+    fifo->read_end = fifo->size = 0;
 }
 
 static GB_fifo_item_t *fifo_pop(GB_fifo_t *fifo)
 {
+    assert(fifo->size);
     GB_fifo_item_t *ret = &fifo->fifo[fifo->read_end];
     fifo->read_end++;
     fifo->read_end &= (GB_FIFO_LENGTH - 1);
+    fifo->size--;
     return ret;
 }
 
 static void fifo_push_bg_row(GB_fifo_t *fifo, uint8_t lower, uint8_t upper, uint8_t palette, bool bg_priority, bool flip_x)
 {
+    assert(fifo->size == 0);
+    fifo->size = 8;
     if (!flip_x) {
-        unrolled for (unsigned i = 8; i--;) {
-            fifo->fifo[fifo->write_end] = (GB_fifo_item_t) {
+        unrolled for (unsigned i = 0; i < 8; i++) {
+            fifo->fifo[i] = (GB_fifo_item_t) {
                 (lower >> 7) | ((upper >> 7) << 1),
                 palette,
                 0,
@@ -37,14 +41,11 @@ static void fifo_push_bg_row(GB_fifo_t *fifo, uint8_t lower, uint8_t upper, uint
             };
             lower <<= 1;
             upper <<= 1;
-            
-            fifo->write_end++;
-            fifo->write_end &= (GB_FIFO_LENGTH - 1);
         }
     }
     else {
-        unrolled for (unsigned i = 8; i--;) {
-            fifo->fifo[fifo->write_end] = (GB_fifo_item_t) {
+        unrolled for (unsigned i = 0; i < 8; i++) {
+            fifo->fifo[i] = (GB_fifo_item_t) {
                 (lower & 1) | ((upper & 1) << 1),
                 palette,
                 0,
@@ -52,19 +53,15 @@ static void fifo_push_bg_row(GB_fifo_t *fifo, uint8_t lower, uint8_t upper, uint
             };
             lower >>= 1;
             upper >>= 1;
-            
-            fifo->write_end++;
-            fifo->write_end &= (GB_FIFO_LENGTH - 1);
         }
     }
 }
 
 static void fifo_overlay_object_row(GB_fifo_t *fifo, uint8_t lower, uint8_t upper, uint8_t palette, bool bg_priority, uint8_t priority, bool flip_x)
 {
-    while (fifo_size(fifo) < 8) {
-        fifo->fifo[fifo->write_end] = (GB_fifo_item_t) {0,};
-        fifo->write_end++;
-        fifo->write_end &= (GB_FIFO_LENGTH - 1);
+    while (fifo->size < GB_FIFO_LENGTH) {
+        fifo->fifo[(fifo->read_end + fifo->size) & (GB_FIFO_LENGTH - 1)] = (GB_fifo_item_t) {0,};
+        fifo->size++;
     }
     
     uint8_t flip_xor = flip_x? 0: 0x7;
@@ -454,6 +451,7 @@ void GB_STAT_update(GB_gameboy_t *gb)
 
 void GB_lcd_off(GB_gameboy_t *gb)
 {
+    gb->cycles_for_line = 0;
     gb->display_state = 0;
     gb->display_cycles = 0;
     /* When the LCD is disabled, state is constant */
@@ -574,22 +572,37 @@ static void render_pixel_if_possible(GB_gameboy_t *gb)
     const GB_fifo_item_t *oam_fifo_item = NULL;
     bool draw_oam = false;
     bool bg_enabled = true, bg_priority = false;
+ 
+    // Rendering (including scrolling adjustment) does not occur as long as an object at x=0 is pending
+    if (gb->n_visible_objs != 0 &&
+        (gb->io_registers[GB_IO_LCDC] & 2 || GB_is_cgb(gb)) &&
+        gb->objects_x[gb->n_visible_objs - 1] == 0) {
+        return;
+    }
     
-    if (fifo_size(&gb->bg_fifo)) {
-        fifo_item = fifo_pop(&gb->bg_fifo);
-        bg_priority = fifo_item->bg_priority;
-        
-        if (fifo_size(&gb->oam_fifo)) {
-            oam_fifo_item = fifo_pop(&gb->oam_fifo);
-            if (oam_fifo_item->pixel && (gb->io_registers[GB_IO_LCDC] & 2) && unlikely(!gb->objects_disabled)) {
-                draw_oam = true;
-                bg_priority |= oam_fifo_item->bg_priority;
-            }
+    if (unlikely(gb->wx_triggered && !fifo_size(&gb->bg_fifo))) return;
+    
+    fifo_item = fifo_pop(&gb->bg_fifo);
+    bg_priority = fifo_item->bg_priority;
+    
+    if (fifo_size(&gb->oam_fifo)) {
+        oam_fifo_item = fifo_pop(&gb->oam_fifo);
+        if (oam_fifo_item->pixel && (gb->io_registers[GB_IO_LCDC] & 2) && unlikely(!gb->objects_disabled)) {
+            draw_oam = true;
+            bg_priority |= oam_fifo_item->bg_priority;
         }
     }
     
-
-    if (!fifo_item) return;
+    // (gb->position_in_line + 16 < 8) is (gb->position_in_line < -8) in unsigned logic
+    if (((uint8_t)(gb->position_in_line + 16) < 8)) {
+        if ((gb->position_in_line & 7) == (gb->io_registers[GB_IO_SCX] & 7)) {
+            gb->position_in_line = -8;
+        }
+        else if (gb->position_in_line == (uint8_t) -9) {
+            gb->position_in_line = -16;
+            return;
+        }
+    }
 
     /* Drop pixels for scrollings */
     if (gb->position_in_line >= 160 || (gb->disable_rendering && !gb->sgb)) {
@@ -794,6 +807,9 @@ static void advance_fetcher_state_machine(GB_gameboy_t *gb, unsigned *cycles)
             uint8_t x = 0;
             if (gb->wx_triggered) {
                 x = gb->window_tile_x;
+            }
+            else if ((uint8_t)(gb->position_in_line + 16) < 8) {
+                x = gb->io_registers[GB_IO_SCX] >> 3;
             }
             else {
                 /* TODO: There is some CGB timing error around here.
@@ -1313,12 +1329,26 @@ static inline uint16_t mode3_batching_length(GB_gameboy_t *gb)
     return 0;
 }
 
+static inline uint8_t x_for_object_match(GB_gameboy_t *gb)
+{
+    uint8_t ret = gb->position_in_line + 8;
+    if (ret > (uint8_t)-16) return 0;
+    return ret;
+}
+
 /*
  TODO: It seems that the STAT register's mode bits are always "late" by 4 T-cycles.
        The PPU logic can be greatly simplified if that delay is simply emulated.
  */
 void GB_display_run(GB_gameboy_t *gb, unsigned cycles, bool force)
 {
+    if (unlikely((gb->io_registers[GB_IO_LCDC] & 0x80) && (signed)(gb->cycles_for_line * 2 + cycles + gb->display_cycles) > LINE_LENGTH * 2)) {
+        unsigned first_batch = (LINE_LENGTH * 2 - gb->cycles_for_line * 2 + gb->display_cycles);
+        GB_display_run(gb, first_batch, force);
+        cycles -= first_batch;
+        gb->display_state = 9;
+        gb->display_cycles = 0;
+    }
     gb->cycles_since_vblank_callback += cycles / 2;
 
     /* The PPU does not advance while in STOP mode on the DMG */
@@ -1328,7 +1358,7 @@ void GB_display_run(GB_gameboy_t *gb, unsigned cycles, bool force)
         }
         return;
     }
-    
+        
     GB_BATCHABLE_STATE_MACHINE(gb, display, cycles, 2, !force) {
         GB_STATE(gb, display, 1);
         GB_STATE(gb, display, 2);
@@ -1338,7 +1368,7 @@ void GB_display_run(GB_gameboy_t *gb, unsigned cycles, bool force)
         GB_STATE(gb, display, 6);
         GB_STATE(gb, display, 7);
         GB_STATE(gb, display, 8);
-        // GB_STATE(gb, display, 9);
+        GB_STATE(gb, display, 9);
         GB_STATE(gb, display, 10);
         GB_STATE(gb, display, 11);
         GB_STATE(gb, display, 12);
@@ -1355,7 +1385,7 @@ void GB_display_run(GB_gameboy_t *gb, unsigned cycles, bool force)
         GB_STATE(gb, display, 24);
         GB_STATE(gb, display, 26);
         GB_STATE(gb, display, 27);
-        GB_STATE(gb, display, 28);
+        // GB_STATE(gb, display, 28);
         GB_STATE(gb, display, 29);
         GB_STATE(gb, display, 30);
         GB_STATE(gb, display, 31);
@@ -1370,6 +1400,7 @@ void GB_display_run(GB_gameboy_t *gb, unsigned cycles, bool force)
         GB_STATE(gb, display, 40);
         GB_STATE(gb, display, 41);
         GB_STATE(gb, display, 42);
+        GB_STATE(gb, display, 43);
     }
     
     if (!(gb->io_registers[GB_IO_LCDC] & 0x80)) {
@@ -1438,7 +1469,33 @@ void GB_display_run(GB_gameboy_t *gb, unsigned cycles, bool force)
     gb->wx_triggered = false;
     gb->wx166_glitch = false;
     goto mode_3_start;
-    
+
+    // Mode 3 abort, state 9
+    display9: {
+        // TODO: Timing of things in this scenario is almost completely untested
+        if (gb->current_line < 144 && !GB_is_sgb(gb) && !gb->disable_rendering) {
+            GB_log(gb, "The ROM is preventing line %d from fully rendering, this could damage a real device's LCD display.\n", gb->current_line);
+            uint32_t *dest = NULL;
+            if (gb->border_mode != GB_BORDER_ALWAYS) {
+                dest = gb->screen + gb->lcd_x + gb->current_line * WIDTH;
+            }
+            else {
+                dest = gb->screen + gb->lcd_x + gb->current_line * BORDERED_WIDTH + (BORDERED_WIDTH - WIDTH) / 2 + (BORDERED_HEIGHT - LINES) / 2 * BORDERED_WIDTH;
+            }
+            uint32_t color = GB_is_cgb(gb)? GB_convert_rgb15(gb, 0x7FFF, false) : gb->background_palettes_rgb[4];
+            while (gb->lcd_x < 160) {
+                *(dest++) = color;
+                gb->lcd_x++;
+            }
+        }
+        gb->current_line++;
+        gb->vram_read_blocked = false;
+        gb->vram_write_blocked = false;
+        gb->wx_triggered = false;
+        gb->wx166_glitch = false;
+        gb->cycles_for_line = 0;
+    }
+        
     while (true) {
         /* Lines 0 - 143 */
         gb->window_y = -1;
@@ -1537,11 +1594,8 @@ void GB_display_run(GB_gameboy_t *gb, unsigned cycles, bool force)
             fifo_clear(&gb->oam_fifo);
             /* Fill the FIFO with 8 pixels of "junk", it's going to be dropped anyway. */
             fifo_push_bg_row(&gb->bg_fifo, 0, 0, 0, false, false);
-            /* Todo: find out actual access time of SCX */
-            gb->position_in_line = - (gb->io_registers[GB_IO_SCX] & 7) - 8;
+            gb->position_in_line = -16;
             gb->lcd_x = 0;
-          
-            gb->extra_penalty_for_object_at_0 = MIN((gb->io_registers[GB_IO_SCX] & 7), 5);
             
             /* The actual rendering cycle */
             gb->fetcher_state = 0;
@@ -1630,17 +1684,16 @@ void GB_display_run(GB_gameboy_t *gb, unsigned cycles, bool force)
                 /* Handle objects */
                 /* When the object enabled bit is off, this proccess is skipped entirely on the DMG, but not on the CGB.
                    On the CGB, this bit is checked only when the pixel is actually popped from the FIFO. */
-                
+                                
                 while (gb->n_visible_objs != 0 &&
-                       (gb->position_in_line < 160 || gb->position_in_line >= (uint8_t)(-8)) &&
-                       gb->objects_x[gb->n_visible_objs - 1] < (uint8_t)(gb->position_in_line + 8)) {
+                       gb->objects_x[gb->n_visible_objs - 1] < x_for_object_match(gb)) {
                     gb->n_visible_objs--;
                 }
                 
                 gb->during_object_fetch = true;
                 while (gb->n_visible_objs != 0 &&
                        (gb->io_registers[GB_IO_LCDC] & 2 || GB_is_cgb(gb)) &&
-                       gb->objects_x[gb->n_visible_objs - 1] == (uint8_t)(gb->position_in_line + 8)) {
+                       gb->objects_x[gb->n_visible_objs - 1] == x_for_object_match(gb)) {
                     
                     while (gb->fetcher_state < 5 || fifo_size(&gb->bg_fifo) == 0) {
                         advance_fetcher_state_machine(gb, &cycles);
@@ -1648,18 +1701,6 @@ void GB_display_run(GB_gameboy_t *gb, unsigned cycles, bool force)
                         GB_SLEEP(gb, display, 27, 1);
                         if (gb->object_fetch_aborted) {
                             goto abort_fetching_object;
-                        }
-                    }
-                    
-                    /* Todo: Measure if penalty occurs before or after waiting for the fetcher. */
-                    if (gb->extra_penalty_for_object_at_0 != 0) {
-                        if (gb->objects_x[gb->n_visible_objs - 1] == 0) {
-                            gb->cycles_for_line += gb->extra_penalty_for_object_at_0;
-                            GB_SLEEP(gb, display, 28, gb->extra_penalty_for_object_at_0);
-                            gb->extra_penalty_for_object_at_0 = 0;
-                            if (gb->object_fetch_aborted) {
-                                goto abort_fetching_object;
-                            }
                         }
                     }
                     
@@ -1809,7 +1850,17 @@ skip_slow_mode_3:
             GB_SLEEP(gb, display, 36, 2);
             gb->cgb_palettes_blocked = false;
             
-            GB_SLEEP(gb, display, 11, LINE_LENGTH - gb->cycles_for_line - 2);
+            if (gb->cycles_for_line > LINE_LENGTH - 2) {
+                gb->cycles_for_line = 0;
+                GB_SLEEP(gb, display, 43, LINE_LENGTH - gb->cycles_for_line);
+                goto display9;
+            }
+            
+            {
+                uint16_t cycles_for_line =  gb->cycles_for_line;
+                gb->cycles_for_line = 0;
+                GB_SLEEP(gb, display, 11, LINE_LENGTH - cycles_for_line - 2);
+            }
             /*
              TODO: Verify double speed timing
              TODO: Timing differs on a DMG
@@ -1818,6 +1869,7 @@ skip_slow_mode_3:
                 (gb->io_registers[GB_IO_WY] == gb->current_line)) {
                 gb->wy_triggered = true;
             }
+            gb->cycles_for_line = 0;
             GB_SLEEP(gb, display, 31, 2);
             if (gb->current_line != LINES - 1) {
                 gb->mode_for_interrupt = 2;
