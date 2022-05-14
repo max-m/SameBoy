@@ -1305,6 +1305,7 @@ object_buffer_pointer++\
 
 static inline uint16_t mode3_batching_length(GB_gameboy_t *gb)
 {
+    if (gb->position_in_line != (uint8_t)-16) return 0;
     if (gb->model & GB_MODEL_NO_SFC_BIT) return 0;
     if (gb->hdma_on) return 0;
     if (gb->stopped) return 0;
@@ -1346,8 +1347,19 @@ void GB_display_run(GB_gameboy_t *gb, unsigned cycles, bool force)
         unsigned first_batch = (LINE_LENGTH * 2 - gb->cycles_for_line * 2 + gb->display_cycles);
         GB_display_run(gb, first_batch, force);
         cycles -= first_batch;
+        if (gb->display_state == 22) {
+            gb->io_registers[GB_IO_STAT] &= ~3;
+            gb->mode_for_interrupt = 0;
+            GB_STAT_update(gb);
+        }
         gb->display_state = 9;
         gb->display_cycles = 0;
+    }
+    if (unlikely(gb->delayed_glitch_hblank_interrupt && cycles && gb->current_line < LINES)) {
+        gb->delayed_glitch_hblank_interrupt = false;
+        gb->mode_for_interrupt = 0;
+        GB_STAT_update(gb);
+        gb->mode_for_interrupt = 3;
     }
     gb->cycles_since_vblank_callback += cycles / 2;
 
@@ -1385,7 +1397,7 @@ void GB_display_run(GB_gameboy_t *gb, unsigned cycles, bool force)
         GB_STATE(gb, display, 24);
         GB_STATE(gb, display, 26);
         GB_STATE(gb, display, 27);
-        // GB_STATE(gb, display, 28);
+        GB_STATE(gb, display, 28);
         GB_STATE(gb, display, 29);
         GB_STATE(gb, display, 30);
         GB_STATE(gb, display, 31);
@@ -1424,6 +1436,7 @@ void GB_display_run(GB_gameboy_t *gb, unsigned cycles, bool force)
     gb->current_line = 0;
     gb->window_y = -1;
     gb->wy_triggered = false;
+    gb->position_in_line = -16;
     
     gb->ly_for_comparison = 0;
     gb->io_registers[GB_IO_STAT] &= ~3;
@@ -1443,6 +1456,7 @@ void GB_display_run(GB_gameboy_t *gb, unsigned cycles, bool force)
     GB_SLEEP(gb, display, 34, 2);
     
     gb->n_visible_objs = 0;
+    gb->orig_n_visible_objs = 0;
     gb->cycles_for_line += 8; // Mode 0 is shorter on the first line 0, so we augment cycles_for_line by 8 extra cycles.
 
     gb->io_registers[GB_IO_STAT] &= ~3;
@@ -1473,7 +1487,7 @@ void GB_display_run(GB_gameboy_t *gb, unsigned cycles, bool force)
     // Mode 3 abort, state 9
     display9: {
         // TODO: Timing of things in this scenario is almost completely untested
-        if (gb->current_line < 144 && !GB_is_sgb(gb) && !gb->disable_rendering) {
+        if (gb->current_line < LINES && !GB_is_sgb(gb) && !gb->disable_rendering) {
             GB_log(gb, "The ROM is preventing line %d from fully rendering, this could damage a real device's LCD display.\n", gb->current_line);
             uint32_t *dest = NULL;
             if (gb->border_mode != GB_BORDER_ALWAYS) {
@@ -1488,12 +1502,26 @@ void GB_display_run(GB_gameboy_t *gb, unsigned cycles, bool force)
                 gb->lcd_x++;
             }
         }
+        gb->n_visible_objs = gb->orig_n_visible_objs;
         gb->current_line++;
-        gb->vram_read_blocked = false;
-        gb->vram_write_blocked = false;
-        gb->wx_triggered = false;
-        gb->wx166_glitch = false;
         gb->cycles_for_line = 0;
+        if (gb->current_line != LINES) {
+            gb->cycles_for_line = 2;
+            GB_SLEEP(gb, display, 28, 2);
+            gb->io_registers[GB_IO_LY] = gb->current_line;
+            if (gb->position_in_line >= 156 && gb->position_in_line < (uint8_t)-16) {
+                gb->delayed_glitch_hblank_interrupt = true;
+            }
+            GB_STAT_update(gb);
+            gb->position_in_line = -15;
+            goto mode_3_start;
+        }
+        else {
+            if (gb->position_in_line >= 156 && gb->position_in_line < (uint8_t)-16) {
+                gb->delayed_glitch_hblank_interrupt = true;
+            }
+            gb->position_in_line = -16;
+        }
     }
         
     while (true) {
@@ -1537,6 +1565,7 @@ void GB_display_run(GB_gameboy_t *gb, unsigned cycles, bool force)
             gb->mode_for_interrupt = -1;
             GB_STAT_update(gb);
             gb->n_visible_objs = 0;
+            gb->orig_n_visible_objs = 0;
             
             if (!GB_is_dma_active(gb) && !gb->oam_ppu_blocked) {
                 GB_BATCHPOINT(gb, display, 5, 80);
@@ -1559,7 +1588,7 @@ void GB_display_run(GB_gameboy_t *gb, unsigned cycles, bool force)
                 }
             }
             gb->cycles_for_line = MODE2_LENGTH + 4;
-
+            gb->orig_n_visible_objs = gb->n_visible_objs;
             gb->accessed_oam_row = -1;
             gb->io_registers[GB_IO_STAT] &= ~3;
             gb->io_registers[GB_IO_STAT] |= 3;
@@ -1594,7 +1623,6 @@ void GB_display_run(GB_gameboy_t *gb, unsigned cycles, bool force)
             fifo_clear(&gb->oam_fifo);
             /* Fill the FIFO with 8 pixels of "junk", it's going to be dropped anyway. */
             fifo_push_bg_row(&gb->bg_fifo, 0, 0, 0, false, false);
-            gb->position_in_line = -16;
             gb->lcd_x = 0;
             
             /* The actual rendering cycle */
@@ -1779,7 +1807,8 @@ abort_fetching_object:
                 GB_SLEEP(gb, display, 21, 1);
             }
 skip_slow_mode_3:
-            
+            gb->position_in_line = -16;
+
             /* TODO: This seems incorrect (glitches Tesserae), verify further */
             /*
             if (gb->fetcher_state == 4 || gb->fetcher_state == 5) {
@@ -1899,6 +1928,10 @@ skip_slow_mode_3:
                 gb->io_registers[GB_IO_IF] |= 2;
             }
             GB_SLEEP(gb, display, 12, 2);
+            if (gb->delayed_glitch_hblank_interrupt) {
+                gb->delayed_glitch_hblank_interrupt = false;
+                gb->mode_for_interrupt = 0;
+            }
             gb->ly_for_comparison = gb->current_line;
             GB_STAT_update(gb);
             GB_SLEEP(gb, display, 24, 1);
