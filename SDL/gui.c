@@ -374,9 +374,10 @@ static void item_help(unsigned index)
 
 static void enter_emulation_menu(unsigned index);
 static void enter_graphics_menu(unsigned index);
-static void enter_controls_menu(unsigned index);
+static void enter_keyboard_menu(unsigned index);
 static void enter_joypad_menu(unsigned index);
 static void enter_audio_menu(unsigned index);
+static void enter_controls_menu(unsigned index);
 #ifndef __EMSCRIPTEN__
 static void toggle_audio_recording(unsigned index);
 #endif
@@ -515,9 +516,7 @@ static const struct menu_item options_menu[] = {
     {"Emulation Options", enter_emulation_menu},
     {"Graphic Options", enter_graphics_menu},
     {"Audio Options", enter_audio_menu},
-    {"Keyboard", enter_controls_menu},
-    {"Joypad", enter_joypad_menu},
-    {"Touch Controls:", cycle_touch_controls, current_touch_controls_string, cycle_touch_controls_backwards},
+    {"Control Options", enter_controls_menu},
     {"Back", return_to_root_menu},
     {NULL,}
 };
@@ -551,8 +550,7 @@ static const struct menu_item paused_menu[] = {
     {"Emulation Options", enter_emulation_menu},
     {"Graphic Options", enter_graphics_menu},
     {"Audio Options", enter_audio_menu},
-    {"Keyboard Options", enter_controls_menu},
-    {"Joypad Options", enter_joypad_menu},
+    {"Control Options", enter_controls_menu},
     {audio_recording_menu_item, toggle_audio_recording},
     {"Help", item_help},
     {"Quit SameBoy", item_exit},
@@ -1196,7 +1194,7 @@ static void modify_key(unsigned index)
 
 static const char *key_name(unsigned index);
 
-static const struct menu_item controls_menu[] = {
+static const struct menu_item keyboard_menu[] = {
     {"Right:", modify_key, key_name,},
     {"Left:", modify_key, key_name,},
     {"Up:", modify_key, key_name,},
@@ -1210,11 +1208,7 @@ static const struct menu_item controls_menu[] = {
     {"Rewind:", modify_key, key_name,},
 #endif
     {"Slow-Motion:", modify_key, key_name,},
-#ifdef __EMSCRIPTEN__
-    {"Back", enter_options_menu},
-#else
-    {"Back", return_to_root_menu},
-#endif
+    {"Back", enter_controls_menu},
     {NULL,}
 };
 
@@ -1226,9 +1220,9 @@ static const char *key_name(unsigned index)
     return SDL_GetScancodeName(configuration.keys[index]);
 }
 
-static void enter_controls_menu(unsigned index)
+static void enter_keyboard_menu(unsigned index)
 {
-    current_menu = controls_menu;
+    current_menu = keyboard_menu;
     current_selection = 0;
     scroll = 0;
     recalculate_menu_height();
@@ -1362,11 +1356,7 @@ static const struct menu_item joypad_menu[] = {
     {"Joypad:", cycle_joypads, current_joypad_name, cycle_joypads_backwards},
     {"Configure layout", detect_joypad_layout},
     {"Rumble Mode:", cycle_rumble_mode, current_rumble_mode, cycle_rumble_mode_backwards},
-#ifdef __EMSCRIPTEN__
-    {"Back", enter_options_menu},
-#else
-    {"Back", return_to_root_menu},
-#endif
+    {"Back", enter_controls_menu},
     {NULL,}
 };
 
@@ -1423,6 +1413,39 @@ void connect_joypad(void)
     if (joystick) {
         haptic = SDL_HapticOpenFromJoystick(joystick);
     }
+}
+
+static void toggle_mouse_control(unsigned index)
+{
+    configuration.allow_mouse_controls = !configuration.allow_mouse_controls;
+}
+
+const char *mouse_control_string(unsigned index)
+{
+    return configuration.allow_mouse_controls? "Allow mouse control" : "Disallow mouse control";
+}
+
+static const struct menu_item controls_menu[] = {
+    {"Keyboard Options", enter_keyboard_menu},
+    {"Joypad Options", enter_joypad_menu},
+#ifdef __EMSCRIPTEN__
+    {"Touch Controls:", cycle_touch_controls, current_touch_controls_string, cycle_touch_controls_backwards},
+#endif
+    {"Motion-controlled games:", toggle_mouse_control, mouse_control_string, toggle_mouse_control},
+#ifdef __EMSCRIPTEN__
+    {"Back", enter_options_menu},
+#else
+    {"Back", return_to_root_menu},
+#endif
+    {NULL,}
+};
+
+static void enter_controls_menu(unsigned index)
+{
+    current_menu = controls_menu;
+    current_selection = 0;
+    scroll = 0;
+    recalculate_menu_height();
 }
 
 #ifndef __EMSCRIPTEN__
@@ -1490,6 +1513,22 @@ static void toggle_audio_recording(unsigned index)
     }
 }
 #endif
+
+void convert_mouse_coordinates(signed *x, signed *y)
+{
+    signed width = GB_get_screen_width(&gb);
+    signed height = GB_get_screen_height(&gb);
+    signed x_offset = (width - 160) / 2;
+    signed y_offset = (height - 144) / 2;
+
+    *x = (signed)(*x - rect.x / factor) * width / (signed)(rect.w / factor) - x_offset;
+    *y = (signed)(*y - rect.y / factor) * height / (signed)(rect.h / factor) - y_offset;
+
+    if (strcmp("CRT", configuration.filter) == 0) {
+        *y = *y * 8 / 7;
+        *y -= 144 / 16;
+    }
+}
 
 void init_gui(bool is_running)
 {
@@ -1616,13 +1655,9 @@ bool run_gui_iteration(bool is_running) {
                     menu_state.event.key.keysym.scancode = SDL_SCANCODE_ESCAPE;
                 }
                 else if (gui_state == SHOWING_MENU) {
-                    signed x = (menu_state.event.button.x - rect.x / factor) * width / (rect.w / factor) - x_offset;
-                    signed y = (menu_state.event.button.y - rect.y / factor) * height / (rect.h / factor) - y_offset;
-
-                    if (strcmp("CRT", configuration.filter) == 0) {
-                        y = y * 8 / 7;
-                        y -= 144 / 16;
-                    }
+                    signed x = menu_state.event.button.x;
+                    signed y = menu_state.event.button.y;
+                    convert_mouse_coordinates(&x, &y);
                     y += scroll;
 
                     if (x < 0 || x >= 160 || y < 24) {
@@ -1870,7 +1905,12 @@ bool run_gui_iteration(bool is_running) {
             }
             else if (key == MENU_KEY_OPEN_ROOT) {
                 if (gui_state == SHOWING_MENU && current_menu != root_menu) {
-                    return_to_root_menu(0);
+                    for (const struct menu_item *item = current_menu; item->string; item++) {
+                        if (strcmp(item->string, "Back") == 0) {
+                            item->handler(0);
+                            break;
+                        }
+                    }
                     menu_state.should_render = true;
                 }
                 else if (is_running) {

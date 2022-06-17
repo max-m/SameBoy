@@ -254,12 +254,14 @@ static size_t bess_size_for_cartridge(const GB_cartridge_t *cart)
             return sizeof(BESS_block_t) + 3 * sizeof(BESS_MBC_pair_t) + (cart->has_rtc? sizeof(BESS_RTC_t) : 0);
         case GB_MBC5:
             return sizeof(BESS_block_t) + 4 * sizeof(BESS_MBC_pair_t);
+        case GB_CAMERA:
+            return sizeof(BESS_block_t) + 3 * sizeof(BESS_MBC_pair_t);
         case GB_MBC7:
             return sizeof(BESS_block_t) + 3 * sizeof(BESS_MBC_pair_t) + sizeof(BESS_MBC7_t);
         case GB_MMM01:
             return sizeof(BESS_block_t) + 8 * sizeof(BESS_MBC_pair_t);
         case GB_HUC1:
-            return sizeof(BESS_block_t) + 4 * sizeof(BESS_MBC_pair_t);
+            return sizeof(BESS_block_t) + 3 * sizeof(BESS_MBC_pair_t);
         case GB_HUC3:
             return sizeof(BESS_block_t) + 3 * sizeof(BESS_MBC_pair_t) + sizeof(BESS_HUC3_t);
         case GB_TPP1:
@@ -459,6 +461,12 @@ static int save_bess_mbc_block(GB_gameboy_t *gb, virtual_file_t *file)
             pairs[3] = (BESS_MBC_pair_t){LE16(0x4000), gb->mbc5.ram_bank};
             mbc_block.size = 4 * sizeof(pairs[0]);
             break;
+        case GB_CAMERA:
+            pairs[0] = (BESS_MBC_pair_t){LE16(0x0000), gb->mbc_ram_enable? 0xA : 0x0};
+            pairs[1] = (BESS_MBC_pair_t){LE16(0x2000), gb->mbc5.rom_bank_low};
+            pairs[2] = (BESS_MBC_pair_t){LE16(0x4000), gb->mbc5.ram_bank};
+            mbc_block.size = 3 * sizeof(pairs[0]);
+            break;
         case GB_MBC7:
             pairs[0] = (BESS_MBC_pair_t){LE16(0x0000), gb->mbc_ram_enable? 0xA : 0x0};
             pairs[1] = (BESS_MBC_pair_t){LE16(0x2000), gb->mbc7.rom_bank};
@@ -481,8 +489,7 @@ static int save_bess_mbc_block(GB_gameboy_t *gb, virtual_file_t *file)
             pairs[0] = (BESS_MBC_pair_t){LE16(0x0000), gb->huc1.ir_mode? 0xE : 0x0};
             pairs[1] = (BESS_MBC_pair_t){LE16(0x2000), gb->huc1.bank_low};
             pairs[2] = (BESS_MBC_pair_t){LE16(0x4000), gb->huc1.bank_high};
-            pairs[3] = (BESS_MBC_pair_t){LE16(0x6000), gb->huc1.mode};
-            mbc_block.size = 4 * sizeof(pairs[0]);
+            mbc_block.size = 3 * sizeof(pairs[0]);
         case GB_HUC3:
             pairs[0] = (BESS_MBC_pair_t){LE16(0x0000), gb->huc3.mode};
             pairs[1] = (BESS_MBC_pair_t){LE16(0x2000), gb->huc3.rom_bank};

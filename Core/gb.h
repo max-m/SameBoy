@@ -436,6 +436,7 @@ struct GB_gameboy_internal_s {
         bool dma_ppu_vram_conflict;
         uint16_t dma_ppu_vram_conflict_addr;
         uint8_t hdma_open_bus; /* Required to emulate HDMA reads from Exxx */
+        bool allow_hdma_on_wake;
     )
     
     /* MBC */
@@ -466,7 +467,7 @@ struct GB_gameboy_internal_s {
                 uint8_t rom_bank_low;
                 uint8_t rom_bank_high:1;
                 uint8_t ram_bank:4;
-            } mbc5;
+            } mbc5; // Also used for GB_CAMERA
                
             struct {
                 uint8_t rom_bank;
@@ -504,8 +505,7 @@ struct GB_gameboy_internal_s {
             struct {
                 uint8_t bank_low:6;
                 uint8_t bank_high:3;
-                bool mode:1;
-                bool ir_mode:1;
+                bool ir_mode;
             } huc1;
 
             struct {
