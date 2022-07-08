@@ -197,7 +197,7 @@ static void set_model_class(void)
 
 static void gb_audio_callback(GB_gameboy_t *gb, GB_sample_t *sample)
 {
-    if (GB_audio_get_queue_length() / sizeof(*sample) > GB_audio_get_sample_rate() / 4) {
+    if (GB_audio_get_queue_length() / sizeof(*sample) > GB_audio_get_frequency() / 4) {
         return;
     }
 
@@ -731,7 +731,7 @@ static uint32_t rgb_encode(GB_gameboy_t *gb, uint8_t r, uint8_t g, uint8_t b)
 }
 
 void start_main_loop(void);
-static void vblank(GB_gameboy_t *gb)
+static void vblank(GB_gameboy_t *gb, GB_vblank_type_t type)
 {
     if (underclock_down && clock_mutliplier > 0.5) {
         clock_mutliplier = 0.5;
@@ -903,7 +903,7 @@ static void init_gb(void)
         GB_set_rgb_encode_callback(&gb, rgb_encode);
         GB_set_rumble_callback(&gb, rumble);
         GB_set_rumble_mode(&gb, configuration.rumble_mode);
-        GB_set_sample_rate(&gb, GB_audio_get_sample_rate());
+        GB_set_sample_rate(&gb, GB_audio_get_frequency());
         GB_set_color_correction_mode(&gb, configuration.color_correction_mode);
         GB_set_light_temperature(&gb, (configuration.color_temperature - 10.0) / 10.0);
         GB_set_interference_volume(&gb, configuration.interference_volume / 100.0);
@@ -1079,6 +1079,10 @@ void start_main_loop(void)
 
 int EMSCRIPTEN_KEEPALIVE init(void)
 {
+#if ! NDEBUG
+    EM_ASM({ Module.wasmTable = wasmTable; });
+#endif
+
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
         fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
         return EXIT_FAILURE;

@@ -140,8 +140,13 @@ typedef struct {
     } touch_controls_mode;
 #endif
     
+    struct __attribute__((packed, aligned(4))) {
+        
     /* v0.15 */
     bool allow_mouse_controls;
+    uint8_t cgb_revision;
+        
+    };
 } configuration_t;
 
 extern configuration_t configuration;

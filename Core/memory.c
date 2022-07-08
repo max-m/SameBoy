@@ -859,15 +859,12 @@ static void write_mbc(GB_gameboy_t *gb, uint16_t addr, uint8_t value)
                 case 0x2000: case 0x3000:
                     if (!gb->mmm01.locked) {
                         gb->mmm01.rom_bank_mid = value >> 5;
-                        gb->mmm01.rom_bank_low = value;
                     }
-                    else {
-                        gb->mmm01.rom_bank_low &= (gb->mmm01.rom_bank_mask << 1);
-                        gb->mmm01.rom_bank_low |= ~(gb->mmm01.rom_bank_mask << 1) & value;
-                    }
+                    gb->mmm01.rom_bank_low &= (gb->mmm01.rom_bank_mask << 1);
+                    gb->mmm01.rom_bank_low |= ~(gb->mmm01.rom_bank_mask << 1) & value;
                     break;
                 case 0x4000: case 0x5000:
-                    gb->mmm01.ram_bank_low = value;
+                    gb->mmm01.ram_bank_low = value | ~gb->mmm01.ram_bank_mask;
                     if (!gb->mmm01.locked) {
                         gb->mmm01.ram_bank_high = value >> 2;
                         gb->mmm01.rom_bank_high = value >> 4;
@@ -875,7 +872,9 @@ static void write_mbc(GB_gameboy_t *gb, uint16_t addr, uint8_t value)
                     }
                     break;
                 case 0x6000: case 0x7000:
-                    gb->mmm01.mbc1_mode = (value & 1) && !gb->mmm01.mbc1_mode_disable;
+                    if (!gb->mmm01.mbc1_mode_disable) {
+                        gb->mmm01.mbc1_mode = (value & 1);
+                    }
                     if (!gb->mmm01.locked) {
                         gb->mmm01.rom_bank_mask = value >> 2;
                         gb->mmm01.multiplex_mode = value & 0x40;
@@ -1422,21 +1421,13 @@ static void write_high_memory(GB_gameboy_t *gb, uint16_t addr, uint8_t value)
 
             case GB_IO_LCDC:
                 if ((value & 0x80) && !(gb->io_registers[GB_IO_LCDC] & 0x80)) {
-                    if (value & 0x80) {
-                        // LCD turned on
-                        if (!gb->lcd_disabled_outside_of_vblank &&
-                            (gb->cycles_since_vblank_callback > 10 * 456 || GB_is_sgb(gb))) {
-                            // Trigger a vblank here so we don't exceed LCDC_PERIOD
-                            GB_display_vblank(gb);
-                        }
+                    // LCD turned on
+                    if (!gb->lcd_disabled_outside_of_vblank &&
+                        (gb->cycles_since_vblank_callback > 10 * 456 || GB_is_sgb(gb))) {
+                        // Trigger a vblank here so we don't exceed LCDC_PERIOD
+                        GB_display_vblank(gb, GB_VBLANK_TYPE_ARTIFICIAL);
                     }
-                    else {
-                        // LCD turned off
-                        if (gb->current_line < 144) {
-                             // ROM might be repeatedly disabling LCDC outside of vblank, avoid callback spam
-                            gb->lcd_disabled_outside_of_vblank = true;
-                        }
-                    }
+
                     gb->display_cycles = 0;
                     gb->display_state = 0;
                     gb->double_speed_alignment = 0;

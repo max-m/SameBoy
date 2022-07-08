@@ -1,6 +1,6 @@
+#include "xaudio2_7.h"
 #include "audio.h"
-#include <Windows.h>
-#include <xaudio2.h>
+
 
 #define AUDIO_FREQUENCY 96000
 static IXAudio2 *xaudio2 = NULL;
@@ -12,6 +12,7 @@ static unsigned pos = 0;
 
 #define BATCH_SIZE 256
 
+
 static const WAVEFORMATEX wave_format = {
     .wFormatTag = WAVE_FORMAT_PCM,
     .nChannels = 2,
@@ -21,6 +22,27 @@ static const WAVEFORMATEX wave_format = {
     .wBitsPerSample = 16,
     .cbSize = 0
 };
+
+static inline HRESULT XAudio2Create(IXAudio2 **ppXAudio2,
+                                        UINT32 Flags,
+                                        XAUDIO2_PROCESSOR XAudio2Processor)
+{
+    IXAudio2 *pXAudio2;
+    LoadLibraryEx("xaudio2_7.dll", NULL, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+    
+    HRESULT hr = CoCreateInstance(&CLSID_XAudio2, NULL, CLSCTX_INPROC_SERVER, &IID_IXAudio2, (void**)&pXAudio2);
+    if (SUCCEEDED(hr)) {
+        hr = pXAudio2->lpVtbl->Initialize(pXAudio2, Flags, XAudio2Processor);
+    }
+    
+    if (SUCCEEDED(hr)) {
+        *ppXAudio2 = pXAudio2;
+    }
+    else {
+        pXAudio2->lpVtbl->Release(pXAudio2);
+    }
+    return hr;
+}
 
 static bool _audio_is_playing(void)
 {
@@ -55,7 +77,7 @@ static unsigned _audio_get_frequency(void)
 static size_t _audio_get_queue_length(void)
 {
     static XAUDIO2_VOICE_STATE state;
-    IXAudio2SourceVoice_GetState(source_voice, &state, XAUDIO2_VOICE_NOSAMPLESPLAYED);
+    IXAudio2SourceVoice_GetState(source_voice, &state);
     
     return state.BuffersQueued * BATCH_SIZE + (pos & (BATCH_SIZE - 1));
 }
@@ -93,8 +115,7 @@ static bool _audio_init(unsigned sample_rate)
                                        AUDIO_FREQUENCY,
                                        0, // Flags
                                        0, // Device index
-                                       NULL, // Effect chain
-                                       AudioCategory_GameMedia // Category
+                                       NULL // Effect chain
                                       );
     if (FAILED(hr)) {
         fprintf(stderr, "CreateMasteringVoice failed: %lx\n", hr);
@@ -111,4 +132,4 @@ static bool _audio_init(unsigned sample_rate)
     return true;
 }
 
-GB_AUDIO_DRIVER(XAudio2);
+GB_AUDIO_DRIVER(XAudio2_7);

@@ -462,7 +462,7 @@ static uint32_t rgb_encode(GB_gameboy_t *gb, uint8_t r, uint8_t g, uint8_t b)
     return SDL_MapRGB(pixel_format, r, g, b);
 }
 
-static void vblank(GB_gameboy_t *gb)
+static void vblank(GB_gameboy_t *gb, GB_vblank_type_t type)
 {
     if (underclock_down && clock_mutliplier > 0.5) {
         clock_mutliplier -= 1.0/16;
@@ -530,15 +530,15 @@ static void gb_audio_callback(GB_gameboy_t *gb, GB_sample_t *sample)
     if (turbo_down) {
         static unsigned skip = 0;
         skip++;
-        if (skip == GB_audio_get_sample_rate() / 8) {
+        if (skip == GB_audio_get_frequency() / 8) {
             skip = 0;
         }
-        if (skip > GB_audio_get_sample_rate() / 16) {
+        if (skip > GB_audio_get_frequency() / 16) {
             return;
         }
     }
     
-    if (GB_audio_get_queue_length() / sizeof(*sample) > GB_audio_get_sample_rate() / 4) {
+    if (GB_audio_get_queue_length() / sizeof(*sample) > GB_audio_get_frequency() / 4) {
         return;
     }
     
@@ -649,7 +649,7 @@ restart:
     model = (GB_model_t [])
     {
         [MODEL_DMG] = GB_MODEL_DMG_B,
-        [MODEL_CGB] = GB_MODEL_CGB_E,
+        [MODEL_CGB] = GB_MODEL_CGB_0 + configuration.cgb_revision,
         [MODEL_AGB] = GB_MODEL_AGB_A,
         [MODEL_MGB] = GB_MODEL_MGB,
         [MODEL_SGB] = (GB_model_t [])
@@ -672,7 +672,7 @@ restart:
         GB_set_rgb_encode_callback(&gb, rgb_encode);
         GB_set_rumble_callback(&gb, rumble);
         GB_set_rumble_mode(&gb, configuration.rumble_mode);
-        GB_set_sample_rate(&gb, GB_audio_get_sample_rate());
+        GB_set_sample_rate(&gb, GB_audio_get_frequency());
         GB_set_color_correction_mode(&gb, configuration.color_correction_mode);
         GB_set_light_temperature(&gb, (configuration.color_temperature - 10.0) / 10.0);
         GB_set_interference_volume(&gb, configuration.interference_volume / 100.0);
@@ -857,7 +857,7 @@ int main(int argc, char **argv)
         fclose(prefs_file);
         
         /* Sanitize for stability */
-        configuration.color_correction_mode %= GB_COLOR_CORRECTION_LOW_CONTRAST +1;
+        configuration.color_correction_mode %= GB_COLOR_CORRECTION_LOW_CONTRAST + 1;
         configuration.scaling_mode %= GB_SDL_SCALING_MAX;
         configuration.default_scale %= GB_SDL_DEFAULT_SCALE_MAX + 1;
         configuration.blending_mode %= GB_FRAME_BLENDING_MODE_ACCURATE + 1;
@@ -869,6 +869,7 @@ int main(int argc, char **argv)
         configuration.rumble_mode %= GB_RUMBLE_ALL_GAMES + 1;
         configuration.color_temperature %= 21;
         configuration.bootrom_path[sizeof(configuration.bootrom_path) - 1] = 0;
+        configuration.cgb_revision %= GB_MODEL_CGB_E - GB_MODEL_CGB_0 + 1;
     }
     
     if (configuration.model >= MODEL_MAX) {

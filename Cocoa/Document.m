@@ -131,7 +131,7 @@ static void boot_rom_load(GB_gameboy_t *gb, GB_boot_rom_t type)
     [self loadBootROM: type];
 }
 
-static void vblank(GB_gameboy_t *gb)
+static void vblank(GB_gameboy_t *gb, GB_vblank_type_t type)
 {
     Document *self = (__bridge Document *)GB_get_user_data(gb);
     [self vblank];
@@ -933,7 +933,12 @@ static unsigned *multiplication_table_for_frequency(unsigned frequency)
     for (NSView *view in [_mainWindow.contentView.subviews copy]) {
         [view removeFromSuperview];
     }
-    [[NSBundle mainBundle] loadNibNamed:@"GBS" owner:self topLevelObjects:nil];
+    if (@available(macOS 11, *)) {
+        [[NSBundle mainBundle] loadNibNamed:@"GBS11" owner:self topLevelObjects:nil];
+    }
+    else {
+        [[NSBundle mainBundle] loadNibNamed:@"GBS" owner:self topLevelObjects:nil];
+    }
     [_mainWindow setContentSize:self.gbsPlayerView.bounds.size];
     _mainWindow.styleMask &= ~NSWindowStyleMaskResizable;
     dispatch_async(dispatch_get_main_queue(), ^{ // Cocoa is weird, no clue why it's needed
@@ -1362,6 +1367,10 @@ static unsigned *multiplication_table_for_frequency(unsigned frequency)
 
 - (char *) getDebuggerInput
 {
+    bool isPlaying = _audioClient.isPlaying;
+    if (isPlaying) {
+        [_audioClient stop];
+    }
     [audioLock lock];
     [audioLock signal];
     [audioLock unlock];
@@ -1380,6 +1389,9 @@ static unsigned *multiplication_table_for_frequency(unsigned frequency)
             [self.debuggerSideView setString:@""];
         }
     });
+    if (isPlaying) {
+        [_audioClient start];
+    }
     if ((id) input == [NSNull null]) {
         return NULL;
     }

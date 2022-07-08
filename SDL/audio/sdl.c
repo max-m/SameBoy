@@ -34,33 +34,33 @@ unsigned GB_audio_default_sample_rate(void)
     return AUDIO_FREQUENCY;
 }
 
-bool GB_audio_is_playing(void)
+static bool _audio_is_playing(void)
 {
     return SDL_GetAudioDeviceStatus(device_id) == SDL_AUDIO_PLAYING;
 }
 
-void GB_audio_set_paused(bool paused)
-{
-    GB_audio_clear_queue();
-    SDL_PauseAudioDevice(device_id, paused);
-}
-
-void GB_audio_clear_queue(void)
+static void _audio_clear_queue(void)
 {
     SDL_ClearQueuedAudio(device_id);
 }
 
-unsigned GB_audio_get_sample_rate(void)
+static void _audio_set_paused(bool paused)
+{
+    _audio_clear_queue();
+    SDL_PauseAudioDevice(device_id, paused);
+}
+
+static unsigned _audio_get_frequency(void)
 {
     return have_aspec.freq;
 }
 
-size_t GB_audio_get_queue_length(void)
+static size_t _audio_get_queue_length(void)
 {
     return SDL_GetQueuedAudioSize(device_id);
 }
 
-void GB_audio_queue_sample(GB_sample_t *sample)
+static void _audio_queue_sample(GB_sample_t *sample)
 {
     audio_buffer[buffer_pos++] = *sample;
 
@@ -70,7 +70,7 @@ void GB_audio_queue_sample(GB_sample_t *sample)
     }
 }
 
-void GB_audio_init(unsigned sample_rate)
+static bool _audio_init(unsigned sample_rate)
 {
     /* Configure Audio */
     memset(&want_aspec, 0, sizeof(want_aspec));
@@ -103,10 +103,8 @@ void GB_audio_init(unsigned sample_rate)
 #endif
     
     device_id = SDL_OpenAudioDevice(0, 0, &want_aspec, &have_aspec, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE | SDL_AUDIO_ALLOW_SAMPLES_CHANGE);
+    
+    return true;
 }
 
-void GB_audio_destroy() {
-    GB_audio_set_paused(true);
-
-    SDL_CloseAudioDevice(device_id);
-}
+GB_AUDIO_DRIVER(SDL);

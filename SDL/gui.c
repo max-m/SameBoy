@@ -8,6 +8,7 @@
 #include "utils.h"
 #include "gui.h"
 #include "font.h"
+#include "audio/audio.h"
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -173,6 +174,7 @@ configuration_t configuration =
     .use_browser_timing = true,
     .touch_controls_mode = TOUCH_CONTROLS_AUTOMATIC,
 #endif
+    .cgb_revision = GB_MODEL_CGB_E - GB_MODEL_CGB_0,
 };
 
 
@@ -593,6 +595,42 @@ const char *current_model_string(unsigned index)
         [configuration.model];
 }
 
+static void cycle_cgb_revision(unsigned index)
+{
+    
+    if (configuration.cgb_revision == GB_MODEL_CGB_E - GB_MODEL_CGB_0) {
+        configuration.cgb_revision = 0;
+    }
+    else {
+        configuration.cgb_revision++;
+    }
+    pending_command = GB_SDL_RESET_COMMAND;
+}
+
+static void cycle_cgb_revision_backwards(unsigned index)
+{
+    if (configuration.cgb_revision == 0) {
+        configuration.cgb_revision = GB_MODEL_CGB_E - GB_MODEL_CGB_0;
+    }
+    else {
+        configuration.cgb_revision--;
+    }
+    pending_command = GB_SDL_RESET_COMMAND;
+}
+
+const char *current_cgb_revision_string(unsigned index)
+{
+    return (const char *[]){
+        "CPU CGB 0 (Exp.)",
+        "CPU CGB A (Exp.)",
+        "CPU CGB B (Exp.)",
+        "CPU CGB C (Exp.)",
+        "CPU CGB D",
+        "CPU CGB E",
+    }
+    [configuration.cgb_revision];
+}
+
 static void cycle_sgb_revision(unsigned index)
 {
     
@@ -724,6 +762,7 @@ const char *current_rtc_mode_string(unsigned index)
 
 static const struct menu_item emulation_menu[] = {
     {"Emulated Model:", cycle_model, current_model_string, cycle_model_backwards},
+    {"GBC Revision:", cycle_cgb_revision, current_cgb_revision_string, cycle_cgb_revision_backwards},
     {"SGB Revision:", cycle_sgb_revision, current_sgb_revision_string, cycle_sgb_revision_backwards},
 #ifndef __EMSCRIPTEN__
     {"Boot ROMs Folder:", toggle_bootrom, current_bootrom_string, toggle_bootrom},
@@ -1097,13 +1136,13 @@ static void enter_graphics_menu(unsigned index)
     recalculate_menu_height();
 }
 
-const char *highpass_filter_string(unsigned index)
+static const char *highpass_filter_string(unsigned index)
 {
     return (const char *[]){"None (Keep DC Offset)", "Accurate", "Preserve Waveform"}
         [configuration.highpass_mode];
 }
 
-void cycle_highpass_filter(unsigned index)
+static void cycle_highpass_filter(unsigned index)
 {
     configuration.highpass_mode++;
     if (configuration.highpass_mode == GB_HIGHPASS_MAX) {
@@ -1111,7 +1150,7 @@ void cycle_highpass_filter(unsigned index)
     }
 }
 
-void cycle_highpass_filter_backwards(unsigned index)
+static void cycle_highpass_filter_backwards(unsigned index)
 {
     if (configuration.highpass_mode == 0) {
         configuration.highpass_mode = GB_HIGHPASS_MAX - 1;
@@ -1121,14 +1160,14 @@ void cycle_highpass_filter_backwards(unsigned index)
     }
 }
 
-const char *volume_string(unsigned index)
+static const char *volume_string(unsigned index)
 {
     static char ret[5];
     sprintf(ret, "%d%%", configuration.volume);
     return ret;
 }
 
-void increase_volume(unsigned index)
+static void increase_volume(unsigned index)
 {
     configuration.volume += 5;
     if (configuration.volume > 100) {
@@ -1136,7 +1175,7 @@ void increase_volume(unsigned index)
     }
 }
 
-void decrease_volume(unsigned index)
+static void decrease_volume(unsigned index)
 {
     configuration.volume -= 5;
     if (configuration.volume > 100) {
@@ -1144,14 +1183,14 @@ void decrease_volume(unsigned index)
     }
 }
 
-const char *interference_volume_string(unsigned index)
+static const char *interference_volume_string(unsigned index)
 {
     static char ret[5];
     sprintf(ret, "%d%%", configuration.interference_volume);
     return ret;
 }
 
-void increase_interference_volume(unsigned index)
+static void increase_interference_volume(unsigned index)
 {
     configuration.interference_volume += 5;
     if (configuration.interference_volume > 100) {
@@ -1159,7 +1198,7 @@ void increase_interference_volume(unsigned index)
     }
 }
 
-void decrease_interference_volume(unsigned index)
+static void decrease_interference_volume(unsigned index)
 {
     configuration.interference_volume -= 5;
     if (configuration.interference_volume > 100) {
@@ -1167,10 +1206,18 @@ void decrease_interference_volume(unsigned index)
     }
 }
 
+static const char *audio_driver_string(unsigned index)
+{
+    return GB_audio_driver_name();
+}
+
+static void nop(unsigned index){}
+
 static const struct menu_item audio_menu[] = {
     {"Highpass Filter:", cycle_highpass_filter, highpass_filter_string, cycle_highpass_filter_backwards},
     {"Volume:", increase_volume, volume_string, decrease_volume},
     {"Interference Volume:", increase_interference_volume, interference_volume_string, decrease_interference_volume},
+    {"Audio Driver:", nop, audio_driver_string},
 #ifdef __EMSCRIPTEN__
     {"Back", enter_options_menu},
 #else

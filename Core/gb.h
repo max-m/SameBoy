@@ -283,7 +283,7 @@ typedef enum {
 #endif
 #endif
 
-typedef void (*GB_vblank_callback_t)(GB_gameboy_t *gb);
+typedef void (*GB_vblank_callback_t)(GB_gameboy_t *gb, GB_vblank_type_t type);
 typedef void (*GB_log_callback_t)(GB_gameboy_t *gb, const char *string, GB_log_attributes attributes);
 typedef char *(*GB_input_callback_t)(GB_gameboy_t *gb);
 typedef uint32_t (*GB_rgb_encode_callback_t)(GB_gameboy_t *gb, uint8_t r, uint8_t g, uint8_t b);
@@ -733,8 +733,6 @@ struct GB_gameboy_internal_s {
         void *nontrivial_jump_state;
         bool non_trivial_jump_breakpoint_occured;
 
-        /* SLD (Todo: merge with backtrace) */
-        bool stack_leak_detection;
         signed debug_call_depth;
         uint16_t sp_for_call_depth[0x200]; /* Should be much more than enough */
         uint16_t addr_for_call_depth[0x200];

@@ -84,7 +84,7 @@ LDFLAGS += --no-entry
 LDFLAGS += -s WASM=1 -lidbfs.js
 LDFLAGS += -s ALLOW_MEMORY_GROWTH=1
 # Enable WebGL 2 support
-LDFLAGS += -s MAX_WEBGL_VERSION=2
+LDFLAGS += -lEGL -lGL -s MAX_WEBGL_VERSION=2
 # Create an ES6 Module
 LDFLAGS += -s MODULARIZE=1 -s EXPORT_ES6=1 -s EXPORT_NAME=initSameBoy
 
@@ -155,6 +155,7 @@ endif
 CORE_OBJECTS := $(patsubst $(CORE_DIR)/%,$(OBJ)/%.o,$(CORE_SOURCES))
 
 SDL_SOURCES := \
+	$(CORE_DIR)/SDL/audio.c \
 	$(CORE_DIR)/SDL/audio/sdl.c \
 	$(CORE_DIR)/SDL/font.c \
 	$(CORE_DIR)/SDL/gui.c \
