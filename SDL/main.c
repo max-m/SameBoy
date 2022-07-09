@@ -922,7 +922,7 @@ int main(int argc, char **argv)
         pixel_format = SDL_AllocFormat(SDL_PIXELFORMAT_ABGR8888);
     }
     
-    GB_audio_init(0);
+    GB_audio_init();
 
     SDL_EventState(SDL_DROPFILE, SDL_ENABLE);
     

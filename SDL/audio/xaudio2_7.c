@@ -131,7 +131,7 @@ static void _audio_queue_sample(GB_sample_t *sample)
     }
 }
 
-static bool _audio_init(unsigned sample_rate)
+static bool _audio_init(void)
 {
     HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     if (FAILED(hr)) {

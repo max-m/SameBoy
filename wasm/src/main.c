@@ -119,21 +119,6 @@ void set_system_color(uint32_t color) {
 }
 #endif
 
-static unsigned query_sample_rate_of_audiocontexts(void)
-{
-    return EM_ASM_INT({
-        if (!Module.SDL2 || !Module.SDL2.audioContext) {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            const ctx = new AudioContext();
-            const sr = ctx.sampleRate;
-            ctx.close();
-            return sr;
-        }
-
-        return Module.SDL2.audioContext.sampleRate;
-    });
-}
-
 static void update_palette(void)
 {
     switch (configuration.dmg_palette) {
@@ -1196,10 +1181,7 @@ int EMSCRIPTEN_KEEPALIVE init(void)
         }
     }
 
-    unsigned audio_sample_rate = query_sample_rate_of_audiocontexts();
-    printf("Sample rate: %u\n", audio_sample_rate);
-
-    GB_audio_init(audio_sample_rate);
+    GB_audio_init();
     GB_audio_set_paused(false);
     init_gb();
 

@@ -8,7 +8,7 @@
 
 static const GB_audio_driver_t *driver = NULL;
 
-bool GB_audio_init(unsigned sample_rate)
+bool GB_audio_init(void)
 {
     const GB_audio_driver_t *drivers[] = {
 #ifdef _WIN32
@@ -24,7 +24,7 @@ bool GB_audio_init(unsigned sample_rate)
         if (strcmp(driver->name, configuration.audio_driver) != 0) {
             continue;
         }
-        if (driver->audio_init(sample_rate)) {
+        if (driver->audio_init()) {
             return true;
         }
     }
@@ -32,7 +32,7 @@ bool GB_audio_init(unsigned sample_rate)
     // Else go by priority
     for (unsigned i = 0; i < sizeof(drivers) / sizeof(drivers[0]); i++) {
         driver = drivers[i];
-        if (driver->audio_init(sample_rate)) {
+        if (driver->audio_init()) {
             return true;
         }
     }

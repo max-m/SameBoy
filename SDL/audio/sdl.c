@@ -70,11 +70,11 @@ static void _audio_queue_sample(GB_sample_t *sample)
     }
 }
 
-static bool _audio_init(unsigned sample_rate)
+static bool _audio_init(void)
 {
     /* Configure Audio */
     memset(&want_aspec, 0, sizeof(want_aspec));
-    want_aspec.freq = sample_rate == 0 ? GB_audio_default_sample_rate() : sample_rate;
+    want_aspec.freq = AUDIO_FREQUENCY;
     want_aspec.format = AUDIO_S16SYS;
     want_aspec.channels = 2;
     want_aspec.samples = 512;
@@ -82,6 +82,23 @@ static bool _audio_init(unsigned sample_rate)
 #ifdef __EMSCRIPTEN__
     /* This might improve playback in some browsers */
     want_aspec.samples = 4096;
+
+    /* Get the browser’s sample rate */
+    int sample_rate = EM_ASM_INT({
+        if (!Module.SDL2 || !Module.SDL2.audioContext) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            const ctx = new AudioContext();
+            const sr = ctx.sampleRate;
+            ctx.close();
+            return sr;
+        }
+
+        return Module.SDL2.audioContext.sampleRate;
+    });
+
+    if (sample_rate > 0) {
+        want_aspec.freq = sample_rate;
+    }
 #else
     SDL_version _sdl_version;
     SDL_GetVersion(&_sdl_version);
