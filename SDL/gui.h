@@ -5,6 +5,7 @@
 #include <Core/gb.h>
 #include <stdbool.h> 
 #include "shader.h"
+#include "configuration.h"
 
 #define JOYSTICK_HIGH 0x4000
 #define JOYSTICK_LOW 0x3800
@@ -24,14 +25,6 @@ extern SDL_PixelFormat *pixel_format;
 extern SDL_Haptic *haptic;
 extern shader_t shader;
 
-enum scaling_mode {
-    GB_SDL_SCALING_ENTIRE_WINDOW,
-    GB_SDL_SCALING_KEEP_RATIO,
-    GB_SDL_SCALING_INTEGER_FACTOR,
-    GB_SDL_SCALING_MAX,
-};
-
-
 enum pending_command {
     GB_SDL_NO_COMMAND,
     GB_SDL_SAVE_STATE_COMMAND,
@@ -50,106 +43,6 @@ enum pending_command {
 extern enum pending_command pending_command;
 extern unsigned command_parameter;
 extern char *dropped_state_file;
-
-typedef enum {
-    JOYPAD_BUTTON_RIGHT,
-    JOYPAD_BUTTON_LEFT,
-    JOYPAD_BUTTON_UP,
-    JOYPAD_BUTTON_DOWN,
-    JOYPAD_BUTTON_A,
-    JOYPAD_BUTTON_B,
-    JOYPAD_BUTTON_SELECT,
-    JOYPAD_BUTTON_START,
-    JOYPAD_BUTTON_MENU,
-    JOYPAD_BUTTON_TURBO,
-#ifndef GB_DISABLE_REWIND
-    JOYPAD_BUTTON_REWIND,
-#endif
-    JOYPAD_BUTTON_SLOW_MOTION,
-    JOYPAD_BUTTONS_MAX
-} joypad_button_t;
-
-typedef enum {
-      JOYPAD_AXISES_X,
-      JOYPAD_AXISES_Y,
-      JOYPAD_AXISES_MAX
-} joypad_axis_t;
-
-typedef struct {
-    SDL_Scancode keys[9];
-    GB_color_correction_mode_t color_correction_mode;
-    enum scaling_mode scaling_mode;
-    uint8_t blending_mode;
-    
-    GB_highpass_mode_t highpass_mode;
-    
-    bool _deprecated_div_joystick;
-    bool _deprecated_flip_joystick_bit_1;
-    bool _deprecated_swap_joysticks_bits_1_and_2;
-    
-    char filter[32];
-    enum {
-        MODEL_DMG,
-        MODEL_CGB,
-        MODEL_AGB,
-        MODEL_SGB,
-        MODEL_MGB,
-        MODEL_MAX,
-    } model;
-    
-    /* v0.11 */
-    uint32_t rewind_length;
-    SDL_Scancode keys_2[32]; /* Rewind and underclock, + padding for the future */
-    uint8_t joypad_configuration[32]; /* 12 Keys + padding for the future*/;
-    uint8_t joypad_axises[JOYPAD_AXISES_MAX];
-    
-    /* v0.12 */
-    enum {
-        SGB_NTSC,
-        SGB_PAL,
-        SGB_2,
-        SGB_MAX
-    } sgb_revision;
-    
-    /* v0.13 */
-    uint8_t dmg_palette;
-    GB_border_mode_t border_mode;
-    uint8_t volume;
-    GB_rumble_mode_t rumble_mode;
-
-    uint8_t default_scale;
-    
-    /* v0.14 */
-    unsigned padding;
-    uint8_t color_temperature;
-    char bootrom_path[4096];
-    uint8_t interference_volume;
-    GB_rtc_mode_t rtc_mode;
-    
-    /* v0.14.4 */
-    bool osd;
-
-#ifdef __EMSCRIPTEN__
-    bool use_browser_timing;
-    
-    enum {
-        TOUCH_CONTROLS_DISABLED,
-        TOUCH_CONTROLS_ENABLED,
-        TOUCH_CONTROLS_AUTOMATIC,
-        TOUCH_CONTROLS_MAX,
-    } touch_controls_mode;
-#endif
-    
-    struct __attribute__((packed, aligned(4))) {
-        
-    /* v0.15 */
-    bool allow_mouse_controls;
-    uint8_t cgb_revision;
-        
-    };
-} configuration_t;
-
-extern configuration_t configuration;
 
 #ifdef __EMSCRIPTEN__
 extern uint32_t virtual_control_event_type;
@@ -202,6 +95,7 @@ extern signed scroll;
 void set_clear_color(uint8_t r, uint8_t g, uint8_t b);
 void return_to_root_menu(unsigned index);
 void recalculate_menu_height(void);
+
 void update_viewport(void);
 void init_gui(bool is_running);
 bool run_gui_iteration(bool is_running);

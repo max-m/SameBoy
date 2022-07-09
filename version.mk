@@ -1,4 +1,4 @@
-VERSION := 0.15
+VERSION := 0.15.1
 
 GIT := $(shell command -v git 2> /dev/null)
 

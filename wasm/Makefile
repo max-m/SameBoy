@@ -155,6 +155,7 @@ endif
 CORE_OBJECTS := $(patsubst $(CORE_DIR)/%,$(OBJ)/%.o,$(CORE_SOURCES))
 
 SDL_SOURCES := \
+	$(CORE_DIR)/SDL/configuration.c \
 	$(CORE_DIR)/SDL/audio.c \
 	$(CORE_DIR)/SDL/audio/sdl.c \
 	$(CORE_DIR)/SDL/font.c \
