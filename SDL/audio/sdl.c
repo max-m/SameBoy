@@ -1,6 +1,10 @@
 #include "audio.h"
 #include <SDL.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #ifndef _WIN32
 #define AUDIO_FREQUENCY 96000
 #include <unistd.h>
