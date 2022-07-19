@@ -83,6 +83,9 @@ typedef struct {
     unsigned x_offset;
     unsigned y_offset;
     bool should_render;
+    bool scrollbar_drag;
+    signed scroll_mouse_start;
+    signed scroll_start;
 
     uint32_t *pixels;
 } menu_state_t;
@@ -114,5 +117,6 @@ extern const char *osd_text;
 extern unsigned osd_countdown;
 extern unsigned osd_text_lines;
 void convert_mouse_coordinates(signed *x, signed *y);
+const GB_palette_t *current_dmg_palette(void);
 
 #endif

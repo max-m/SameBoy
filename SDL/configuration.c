@@ -50,4 +50,5 @@ configuration_t configuration =
     .touch_controls_mode = TOUCH_CONTROLS_AUTOMATIC,
 #endif
     .cgb_revision = GB_MODEL_CGB_E - GB_MODEL_CGB_0,
+    .dmg_palette = 1, // Replacing the old default (0) as of 0.15.2
 };

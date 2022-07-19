@@ -121,22 +121,7 @@ void set_system_color(uint32_t color) {
 
 static void update_palette(void)
 {
-    switch (configuration.dmg_palette) {
-        case 1:
-            GB_set_palette(&gb, &GB_PALETTE_DMG);
-            break;
-
-        case 2:
-            GB_set_palette(&gb, &GB_PALETTE_MGB);
-            break;
-
-        case 3:
-            GB_set_palette(&gb, &GB_PALETTE_GBL);
-            break;
-
-        default:
-            GB_set_palette(&gb, &GB_PALETTE_GREY);
-    }
+    GB_set_palette(&gb, current_dmg_palette());
 }
 
 static void set_model_class(void)
@@ -1110,6 +1095,9 @@ int EMSCRIPTEN_KEEPALIVE init(void)
         configuration.model %= MODEL_MAX;
         configuration.sgb_revision %= SGB_MAX;
         configuration.dmg_palette %= 4;
+        if (configuration.dmg_palette) {
+            configuration.gui_pallete_enabled = true;
+        }
         configuration.border_mode %= GB_BORDER_ALWAYS + 1;
         configuration.rumble_mode %= GB_RUMBLE_ALL_GAMES + 1;
         configuration.color_temperature %= 21;

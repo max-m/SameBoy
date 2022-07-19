@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dirent.h>
 #include "utils.h"
 #include "gui.h"
 #include "font.h"
@@ -25,6 +26,10 @@ enum pending_command pending_command;
 unsigned command_parameter;
 char *dropped_state_file = NULL;
 
+static char **custom_palettes;
+static unsigned n_custom_palettes;
+
+
 #ifdef __APPLE__
 #define MODIFIER_NAME " " CMD_STRING
 #else
@@ -35,6 +40,8 @@ shader_t shader;
 menu_state_t menu_state = {0,};
 static SDL_Rect rect;
 static unsigned factor;
+
+static SDL_Surface *converted_background = NULL;
 
 static GLfloat clear_color[3] = { 0.0, 0.0, 0.0 };
 
@@ -491,7 +498,7 @@ static const struct menu_item paused_menu[] = {
     {NULL,}
 };
 #else
-char audio_recording_menu_item[] = "Start Audio Recording";
+static char audio_recording_menu_item[] = "Start Audio Recording";
 
 static const struct menu_item paused_menu[] = {
     {"Resume", NULL},
@@ -536,7 +543,7 @@ static void cycle_model_backwards(unsigned index)
     pending_command = GB_SDL_RESET_COMMAND;
 }
 
-const char *current_model_string(unsigned index)
+static const char *current_model_string(unsigned index)
 {
     return (const char *[]){"Game Boy", "Game Boy Color", "Game Boy Advance", "Super Game Boy", "Game Boy Pocket"}
         [configuration.model];
@@ -565,7 +572,7 @@ static void cycle_cgb_revision_backwards(unsigned index)
     pending_command = GB_SDL_RESET_COMMAND;
 }
 
-const char *current_cgb_revision_string(unsigned index)
+static const char *current_cgb_revision_string(unsigned index)
 {
     return (const char *[]){
         "CPU CGB 0 (Exp.)",
@@ -597,7 +604,7 @@ static void cycle_sgb_revision_backwards(unsigned index)
     pending_command = GB_SDL_RESET_COMMAND;
 }
 
-const char *current_sgb_revision_string(unsigned index)
+static const char *current_sgb_revision_string(unsigned index)
 {
     return (const char *[]){"Super Game Boy NTSC", "Super Game Boy PAL", "Super Game Boy 2"}
     [configuration.sgb_revision];
@@ -640,7 +647,7 @@ static void cycle_rewind_backwards(unsigned index)
     GB_set_rewind_length(&gb, configuration.rewind_length);
 }
 
-const char *current_rewind_string(unsigned index)
+static const char *current_rewind_string(unsigned index)
 {
     for (unsigned i = 0; i < sizeof(rewind_lengths) / sizeof(rewind_lengths[0]); i++) {
         if (configuration.rewind_length == rewind_lengths[i]) {
@@ -652,7 +659,7 @@ const char *current_rewind_string(unsigned index)
 #endif
 
 #ifndef __EMSCRIPTEN__
-const char *current_bootrom_string(unsigned index)
+static const char *current_bootrom_string(unsigned index)
 {
     if (!configuration.bootrom_path[0]) {
         return "Built-in Boot ROMs";
@@ -698,7 +705,7 @@ static void toggle_rtc_mode(unsigned index)
     configuration.rtc_mode = !configuration.rtc_mode;
 }
 
-const char *current_rtc_mode_string(unsigned index)
+static const char *current_rtc_mode_string(unsigned index)
 {
     switch (configuration.rtc_mode) {
         case GB_RTC_MODE_SYNC_TO_HOST: return "Sync to System Clock";
@@ -734,14 +741,14 @@ static void enter_emulation_menu(unsigned index)
     recalculate_menu_height();
 }
 
-const char *current_scaling_mode(unsigned index)
+static const char *current_scaling_mode(unsigned index)
 {
     return (const char *[]){"Fill Entire Window", "Retain Aspect Ratio", "Retain Integer Factor"}
         [configuration.scaling_mode];
 }
 
 #ifndef __EMSCRIPTEN__
-const char *current_default_scale(unsigned index)
+static const char *current_default_scale(unsigned index)
 {
     return (const char *[]){"1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x"}
         [configuration.default_scale - 1];
@@ -765,6 +772,9 @@ const char *current_color_temperature(unsigned index)
 
 const char *current_palette(unsigned index)
 {
+    if (configuration.dmg_palette == 4) {
+        return configuration.dmg_palette_name;
+    }
     return (const char *[]){"Greyscale", "Lime (Game Boy)", "Olive (Pocket)", "Teal (Light)"}
         [configuration.dmg_palette];
 }
@@ -775,7 +785,7 @@ const char *current_border_mode(unsigned index)
         [configuration.border_mode];
 }
 
-void cycle_scaling(unsigned index)
+static void cycle_scaling(unsigned index)
 {
     configuration.scaling_mode++;
     if (configuration.scaling_mode == GB_SDL_SCALING_MAX) {
@@ -785,7 +795,7 @@ void cycle_scaling(unsigned index)
     render_texture(NULL, NULL);
 }
 
-void cycle_scaling_backwards(unsigned index)
+static void cycle_scaling_backwards(unsigned index)
 {
     if (configuration.scaling_mode == 0) {
         configuration.scaling_mode = GB_SDL_SCALING_MAX - 1;
@@ -798,7 +808,7 @@ void cycle_scaling_backwards(unsigned index)
 }
 
 #ifndef __EMSCRIPTEN__
-void cycle_default_scale(unsigned index)
+static void cycle_default_scale(unsigned index)
 {
     if (configuration.default_scale == GB_SDL_DEFAULT_SCALE_MAX) {
         configuration.default_scale = 1;
@@ -811,7 +821,7 @@ void cycle_default_scale(unsigned index)
     update_viewport();
 }
 
-void cycle_default_scale_backwards(unsigned index)
+static void cycle_default_scale_backwards(unsigned index)
 {
     if (configuration.default_scale == 1) {
         configuration.default_scale = GB_SDL_DEFAULT_SCALE_MAX;
@@ -859,24 +869,125 @@ static void increase_color_temperature(unsigned index)
     }
 }
 
+const GB_palette_t *current_dmg_palette(void)
+{
+    typedef struct __attribute__ ((packed)) {
+        uint32_t magic;
+        uint8_t flags;
+        struct GB_color_s colors[5];
+        int32_t brightness_bias;
+        uint32_t hue_bias;
+        uint32_t hue_bias_strength;
+    } theme_t;
+    
+    static theme_t theme;
+    
+    if (configuration.dmg_palette == 4) {
+        char *path = resource_path("Palettes");
+        sprintf(path + strlen(path), "/%s.sbp", configuration.dmg_palette_name);
+        FILE *file = fopen(path, "rb");
+        if (!file) return &GB_PALETTE_GREY;
+        memset(&theme, 0, sizeof(theme));
+        fread(&theme, sizeof(theme), 1, file);
+        fclose(file);
+#ifdef GB_BIG_ENDIAN
+        theme.magic = __builtin_bswap32(theme.magic);
+#endif
+        if (theme.magic != 'SBPL') return &GB_PALETTE_GREY;
+        return (GB_palette_t *)&theme.colors;
+    }
+    
+    switch (configuration.dmg_palette) {
+        case 1:  return &GB_PALETTE_DMG;
+        case 2:  return &GB_PALETTE_MGB;
+        case 3:  return &GB_PALETTE_GBL;
+        default: return &GB_PALETTE_GREY;
+    }
+}
+
+static void update_gui_palette(void)
+{
+    const GB_palette_t *palette = current_dmg_palette();
+    
+    SDL_Color colors[4];
+    for (unsigned i = 4; i--; ) {
+        gui_palette_native[i] = SDL_MapRGB(pixel_format, palette->colors[i].r, palette->colors[i].g, palette->colors[i].b);
+        colors[i].r = palette->colors[i].r;
+        colors[i].g = palette->colors[i].g;
+        colors[i].b = palette->colors[i].b;
+    }
+    
+    SDL_Surface *background = SDL_LoadBMP(resource_path("background.bmp"));
+    
+    /* Create a blank background if background.bmp could not be loaded */
+    if (!background) {
+        background = SDL_CreateRGBSurface(0, 160, 144, 8, 0, 0, 0, 0);
+    }
+    SDL_SetPaletteColors(background->format->palette, colors, 0, 4);
+    converted_background = SDL_ConvertSurface(background, pixel_format, 0);
+    SDL_FreeSurface(background);
+}
+
 static void cycle_palette(unsigned index)
 {
     if (configuration.dmg_palette == 3) {
-        configuration.dmg_palette = 0;
+        if (n_custom_palettes == 0) {
+            configuration.dmg_palette = 0;
+        }
+        else {
+            configuration.dmg_palette = 4;
+            strcpy(configuration.dmg_palette_name, custom_palettes[0]);
+        }
+    }
+    else if (configuration.dmg_palette == 4) {
+        for (unsigned i = 0; i < n_custom_palettes; i++) {
+            if (strcmp(custom_palettes[i], configuration.dmg_palette_name) == 0) {
+                if (i == n_custom_palettes - 1) {
+                    configuration.dmg_palette = 0;
+                }
+                else {
+                    strcpy(configuration.dmg_palette_name, custom_palettes[i + 1]);
+                }
+                break;
+            }
+        }
     }
     else {
         configuration.dmg_palette++;
     }
+    configuration.gui_pallete_enabled = true;
+    update_gui_palette();
 }
 
 static void cycle_palette_backwards(unsigned index)
 {
     if (configuration.dmg_palette == 0) {
-        configuration.dmg_palette = 3;
+        if (n_custom_palettes == 0) {
+            configuration.dmg_palette = 3;
+        }
+        else {
+            configuration.dmg_palette = 4;
+            strcpy(configuration.dmg_palette_name, custom_palettes[n_custom_palettes - 1]);
+        }
+    }
+    else if (configuration.dmg_palette == 4) {
+        for (unsigned i = 0; i < n_custom_palettes; i++) {
+            if (strcmp(custom_palettes[i], configuration.dmg_palette_name) == 0) {
+                if (i == 0) {
+                    configuration.dmg_palette = 3;
+                }
+                else {
+                    strcpy(configuration.dmg_palette_name, custom_palettes[i - 1]);
+                }
+                break;
+            }
+        }
     }
     else {
         configuration.dmg_palette--;
     }
+    configuration.gui_pallete_enabled = true;
+    update_gui_palette();
 }
 
 static void cycle_border_mode(unsigned index)
@@ -1296,7 +1407,7 @@ SDL_Joystick *joystick = NULL;
 SDL_GameController *controller = NULL;
 SDL_Haptic *haptic = NULL;
 
-const char *current_joypad_name(unsigned index)
+static const char *current_joypad_name(unsigned index)
 {
     static char name[23] = {0,};
     const char *orig_name = joystick? SDL_JoystickName(joystick) : NULL;
@@ -1409,16 +1520,31 @@ static void cycle_rumble_mode_backwards(unsigned index)
     GB_set_rumble_mode(&gb, configuration.rumble_mode);
 }
 
-const char *current_rumble_mode(unsigned index)
+static const char *current_rumble_mode(unsigned index)
 {
     return (const char *[]){"Disabled", "Rumble Game Paks Only", "All Games"}
     [configuration.rumble_mode];
 }
 
+static void toggle_allow_background_controllers(unsigned index)
+{
+    configuration.allow_background_controllers ^= true;
+    
+    SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS,
+                configuration.allow_background_controllers? "1" : "0");
+}
+
+static const char *current_background_control_mode(unsigned index)
+{
+    return configuration.allow_background_controllers? "Always" : "During Window Focus Only";
+}
+
+
 static const struct menu_item joypad_menu[] = {
     {"Joypad:", cycle_joypads, current_joypad_name, cycle_joypads_backwards},
     {"Configure layout", detect_joypad_layout},
     {"Rumble Mode:", cycle_rumble_mode, current_rumble_mode, cycle_rumble_mode_backwards},
+    {"Enable Control:", toggle_allow_background_controllers, current_background_control_mode, toggle_allow_background_controllers},
     {"Back", enter_controls_menu},
     {NULL,}
 };
@@ -1483,7 +1609,7 @@ static void toggle_mouse_control(unsigned index)
     configuration.allow_mouse_controls = !configuration.allow_mouse_controls;
 }
 
-const char *mouse_control_string(unsigned index)
+static const char *mouse_control_string(unsigned index)
 {
     return configuration.allow_mouse_controls? "Allow mouse control" : "Disallow mouse control";
 }
@@ -1598,6 +1724,28 @@ void init_gui(bool is_running)
     SDL_ShowCursor(SDL_ENABLE);
     connect_joypad();
 
+    /* Draw the background screen */
+    if (!converted_background) {
+        if (configuration.gui_pallete_enabled) {
+            update_gui_palette();
+        }
+        else {
+            SDL_Surface *background = SDL_LoadBMP(resource_path("background.bmp"));
+            
+            /* Create a blank background if background.bmp could not be loaded */
+            if (!background) {
+                background = SDL_CreateRGBSurface(0, 160, 144, 8, 0, 0, 0, 0);
+            }
+            SDL_SetPaletteColors(background->format->palette, gui_palette, 0, 4);
+            converted_background = SDL_ConvertSurface(background, pixel_format, 0);
+            SDL_FreeSurface(background);
+    
+            for (unsigned i = 4; i--; ) {
+                gui_palette_native[i] = SDL_MapRGB(pixel_format, gui_palette[i].r, gui_palette[i].g, gui_palette[i].b);
+            }
+        }
+    }
+
     unsigned width = GB_get_screen_width(&gb);
     unsigned height = GB_get_screen_height(&gb);
 
@@ -1632,6 +1780,10 @@ void init_gui(bool is_running)
     recalculate_menu_height();
     current_selection = 0;
     scroll = 0;
+
+    menu_state.scrollbar_drag = false;
+    menu_state.scroll_mouse_start = 0;
+    menu_state.scroll_start = 0;
 }
 
 enum menu_key {
@@ -1705,9 +1857,37 @@ bool run_gui_iteration(bool is_running) {
     /* Convert Joypad and mouse events (We only generate down events) */
     if (gui_state != WAITING_FOR_KEY && gui_state != WAITING_FOR_JBUTTON) {
         switch (menu_state.event.type) {
+            case SDL_KEYDOWN:
+                if (gui_state == WAITING_FOR_KEY) break;
+                if (menu_state.event.key.keysym.mod != 0) break;
+                switch (menu_state.event.key.keysym.scancode) {
+                    // Do not remap these keys to prevent deadlocking
+                    case SDL_SCANCODE_ESCAPE:
+                    case SDL_SCANCODE_RETURN:
+                    case SDL_SCANCODE_RIGHT:
+                    case SDL_SCANCODE_LEFT:
+                    case SDL_SCANCODE_UP:
+                    case SDL_SCANCODE_DOWN:
+                        break;
+
+                    default:
+                             if (menu_state.event.key.keysym.scancode == configuration.keys[GB_KEY_RIGHT]) menu_state.event.key.keysym.scancode = SDL_SCANCODE_RIGHT;
+                        else if (menu_state.event.key.keysym.scancode == configuration.keys[GB_KEY_LEFT]) menu_state.event.key.keysym.scancode = SDL_SCANCODE_LEFT;
+                        else if (menu_state.event.key.keysym.scancode == configuration.keys[GB_KEY_UP]) menu_state.event.key.keysym.scancode = SDL_SCANCODE_UP;
+                        else if (menu_state.event.key.keysym.scancode == configuration.keys[GB_KEY_DOWN]) menu_state.event.key.keysym.scancode = SDL_SCANCODE_DOWN;
+                        else if (menu_state.event.key.keysym.scancode == configuration.keys[GB_KEY_A]) menu_state.event.key.keysym.scancode = SDL_SCANCODE_RETURN;
+                        else if (menu_state.event.key.keysym.scancode == configuration.keys[GB_KEY_START]) menu_state.event.key.keysym.scancode = SDL_SCANCODE_RETURN;
+                        else if (menu_state.event.key.keysym.scancode == configuration.keys[GB_KEY_B]) menu_state.event.key.keysym.scancode = SDL_SCANCODE_ESCAPE;
+                        break;
+                }
+                break;
+
             case SDL_WINDOWEVENT:
                 menu_state.should_render = true;
                 break;
+            case SDL_MOUSEBUTTONUP:
+                    menu_state.scrollbar_drag = false;
+                    break;
             case SDL_MOUSEBUTTONDOWN:
                 if (gui_state == SHOWING_HELP) {
                     menu_state.event.type = SDL_KEYDOWN;
@@ -1721,6 +1901,23 @@ bool run_gui_iteration(bool is_running) {
                     signed x = menu_state.event.button.x;
                     signed y = menu_state.event.button.y;
                     convert_mouse_coordinates(&x, &y);
+                     if (x >= 160 - 6 && x < 160 && menu_height > 144) {
+                        unsigned scrollbar_offset = (140 - scrollbar_size) * scroll / (menu_height - 144);
+                        if (scrollbar_offset + scrollbar_size > 140) {
+                            scrollbar_offset = 140 - scrollbar_size;
+                        }
+
+                        if (y < scrollbar_offset || y > scrollbar_offset + scrollbar_size) {
+                            scroll = (menu_height - 144) * y / 143;
+                            menu_state.should_render = true;
+                        }
+
+                        menu_state.scrollbar_drag = true;
+                        mouse_scroling = true;
+                        menu_state.scroll_mouse_start = y;
+                        menu_state.scroll_start = scroll;
+                        break;
+                    }
                     y += scroll;
 
                     if (x < 0 || x >= 160 || y < 24) {
@@ -1912,7 +2109,28 @@ bool run_gui_iteration(bool is_running) {
             break;
         }
 
+        case SDL_MOUSEMOTION: {
+            if (menu_state.scrollbar_drag && scrollbar_size < 140 && scrollbar_size > 0) {
+                signed x = menu_state.event.motion.x;
+                signed y = menu_state.event.motion.y;
+                convert_mouse_coordinates(&x, &y);
+                signed delta = menu_state.scroll_mouse_start - y;
+                scroll = menu_state.scroll_start - delta * (signed)(menu_height - 144) / (signed)(140 - scrollbar_size);
+                if (scroll < 0) {
+                    scroll = 0;
+                }
+                if (scroll >= menu_height - 144) {
+                    scroll = menu_height - 144;
+                }
+
+                menu_state.should_render = true;
+            }
+            break;
+        }
+
         case SDL_KEYDOWN: {
+            menu_state.scrollbar_drag = false;
+
             enum menu_key key = get_menu_key(menu_state.event.key.keysym.scancode);
 
             if (gui_state == WAITING_FOR_KEY) {
@@ -2057,28 +2275,9 @@ bool run_gui_iteration(bool is_running) {
     }
 
     if (menu_state.should_render) {
-        /* Draw the background screen */
-        static SDL_Surface *converted_background = NULL;
-        if (!converted_background) {
-            SDL_Surface *background = SDL_LoadBMP(resource_path("background.bmp"));
-            
-            /* Create a blank background if background.bmp could not be loaded */
-            if (!background) {
-                background = SDL_CreateRGBSurface(0, 160, 144, 8, 0, 0, 0, 0);
-            }
-
-            SDL_SetPaletteColors(background->format->palette, gui_palette, 0, 4);
-            converted_background = SDL_ConvertSurface(background, pixel_format, 0);
-            SDL_LockSurface(converted_background);
-            SDL_FreeSurface(background);
-
-            for (unsigned i = 4; i--; ) {
-                gui_palette_native[i] = SDL_MapRGB(pixel_format, gui_palette[i].r, gui_palette[i].g, gui_palette[i].b);
-            }
-        }
-
         menu_state.should_render = false;
         rerender:
+        SDL_LockSurface(converted_background);
         if (width == 160 && height == 144) {
             memcpy(menu_state.pixels, converted_background->pixels, sizeof(uint32_t) * width * height);
         }
@@ -2087,6 +2286,7 @@ bool run_gui_iteration(bool is_running) {
                 memcpy(menu_state.pixels + x_offset + width * (y + y_offset), ((uint32_t *)converted_background->pixels) + 160 * y, 160 * 4);
             }
         }
+        SDL_UnlockSurface(converted_background);
 
         switch (gui_state) {
             case SHOWING_DROP_MESSAGE:
@@ -2153,10 +2353,10 @@ bool run_gui_iteration(bool is_running) {
                     for (unsigned y = 0; y < 140; y++) {
                         uint32_t *pixel = menu_state.pixels + x_offset + 156 + width * (y + y_offset + 2);
                         if (y >= scrollbar_offset && y < scrollbar_offset + scrollbar_size) {
-                            pixel[0] = pixel[1]= gui_palette_native[2];
+                            pixel[0] = pixel[1] = gui_palette_native[2];
                         }
                         else {
-                            pixel[0] = pixel[1]= gui_palette_native[1];
+                            pixel[0] = pixel[1] = gui_palette_native[1];
                         }
 
                     }
@@ -2214,4 +2414,32 @@ void run_gui(bool is_running)
         SDL_WaitEvent(&menu_state.event);
         if (run_gui_iteration(is_running)) break;
     }
+}
+
+static void __attribute__ ((constructor)) list_custom_palettes(void)
+{
+    char *path = resource_path("Palettes");
+    if (!path) return;
+    if (strlen(path) > 1024 - 30) {
+        // path too long to safely concat filenames
+        return;
+    }
+    DIR *dir = opendir(path);
+    if (!dir) return;
+    
+    struct dirent *ent;
+    
+    while ((ent = readdir(dir))) {
+        unsigned length = strlen(ent->d_name);
+        if (length < 5 || length > 28) {
+            continue;
+        }
+        if (strcmp(ent->d_name + length - 4, ".sbp")) continue;
+        ent->d_name[length - 4] = 0;
+        custom_palettes = realloc(custom_palettes,
+                                  sizeof(custom_palettes[0]) * (n_custom_palettes + 1));
+        custom_palettes[n_custom_palettes++] = strdup(ent->d_name);
+    }
+    
+    closedir(dir);
 }

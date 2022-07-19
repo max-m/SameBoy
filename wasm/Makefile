@@ -176,6 +176,7 @@ JS_SOURCES := $(filter-out _debug.js pre.js main.js,$(shell ls web/js/.))
 JS_FILES := $(patsubst %,$(BIN)/js/%,$(JS_SOURCES))
 
 SHADERS := $(shell ls $(CORE_DIR)/Shaders/*.fsh)
+PALETTES := $(shell ls $(CORE_DIR)/Misc/Palettes/*.sbp | sed 's: :\\ :g')
 
 EMCCFLAGS := --post-js "web/js/main.js"
 ifeq ($(CONF),debug)
@@ -184,6 +185,7 @@ endif
 EMCCFLAGS += --pre-js "web/js/pre.js"
 EMCCFLAGS += --preload-file $(BOOTROMS_DIR)@/BootROMs
 EMCCFLAGS += --preload-file $(CORE_DIR)/Shaders@/Shaders
+EMCCFLAGS += --preload-file $(CORE_DIR)/Misc/Palettes@/Palettes
 EMCCFLAGS += --preload-file $(CORE_DIR)/SDL/background.bmp@/background.bmp
 
 wasm: $(BIN)/index.html
@@ -245,7 +247,7 @@ $(BIN)/index.html: web/index.html $(BIN)/index.js $(BIN)/sameboy.webmanifest $(J
 	-@$(MKDIR) -p $(dir $@)
 	cp web/index.html $@
 
-$(BIN)/index.js: $(CORE_OBJECTS) $(SDL_OBJECTS) $(WASM_OBJECTS) $(SHADERS) $(BOOTROM_OBJECTS) web/js/_debug.js web/js/pre.js web/js/main.js $(BIN)/service_worker.js $(CORE_DIR)/SDL/background.bmp
+$(BIN)/index.js: $(CORE_OBJECTS) $(SDL_OBJECTS) $(WASM_OBJECTS) $(SHADERS) $(PALETTES) $(BOOTROM_OBJECTS) web/js/_debug.js web/js/pre.js web/js/main.js $(BIN)/service_worker.js $(CORE_DIR)/SDL/background.bmp
 	-@$(MKDIR) -p $(dir $@)
 	$(CC) \
 		$(CFLAGS) \

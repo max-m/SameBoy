@@ -161,22 +161,7 @@ static const char *end_capturing_logs(bool show_popup, bool should_exit, uint32_
 
 static void update_palette(void)
 {
-    switch (configuration.dmg_palette) {
-        case 1:
-            GB_set_palette(&gb, &GB_PALETTE_DMG);
-            break;
-            
-        case 2:
-            GB_set_palette(&gb, &GB_PALETTE_MGB);
-            break;
-            
-        case 3:
-            GB_set_palette(&gb, &GB_PALETTE_GBL);
-            break;
-            
-        default:
-            GB_set_palette(&gb, &GB_PALETTE_GREY);
-    }
+    GB_set_palette(&gb, current_dmg_palette());
 }
 
 static void screen_size_changed(void)
@@ -538,7 +523,7 @@ static void gb_audio_callback(GB_gameboy_t *gb, GB_sample_t *sample)
         }
     }
     
-    if (GB_audio_get_queue_length() / sizeof(*sample) > GB_audio_get_frequency() / 4) {
+    if (GB_audio_get_queue_length() > GB_audio_get_frequency() / 8) { // Maximum lag of 0.125s
         return;
     }
     
@@ -836,6 +821,8 @@ int main(int argc, char **argv)
     signal(SIGINT, debugger_interrupt);
 
     SDL_Init(SDL_INIT_EVERYTHING);
+    SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS,
+                configuration.allow_background_controllers? "1" : "0");
     if ((console_supported = CON_start(completer))) {
         CON_set_repeat_empty(true);
         CON_printf("SameBoy v" GB_VERSION "\n");
@@ -864,13 +851,17 @@ int main(int argc, char **argv)
         configuration.highpass_mode %= GB_HIGHPASS_MAX;
         configuration.model %= MODEL_MAX;
         configuration.sgb_revision %= SGB_MAX;
-        configuration.dmg_palette %= 4;
+        configuration.dmg_palette %= 5;
+        if (configuration.dmg_palette) {
+            configuration.gui_pallete_enabled = true;
+        }
         configuration.border_mode %= GB_BORDER_ALWAYS + 1;
         configuration.rumble_mode %= GB_RUMBLE_ALL_GAMES + 1;
         configuration.color_temperature %= 21;
         configuration.bootrom_path[sizeof(configuration.bootrom_path) - 1] = 0;
         configuration.cgb_revision %= GB_MODEL_CGB_E - GB_MODEL_CGB_0 + 1;
         configuration.audio_driver[15] = 0;
+        configuration.dmg_palette_name[24] = 0;
     }
     
     if (configuration.model >= MODEL_MAX) {
