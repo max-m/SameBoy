@@ -29,6 +29,7 @@ PB12_COMPRESS := build/pb12$(EXESUFFIX)
 ifeq ($(PLATFORM),Darwin)
 DEFAULT := cocoa
 ENABLE_OPENAL ?= 1
+ENABLE_PORTAUDIO ?= 0
 else
 DEFAULT := sdl
 endif
@@ -143,10 +144,22 @@ ifeq ($(PLATFORM),Darwin)
 SDL_LDFLAGS += -framework OpenAL
 else
 SDL_LDFLAGS += -lopenal
-endif
+endif # Darwin
 SDL_AUDIO_DRIVERS += openal
-endif
+endif # ENABLE_OPENAL
+
+# We cannot detect the presence of PortAudio dev headers
+ifeq ($(ENABLE_PORTAUDIO),1)
+SDL_CFLAGS += -DENABLE_PORTAUDIO
+ifeq ($(PLATFORM),Darwin)
+# TODO?
+SDL_LDFLAGS += -lportaudio
 else
+SDL_LDFLAGS += -lportaudio
+endif # Darwin
+SDL_AUDIO_DRIVERS += portaudio
+endif # ENABLE_OPENAL
+else # PKG_CONFIG set
 SDL_CFLAGS := $(shell $(PKG_CONFIG) --cflags sdl2)
 SDL_LDFLAGS := $(shell $(PKG_CONFIG) --libs sdl2) -lpthread
 
@@ -157,8 +170,17 @@ SDL_CFLAGS += $(shell $(PKG_CONFIG) --cflags openal) -DENABLE_OPENAL
 SDL_LDFLAGS += $(shell $(PKG_CONFIG) --libs openal)
 SDL_AUDIO_DRIVERS += openal
 endif
+endif # ENABLE_OPENAL
+
+# Allow PortAudio to be disabled even if the development libraries are available
+ifneq ($(ENABLE_PORTAUDIO),0)
+ifeq ($(shell $(PKG_CONFIG) --exists portaudio-2.0 && echo 0),0)
+SDL_CFLAGS += $(shell $(PKG_CONFIG) --cflags portaudio-2.0) -DENABLE_PORTAUDIO
+SDL_LDFLAGS += $(shell $(PKG_CONFIG) --libs portaudio-2.0)
+SDL_AUDIO_DRIVERS += portaudio
 endif
-endif
+endif # ENABLE_PORTAUDIO
+endif # PKG_CONFIG set
 
 ifeq (,$(PKG_CONFIG))
 GL_LDFLAGS := -lGL

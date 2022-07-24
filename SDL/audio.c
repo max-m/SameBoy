@@ -20,6 +20,9 @@ bool GB_audio_init(void)
 #ifdef ENABLE_OPENAL
         GB_AUDIO_DRIVER_REF(OpenAL),
 #endif
+#ifdef ENABLE_PORTAUDIO
+        GB_AUDIO_DRIVER_REF(PortAudio),
+#endif
     };
     
     // First try the preferred driver
@@ -101,6 +104,9 @@ const char *GB_audio_driver_name_at_index(unsigned index)
         GB_AUDIO_DRIVER_REF(SDL),
 #ifdef ENABLE_OPENAL
         GB_AUDIO_DRIVER_REF(OpenAL),
+#endif
+#ifdef ENABLE_PORTAUDIO
+        GB_AUDIO_DRIVER_REF(PortAudio),
 #endif
     };
     if (index >= sizeof(drivers) / sizeof(drivers[0])) {
