@@ -28,6 +28,7 @@ PB12_COMPRESS := build/pb12$(EXESUFFIX)
 
 ifeq ($(PLATFORM),Darwin)
 DEFAULT := cocoa
+ENABLE_OPENAL ?= 1
 else
 DEFAULT := sdl
 endif
@@ -133,16 +134,39 @@ endif
 ifeq (,$(PKG_CONFIG))
 SDL_CFLAGS := $(shell sdl2-config --cflags)
 SDL_LDFLAGS := $(shell sdl2-config --libs) -lpthread
+
+# We cannot detect the presence of OpenAL dev headers,
+# so we must do this manually
+ifeq ($(ENABLE_OPENAL),1)
+SDL_CFLAGS += -DENABLE_OPENAL
+ifeq ($(PLATFORM),Darwin)
+SDL_LDFLAGS += -framework OpenAL
+else
+SDL_LDFLAGS += -lopenal
+endif
+SDL_AUDIO_DRIVERS += openal
+endif
 else
 SDL_CFLAGS := $(shell $(PKG_CONFIG) --cflags sdl2)
 SDL_LDFLAGS := $(shell $(PKG_CONFIG) --libs sdl2) -lpthread
+
+# Allow OpenAL to be disabled even if the development libraries are available
+ifneq ($(ENABLE_OPENAL),0)
+ifeq ($(shell $(PKG_CONFIG) --exists openal && echo 0),0)
+SDL_CFLAGS += $(shell $(PKG_CONFIG) --cflags openal) -DENABLE_OPENAL
+SDL_LDFLAGS += $(shell $(PKG_CONFIG) --libs openal)
+SDL_AUDIO_DRIVERS += openal
 endif
+endif
+endif
+
 ifeq (,$(PKG_CONFIG))
 GL_LDFLAGS := -lGL
 else
 GL_CFLAGS := $(shell $(PKG_CONFIG) --cflags gl)
 GL_LDFLAGS := $(shell $(PKG_CONFIG) --libs gl || echo -lGL)
 endif
+
 ifeq ($(PLATFORM),windows32)
 CFLAGS += -IWindows -Drandom=rand --target=i386-pc-windows
 LDFLAGS += -lmsvcrt -lcomdlg32 -luser32 -lshell32 -lole32 -lSDL2main -Wl,/MANIFESTFILE:NUL --target=i386-pc-windows

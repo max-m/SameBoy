@@ -30,6 +30,9 @@ configuration_t configuration =
         4,
         -1,
         5,
+        // The rest are unmapped by default
+        -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+        -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
     },
     .joypad_axises = {
         0,
@@ -51,4 +54,5 @@ configuration_t configuration =
 #endif
     .cgb_revision = GB_MODEL_CGB_E - GB_MODEL_CGB_0,
     .dmg_palette = 1, // Replacing the old default (0) as of 0.15.2
+    .agb_revision = GB_MODEL_AGB_A,
 };

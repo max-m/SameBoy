@@ -76,6 +76,11 @@ static void _audio_queue_sample(GB_sample_t *sample)
 
 static bool _audio_init(void)
 {
+    if (SDL_Init(SDL_INIT_AUDIO) != 0) {
+        printf("Failed to initialize SDL audio: %s", SDL_GetError());
+        return false;
+    }
+
     /* Configure Audio */
     memset(&want_aspec, 0, sizeof(want_aspec));
     want_aspec.freq = AUDIO_FREQUENCY;
@@ -126,6 +131,12 @@ static bool _audio_init(void)
     device_id = SDL_OpenAudioDevice(0, 0, &want_aspec, &have_aspec, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE | SDL_AUDIO_ALLOW_SAMPLES_CHANGE);
     
     return true;
+}
+
+static void _audio_deinit(void)
+{
+    _audio_set_paused(true);
+    SDL_CloseAudioDevice(device_id);
 }
 
 GB_AUDIO_DRIVER(SDL);

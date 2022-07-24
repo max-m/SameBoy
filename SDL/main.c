@@ -271,6 +271,37 @@ static void handle_events(GB_gameboy_t *gb)
                 else if (button == JOYPAD_BUTTON_MENU && event.type == SDL_JOYBUTTONDOWN) {
                     open_menu();
                 }
+                else if ((button == JOYPAD_BUTTON_HOTKEY_1 || button == JOYPAD_BUTTON_HOTKEY_2) && event.type == SDL_JOYBUTTONDOWN) {
+                    hotkey_action_t action = configuration.hotkey_actions[button - JOYPAD_BUTTON_HOTKEY_1];
+                    switch (action) {
+                        case HOTKEY_NONE:
+                            break;
+                        case HOTKEY_PAUSE:
+                            paused = !paused;
+                            break;
+                        case HOTKEY_MUTE:
+                            GB_audio_set_paused(GB_audio_is_playing());
+                            break;
+                        case HOTKEY_RESET:
+                            pending_command = GB_SDL_RESET_COMMAND;
+                            break;
+                        case HOTKEY_QUIT:
+                            pending_command = GB_SDL_QUIT_COMMAND;
+                            break;
+                        default:
+                            command_parameter = (action - HOTKEY_SAVE_STATE_1) / 2 + 1;
+                            pending_command = ((action - HOTKEY_SAVE_STATE_1) % 2)? GB_SDL_LOAD_STATE_COMMAND:GB_SDL_SAVE_STATE_COMMAND;
+                            break;
+                        case HOTKEY_SAVE_STATE_10:
+                            command_parameter = 0;
+                            pending_command = GB_SDL_SAVE_STATE_COMMAND;
+                            break;
+                        case HOTKEY_LOAD_STATE_10:
+                            command_parameter = 0;
+                            pending_command = GB_SDL_LOAD_STATE_COMMAND;
+                            break;
+                    }
+                }
             }
                 break;
                 
@@ -635,7 +666,7 @@ restart:
     {
         [MODEL_DMG] = GB_MODEL_DMG_B,
         [MODEL_CGB] = GB_MODEL_CGB_0 + configuration.cgb_revision,
-        [MODEL_AGB] = GB_MODEL_AGB_A,
+        [MODEL_AGB] = configuration.agb_revision,
         [MODEL_MGB] = GB_MODEL_MGB,
         [MODEL_SGB] = (GB_model_t [])
         {
@@ -706,6 +737,18 @@ restart:
     else {
         GB_load_rom(&gb, filename);
     }
+    
+    /* Configure battery */
+    char battery_save_path[path_length + 5]; /* At the worst case, size is strlen(path) + 4 bytes for .sav + NULL */
+    replace_extension(filename, path_length, battery_save_path, ".sav");
+    battery_save_path_ptr = battery_save_path;
+    GB_load_battery(&gb, battery_save_path);
+    if (GB_save_battery_size(&gb)) {
+        if (access(battery_save_path, W_OK)) {
+            GB_log(&gb, "The save path for this ROM is not writeable, progress will not be saved.\n");
+        }
+    }
+    
     end_capturing_logs(true, error, SDL_MESSAGEBOX_WARNING, "Warning");
     
     static char start_text[64];
@@ -714,13 +757,6 @@ restart:
     sprintf(start_text, "SameBoy v" GB_VERSION "\n%s\n%08X", title, GB_get_rom_crc32(&gb));
     show_osd_text(start_text);
 
-    
-    /* Configure battery */
-    char battery_save_path[path_length + 5]; /* At the worst case, size is strlen(path) + 4 bytes for .sav + NULL */
-    replace_extension(filename, path_length, battery_save_path, ".sav");
-    battery_save_path_ptr = battery_save_path;
-    GB_load_battery(&gb, battery_save_path);
-    
     /* Configure symbols */
     GB_debugger_load_symbol_file(&gb, resource_path("registers.sym"));
     
@@ -820,7 +856,7 @@ int main(int argc, char **argv)
 
     signal(SIGINT, debugger_interrupt);
 
-    SDL_Init(SDL_INIT_EVERYTHING);
+    SDL_Init(SDL_INIT_EVERYTHING & ~SDL_INIT_AUDIO);
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS,
                 configuration.allow_background_controllers? "1" : "0");
     if ((console_supported = CON_start(completer))) {
@@ -862,6 +898,13 @@ int main(int argc, char **argv)
         configuration.cgb_revision %= GB_MODEL_CGB_E - GB_MODEL_CGB_0 + 1;
         configuration.audio_driver[15] = 0;
         configuration.dmg_palette_name[24] = 0;
+        // Fix broken defaults, should keys 12-31 should be unmapped by default
+        if (configuration.joypad_configuration[31] == 0) {
+            memset(configuration.joypad_configuration + 12 , -1, 32 - 12);
+        }
+        if ((configuration.agb_revision & ~GB_MODEL_GBP_BIT) != GB_MODEL_AGB_A) {
+            configuration.agb_revision = GB_MODEL_AGB_A;
+        }
     }
     
     if (configuration.model >= MODEL_MAX) {

@@ -3,7 +3,7 @@
 #import <Core/gb.h>
 #import "GBAudioClient.h"
 #import "Document.h"
-#import "AppDelegate.h"
+#import "GBApp.h"
 #import "HexFiend/HexFiend.h"
 #import "GBMemoryByteArray.h"
 #import "GBWarningPopover.h"
@@ -281,7 +281,7 @@ static void infraredStateChanged(GB_gameboy_t *gb, bool on)
             return GB_MODEL_MGB;
         
         case MODEL_AGB:
-            return GB_MODEL_AGB;
+            return (GB_model_t)[[NSUserDefaults standardUserDefaults] integerForKey:@"GBAGBModel"];
     }
 }
 
@@ -799,6 +799,12 @@ static unsigned *multiplication_table_for_frequency(unsigned frequency)
                                                object:nil];
     
     [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(agbModelChanged)
+                                                 name:@"GBAGBModelChanged"
+                                               object:nil];
+    
+    
+    [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(updateVolume)
                                                  name:@"GBVolumeChanged"
                                                object:nil];
@@ -1070,6 +1076,11 @@ static unsigned *multiplication_table_for_frequency(unsigned frequency)
         }
         else {
             ret = GB_load_rom(&gb, [fileName UTF8String]);
+        }
+        if (GB_save_battery_size(&gb)) {
+            if (access(self.savPath.UTF8String, W_OK)) {
+                GB_log(&gb, "The save path for this ROM is not writeable, progress will not be saved.\n");
+            }
         }
         GB_load_battery(&gb, self.savPath.UTF8String);
         GB_load_cheats(&gb, self.chtPath.UTF8String);
@@ -2120,6 +2131,15 @@ static unsigned *multiplication_table_for_frequency(unsigned frequency)
 {
     modelsChanging = true;
     if (current_model == MODEL_CGB) {
+        [self reset:nil];
+    }
+    modelsChanging = false;
+}
+
+- (void)agbModelChanged
+{
+    modelsChanging = true;
+    if (current_model == MODEL_AGB) {
         [self reset:nil];
     }
     modelsChanging = false;
