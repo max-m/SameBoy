@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <signal.h>
 #include <ctype.h>
+#include <unistd.h>
 #include <errno.h>
 #include <OpenDialog/open_dialog.h>
 #include <SDL.h>
@@ -13,7 +14,7 @@
 #include "console.h"
 
 #ifndef _WIN32
-#include <unistd.h>
+#include <fcntl.h>
 #else
 #include <Windows.h>
 #endif
@@ -656,6 +657,16 @@ static void load_boot_rom(GB_gameboy_t *gb, GB_boot_rom_t type)
     }
 }
 
+static bool is_path_writeable(const char *path)
+{
+    if (!access(path, W_OK)) return true;
+    int fd = creat(path, 0644);
+    if (fd == -1) return false;
+    close(fd);
+    unlink(path);
+    return true;
+}
+
 static void run(void)
 {
     SDL_ShowCursor(SDL_DISABLE);
@@ -744,7 +755,7 @@ restart:
     battery_save_path_ptr = battery_save_path;
     GB_load_battery(&gb, battery_save_path);
     if (GB_save_battery_size(&gb)) {
-        if (access(battery_save_path, W_OK)) {
+        if (!is_path_writeable(battery_save_path)) {
             GB_log(&gb, "The save path for this ROM is not writeable, progress will not be saved.\n");
         }
     }
@@ -857,8 +868,6 @@ int main(int argc, char **argv)
     signal(SIGINT, debugger_interrupt);
 
     SDL_Init(SDL_INIT_EVERYTHING & ~SDL_INIT_AUDIO);
-    SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS,
-                configuration.allow_background_controllers? "1" : "0");
     if ((console_supported = CON_start(completer))) {
         CON_set_repeat_empty(true);
         CON_printf("SameBoy v" GB_VERSION "\n");
@@ -921,6 +930,9 @@ int main(int argc, char **argv)
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    
+    SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS,
+                configuration.allow_background_controllers? "1" : "0");
 
     window = SDL_CreateWindow("SameBoy v" GB_VERSION, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
                               160 * configuration.default_scale, 144 * configuration.default_scale, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
