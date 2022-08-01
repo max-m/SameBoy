@@ -4,11 +4,11 @@ STATIC vec4 scale2x(sampler2D image, vec2 position, vec2 input_resolution, vec2 
     // A B C
     // D E F
     // G H I
-    vec4 B = texture_relative(image, position, vec2(  0.0,  1.0));
-    vec4 D = texture_relative(image, position, vec2( -1.0,  0.0));
-    vec4 E = texture_relative(image, position, vec2(  0.0,  0.0));
-    vec4 F = texture_relative(image, position, vec2(  1.0,  0.0));
-    vec4 H = texture_relative(image, position, vec2(  0.0, -1.0));
+    vec4 B = texture_relative(image, position, vec2(  0,  1));
+    vec4 D = texture_relative(image, position, vec2( -1,  0));
+    vec4 E = texture_relative(image, position, vec2(  0,  0));
+    vec4 F = texture_relative(image, position, vec2(  1,  0));
+    vec4 H = texture_relative(image, position, vec2(  0, -1));
     vec2 p = position * input_resolution;
     // p = the position within a pixel [0...1]
     p = fract(p);
