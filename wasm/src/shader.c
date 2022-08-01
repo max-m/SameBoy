@@ -69,6 +69,7 @@ static GLuint create_shader(const char *source, GLenum type)
 
             glGetShaderInfoLog(shader, info_len, NULL, info_log);
             fprintf(stderr, "GLSL Shader Error: \n%s\n", info_log);
+            fprintf(stderr, "Shader code:\n%s\n", source);
 
             free(info_log);
         }

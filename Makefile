@@ -187,7 +187,7 @@ endif
 
 CFLAGS += -F/Library/Frameworks -mmacosx-version-min=10.9 -isysroot $(SYSROOT)
 OCFLAGS += -x objective-c -fobjc-arc -Wno-deprecated-declarations -isysroot $(SYSROOT)
-LDFLAGS += -framework AppKit -framework PreferencePanes -framework Carbon -framework QuartzCore -framework Security -weak_framework Metal -weak_framework MetalKit -mmacosx-version-min=10.9 -isysroot $(SYSROOT)
+LDFLAGS += -framework AppKit -framework PreferencePanes -framework Carbon -framework QuartzCore -framework Security -framework WebKit -weak_framework Metal -weak_framework MetalKit -mmacosx-version-min=10.9 -isysroot $(SYSROOT)
 GL_LDFLAGS := -framework OpenGL
 endif
 CFLAGS += -Wno-deprecated-declarations
@@ -274,6 +274,10 @@ endif
 $(OBJ)/SDL/%.dep: SDL/%
 	-@$(MKDIR) -p $(dir $@)
 	$(CC) $(CFLAGS) $(SDL_CFLAGS) $(GL_CFLAGS) -MT $(OBJ)/$^.o -M $^ -c -o $@
+	
+$(OBJ)/OpenDialog/%.dep: OpenDialog/%
+	-@$(MKDIR) -p $(dir $@)
+	$(CC) $(CFLAGS) $(SDL_CFLAGS) $(GL_CFLAGS) -MT $(OBJ)/$^.o -M $^ -c -o $@
 
 $(OBJ)/%.dep: %
 	-@$(MKDIR) -p $(dir $@)
@@ -288,6 +292,11 @@ $(OBJ)/Core/%.c.o: Core/%.c
 $(OBJ)/SDL/%.c.o: SDL/%.c
 	-@$(MKDIR) -p $(dir $@)
 	$(CC) $(CFLAGS) $(FAT_FLAGS) $(SDL_CFLAGS) $(GL_CFLAGS) -c $< -o $@
+
+$(OBJ)/OpenDialog/%.c.o: OpenDialog/%.c
+	-@$(MKDIR) -p $(dir $@)
+	$(CC) $(CFLAGS) $(FAT_FLAGS) $(SDL_CFLAGS) $(GL_CFLAGS) -c $< -o $@
+
 
 $(OBJ)/%.c.o: %.c
 	-@$(MKDIR) -p $(dir $@)

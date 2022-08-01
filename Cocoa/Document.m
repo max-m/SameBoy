@@ -14,6 +14,9 @@
 #import "GBObjectView.h"
 #import "GBPaletteView.h"
 
+#define likely(x)   GB_likely(x)
+#define unlikely(x) GB_unlikely(x)
+
 @implementation NSString (relativePath)
 
 - (NSString *)pathRelativeToDirectory:(NSString *)directory
@@ -104,6 +107,8 @@ enum model {
     
     NSSavePanel *_audioSavePanel;
     bool _isRecordingAudio;
+    
+    volatile void (^_pendingAtomicBlock)();
 }
 
 @property GBAudioClient *audioClient;
@@ -477,7 +482,7 @@ static unsigned *multiplication_table_for_frequency(unsigned frequency)
     return ret;
 }
 
-- (void) run
+- (void)run
 {
     assert(!master);
     [self preRun];
@@ -491,6 +496,10 @@ static unsigned *multiplication_table_for_frequency(unsigned frequency)
             }
             else {
                 linkOffset -= masterTable[GB_run(&slave->gb)];
+            }
+            if (unlikely(_pendingAtomicBlock)) {
+                _pendingAtomicBlock();
+                _pendingAtomicBlock = nil;
             }
         }
         free(masterTable);
@@ -508,6 +517,10 @@ static unsigned *multiplication_table_for_frequency(unsigned frequency)
             }
             else {
                 GB_run(&gb);
+            }
+            if (unlikely(_pendingAtomicBlock)) {
+                _pendingAtomicBlock();
+                _pendingAtomicBlock = nil;
             }
         }
     }
@@ -879,6 +892,7 @@ static unsigned *multiplication_table_for_frequency(unsigned frequency)
     [layoutView setFrame:layoutViewFrame];
     [layoutView setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable | NSViewMaxYMargin];
     [self.memoryView addSubview:layoutView];
+    self.memoryView = layoutView;
 
     self.memoryBankItem.enabled = false;
 }
@@ -1506,20 +1520,25 @@ static bool is_path_writeable(const char *path)
 - (void) performAtomicBlock: (void (^)())block
 {
     while (!GB_is_inited(&gb));
-    bool was_running = running && !GB_debugger_is_stopped(&gb);
+    bool isRunning = running && !GB_debugger_is_stopped(&gb);
     if (master) {
-        was_running |= master->running;
+        isRunning |= master->running;
     }
-    if (was_running) {
-        [self stop];
+    if (!isRunning) {
+        block();
+        return;
     }
-    block();
-    if (was_running) {
-        [self start];
+    
+    if (master) {
+        [master performAtomicBlock:block];
+        return;
     }
+    
+    _pendingAtomicBlock = block;
+    while (_pendingAtomicBlock);
 }
 
-- (NSString *) captureOutputForBlock: (void (^)())block
+- (NSString *)captureOutputForBlock: (void (^)())block
 {
     capturedOutput = [[NSMutableString alloc] init];
     [self performAtomicBlock:block];
@@ -1742,7 +1761,9 @@ static bool is_path_writeable(const char *path)
     }
     [self.memoryBankInput setStringValue:[NSString stringWithFormat:@"$%x", byteArray.selectedBank]];
     [hex_controller reloadData];
-    [self.memoryView setNeedsDisplay:true];
+    for (NSView *view in self.memoryView.subviews) {
+        [view setNeedsDisplay:true];
+    }
 }
 
 - (GB_gameboy_t *) gameboy
