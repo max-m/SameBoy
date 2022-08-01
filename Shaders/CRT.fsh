@@ -55,7 +55,11 @@ STATIC vec4 scale(sampler2D image, vec2 position, vec2 input_resolution, vec2 ou
     right *= scanline_multiplier;
 
     /* Vertical seperator for shadow masks */
-    bool odd = bool(int((position * input_resolution).x) >= 1);
+#if !defined(VERSION) || VERSION >= 0x300
+    bool odd = bool(int((position * input_resolution).x) & 1);
+#else
+    bool odd = bool(mod((position * input_resolution).x, 2.0) > 0.0);
+#endif
     if (odd) {
         pos.y += 0.5;
         pos.y = fract(pos.y);

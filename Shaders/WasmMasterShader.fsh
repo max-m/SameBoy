@@ -32,8 +32,11 @@ vec4 _texture(sampler2D t, vec2 pos)
 
 vec4 texture_relative(sampler2D t, vec2 pos, vec2 offset)
 {
-    // textureSize(sampler2D, int) returns an ivec2 and GLSL ES 1.0 doesn’t support implicit type conversions
+#if VERSION >= 0x300
+    // textureSize(sampler2D, int) returns an ivec2 and GLSL ES doesn’t support implicit type conversions
     vec2 input_resolution = vec2(textureSize(t, 0));
+#endif
+
     return _texture(t, (floor(pos * input_resolution) + offset + vec2(0.5, 0.5)) / input_resolution);
 }
 

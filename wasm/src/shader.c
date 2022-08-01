@@ -4,8 +4,6 @@
 #include "shader.h"
 #include "wasm_utils.h"
 
-extern bool uses_gl(void);
-
 static const char *vertex_shader_100 = "#version 100 \n\
 attribute vec4 aPosition;\n\
 void main(void) {\n\
@@ -267,6 +265,9 @@ void render_bitmap_with_shader(shader_t *shader, void *bitmap, void *previous,
 {
     glUseProgram(shader->program);
     glUniform2f(shader->origin_uniform, x, y);
+    if (shader->input_resolution_uniform != -1) {
+        glUniform2f(shader->input_resolution_uniform, source_width, source_height);
+    }
     glUniform2f(shader->resolution_uniform, w, h);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, shader->texture);

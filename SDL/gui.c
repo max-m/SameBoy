@@ -15,6 +15,8 @@
 #include <emscripten.h>
 #endif
 
+extern bool uses_gl(void);
+
 static const SDL_Color gui_palette[4] = {{8, 24, 16, 255}, {57, 97, 57, 255}, {132, 165, 99, 255}, {198, 222, 140, 255}};
 static uint32_t gui_palette_native[4];
 
@@ -28,7 +30,6 @@ char *dropped_state_file = NULL;
 
 static char **custom_palettes;
 static unsigned n_custom_palettes;
-
 
 #ifdef __APPLE__
 #define MODIFIER_NAME " " CMD_STRING
@@ -74,7 +75,7 @@ void EMSCRIPTEN_KEEPALIVE dispatch_virtual_key_event(virtual_key_t key, bool dow
 
 void set_clear_color(uint8_t r, uint8_t g, uint8_t b)
 {
-    if (renderer) {
+    if (renderer && !uses_gl()) {
         SDL_SetRenderDrawColor(renderer, r, g, b, (uint8_t)CLEAR_ALPHA_COLOR * 255);
     }
     else {
@@ -95,7 +96,7 @@ SDL_Scancode event_hotkey_code(SDL_Event *event)
 
 void render_texture(void *pixels,  void *previous)
 {
-    if (renderer) {
+    if (renderer && !uses_gl()) {
         if (pixels) {
             SDL_UpdateTexture(texture, NULL, pixels, GB_get_screen_width(&gb) * sizeof (uint32_t));
         }
@@ -184,7 +185,7 @@ void update_viewport(void)
     rect = (SDL_Rect){(win_width  - new_width) / 2, (win_height - new_height) /2,
         new_width, new_height};
     
-    if (renderer) {
+    if (renderer && !uses_gl()) {
         SDL_RenderSetViewport(renderer, &rect);
     }
     else {
@@ -1038,7 +1039,6 @@ static void cycle_border_mode_backwards(unsigned index)
     }
 }
 
-extern bool uses_gl(void);
 struct shader_name {
     const char *file_name;
     const char *display_name;
