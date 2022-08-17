@@ -1124,7 +1124,7 @@ int EMSCRIPTEN_KEEPALIVE init(void)
         fclose(prefs_file);
 
         /* Sanitize for stability */
-        configuration.color_correction_mode %= GB_COLOR_CORRECTION_LOW_CONTRAST +1;
+        configuration.color_correction_mode %= GB_COLOR_CORRECTION_MODERN_ACCURATE + 1;
         configuration.scaling_mode %= GB_SDL_SCALING_MAX;
         configuration.blending_mode %= GB_FRAME_BLENDING_MODE_ACCURATE + 1;
         configuration.highpass_mode %= GB_HIGHPASS_MAX;
