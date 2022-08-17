@@ -879,8 +879,8 @@ static void init_gb(void)
     model = (GB_model_t [])
     {
         [MODEL_DMG] = GB_MODEL_DMG_B,
-        [MODEL_CGB] = GB_MODEL_CGB_E,
-        [MODEL_AGB] = GB_MODEL_AGB,
+        [MODEL_CGB] = GB_MODEL_CGB_0 + configuration.cgb_revision,
+        [MODEL_AGB] = configuration.agb_revision,
         [MODEL_MGB] = GB_MODEL_MGB,
         [MODEL_SGB] = (GB_model_t [])
         {
@@ -1140,6 +1140,14 @@ int EMSCRIPTEN_KEEPALIVE init(void)
         configuration.bootrom_path[sizeof(configuration.bootrom_path) - 1] = 0;
         configuration.cgb_revision %= GB_MODEL_CGB_E - GB_MODEL_CGB_0 + 1;
         configuration.audio_driver[15] = 0;
+        configuration.dmg_palette_name[24] = 0;
+        // Fix broken defaults, keys 12-31 should be unmapped by default
+        if (configuration.joypad_configuration[31] == 0) {
+            memset(configuration.joypad_configuration + 12 , -1, 32 - 12);
+        }
+        if ((configuration.agb_revision & ~GB_MODEL_GBP_BIT) != GB_MODEL_AGB_A) {
+            configuration.agb_revision = GB_MODEL_AGB_A;
+        }
     }
 
     if (configuration.model >= MODEL_MAX) {
