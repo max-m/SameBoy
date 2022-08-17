@@ -759,15 +759,17 @@ static void vblank(GB_gameboy_t *gb, GB_vblank_type_t type)
             osd_countdown--;
         }
 
-        if (configuration.blending_mode) {
-            render_texture(active_pixel_buffer, previous_pixel_buffer);
-            uint32_t *temp = active_pixel_buffer;
-            active_pixel_buffer = previous_pixel_buffer;
-            previous_pixel_buffer = temp;
-            GB_set_pixels_output(gb, active_pixel_buffer);
-        }
-        else {
-            render_texture(active_pixel_buffer, NULL);
+        if (type != GB_VBLANK_TYPE_REPEAT) {
+            if (configuration.blending_mode) {
+                render_texture(active_pixel_buffer, previous_pixel_buffer);
+                uint32_t *temp = active_pixel_buffer;
+                active_pixel_buffer = previous_pixel_buffer;
+                previous_pixel_buffer = temp;
+                GB_set_pixels_output(gb, active_pixel_buffer);
+            }
+            else {
+                render_texture(active_pixel_buffer, NULL);
+            }
         }
     }
 
