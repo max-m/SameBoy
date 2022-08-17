@@ -200,7 +200,7 @@ Module.gb_load_remote_rom = async function (url) {
 		return string_hash(url)
 	})();
 
-	Module._pause();
+	Module._do_pause();
 	Module.setStatus(`Fetching ${name}`);
 
 	let buf = null;
@@ -256,7 +256,7 @@ Module.gb_load_remote_rom = async function (url) {
 	}
 
 	Module.setStatus(null);
-	Module._resume();
+	Module._do_resume();
 
 	if (buf) {
 		Module.gb_load_rom_buffer(name, buf);
@@ -351,11 +351,11 @@ Module.gb_close_save_manager = () => {
 	const elem = manager.querySelector('.dialogContent');
 	elem.innerHTML = '';
 
-	Module._resume();
+	Module._do_resume();
 }
 Module.gb_close_save_manager_on_keyup = on_escape(Module.gb_close_save_manager);
 Module.gb_open_save_manager = () => {
-	Module._pause();
+	Module._do_pause();
 
 	document.addEventListener('keyup', Module.gb_close_save_manager_on_keyup);
 
@@ -465,7 +465,7 @@ Module.gb_camera_init = () => {
 	if (Module.GbCamera === 'unloaded') {
 		Module.GbCamera = { };
 
-		Module._pause();
+		Module._do_pause();
 		Module.setStatus('Loading Camera module (0 / 1)');
 
 		import('./js/camera.js')
@@ -478,7 +478,7 @@ Module.gb_camera_init = () => {
 			})
 			.finally(() => {
 				Module.setStatus(null);
-				Module._resume();
+				Module._do_resume();
 			});
 	}
 
@@ -508,7 +508,7 @@ Module.gb_accelerometer_init = () => {
 		return;
 	}
 
-	Module._pause();
+	Module._do_pause();
 	Module.setStatus('Loading Accelerometer module (0 / 1)');
 	import('./js/motion-sensors.js')
 		.then(({ Accelerometer }) => {
@@ -555,7 +555,7 @@ Module.gb_accelerometer_init = () => {
 		})
 		.finally(() => {
 			Module.setStatus(null);
-			Module._resume();
+			Module._do_resume();
 		});
 }
 
@@ -617,11 +617,11 @@ Module.gb_close_about_dialog = () => {
 	document.removeEventListener('keyup', Module.gb_close_about_on_keyup);
 	document.getElementById('about').style.display = 'none';
 
-	Module._resume();
+	Module._do_resume();
 }
 Module.gb_close_about_on_keyup = on_escape(Module.gb_close_about_dialog);
 Module.gb_open_about_dialog = () => {
-	Module._pause();
+	Module._do_pause();
 
 	document.addEventListener('keyup', Module.gb_close_about_on_keyup);
 
@@ -638,7 +638,7 @@ Module.gb_close_printer_dialog = () => {
 	const dialog = document.getElementById('printerDialog');
 	dialog.style.display = 'none';
 
-	Module._resume();
+	Module._do_resume();
 }
 Module.gb_close_printer_on_keyup = on_escape(Module.gb_close_printer_on_keyup);
 Module.gb_printer_delete_all = () => {
@@ -720,7 +720,7 @@ Module.gb_printer_download_all = async () => {
 	anchor.remove();
 }
 Module.gb_open_printer_dialog = () => {
-	Module._pause();
+	Module._do_pause();
 
 	document.addEventListener('keyup', Module.gb_close_printer_on_keyup);
 
@@ -785,7 +785,7 @@ Module.hide_workboy_osk = () => {
 Module.workboy_osk = null;
 Module.open_workboy_osk = async () => {
 	if (Module.workboy_osk === null) {
-		Module._pause();
+		Module._do_pause();
 
 		Module.setStatus('Loading On-Screen Keyboard (0/2)');
 		const Keyboard = (await import('./js/simple-keyboard.min.js')).default;
@@ -996,7 +996,7 @@ Module.open_workboy_osk = async () => {
 			]
 		});
 
-		Module._resume();
+		Module._do_resume();
 	}
 	else {
 		Module.workboy_osk.setOptions({

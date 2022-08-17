@@ -1,16 +1,19 @@
 #include <emscripten.h>
 #include <emscripten/html5.h>
 
-#include <SDL2/SDL_events.h>
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/stat.h>
 
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_events.h>
 #include <SDL2/SDL_scancode.h>
 #include <SDL2/SDL_video.h>
 
@@ -864,7 +867,7 @@ static void console_log(GB_gameboy_t *gb, const char *string, GB_log_attributes 
     }
 
     EM_ASM({
-        console.log('%c'+UTF8ToString($1), UTF8ToString($0));
+        console.log('%c'+UTF8ToString($1).trim(), UTF8ToString($0));
     }, style, string);
 }
 
@@ -1271,6 +1274,16 @@ void EMSCRIPTEN_KEEPALIVE set_accelerometer_values(double x, double y)
     GB_set_accelerometer_values(&gb, x, y);
 }
 
+static bool is_path_writeable(const char *path)
+{
+    if (!access(path, W_OK)) return true;
+    int fd = creat(path, 0644);
+    if (fd == -1) return false;
+    close(fd);
+    unlink(path);
+    return true;
+}
+
 void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_save_path)
 {
     close_menu();
@@ -1284,6 +1297,13 @@ void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_s
     free(buffer);
 
     GB_load_battery(&gb, battery_save_path);
+    if (GB_save_battery_size(&gb)) {
+        if (!is_path_writeable(battery_save_path)) {
+            EM_ASM({
+                alert("The save path for this ROM is not writeable, progress will not be saved");
+            });
+        }
+    }
 
     if (battery_save_path_ptr) {
         free(battery_save_path_ptr);
@@ -1313,11 +1333,11 @@ void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_s
     is_running = true;
 }
 
-void EMSCRIPTEN_KEEPALIVE pause(void) {
+void EMSCRIPTEN_KEEPALIVE do_pause(void) {
     emscripten_pause_main_loop();
 }
 
-void EMSCRIPTEN_KEEPALIVE resume(void) {
+void EMSCRIPTEN_KEEPALIVE do_resume(void) {
     // Remove queued input events that have accumulated
     // while the main loop was paused
     SDL_PumpEvents();

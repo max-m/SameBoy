@@ -261,10 +261,10 @@ setup_controls();
 
 document.addEventListener('visibilitychange', async () => {
 	if (document.visibilityState == 'visible') {
-		Module._resume();
+		Module._do_resume();
 	}
 	else {
-		Module._pause();
+		Module._do_pause();
 	}
 
 	Module._save_battery();
