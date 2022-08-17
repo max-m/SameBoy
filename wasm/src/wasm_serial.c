@@ -1,5 +1,5 @@
-#include <Core/gb.h>
 #include <emscripten.h>
+#include <Core/gb.h>
 #include <time.h>
 #include "SDL/gui.h"
 #include "menu_items.h"

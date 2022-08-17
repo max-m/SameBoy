@@ -115,6 +115,7 @@ LDFLAGS += -s RETAIN_COMPILER_SETTINGS=1
 CFLAGS += -s STRICT=1
 # SDL2 uses symbols (behind a runtime check) that are only available when built with ASYNCIFY=1
 LDFLAGS += -s ERROR_ON_UNDEFINED_SYMBOLS=0
+CFLAGS += -Wno-error=js-compiler
 else ifeq ($(CONF),release)
 CFLAGS += -O3 -flto -DNDEBUG
 LDFLAGS += -flto

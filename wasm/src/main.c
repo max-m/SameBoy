@@ -1,3 +1,6 @@
+#include <emscripten.h>
+#include <emscripten/html5.h>
+
 #include <SDL2/SDL_events.h>
 #include <ctype.h>
 #include <errno.h>
@@ -7,7 +10,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <emscripten.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_scancode.h>
 #include <SDL2/SDL_video.h>
@@ -836,6 +838,36 @@ static void load_boot_rom(GB_gameboy_t *gb, GB_boot_rom_t type)
     GB_load_boot_rom(gb, real_path);
 }
 
+static void console_log(GB_gameboy_t *gb, const char *string, GB_log_attributes attributes) {
+    if (attributes == 0) {
+        emscripten_console_log(string);
+        return;
+    }
+
+    // bold = 18, dashed = 34 (underline = 27)
+    const char* bold = "font-weight: bold;";
+    const char* dashed = "text-decoration: underline dashed;";
+    const char* underline = "text-decoration: underline;";
+    char style[52+1] = "";
+
+    if (attributes & GB_LOG_BOLD) {
+        strcat(style, bold);
+    }
+
+    if (attributes & GB_LOG_UNDERLINE_MASK) {
+        if ((attributes & GB_LOG_UNDERLINE_MASK) == GB_LOG_DASHED_UNDERLINE) {
+            strcat(style, dashed);
+        }
+        else {
+            strcat(style, underline);
+        }
+    }
+
+    EM_ASM({
+        console.log('%c'+UTF8ToString($1), UTF8ToString($0));
+    }, style, string);
+}
+
 static void init_gb(void)
 {
     pending_command = GB_SDL_NO_COMMAND;
@@ -869,6 +901,7 @@ static void init_gb(void)
 
         GB_set_boot_rom_load_callback(&gb, load_boot_rom);
         GB_set_vblank_callback(&gb, (GB_vblank_callback_t) vblank);
+        GB_set_log_callback(&gb, (GB_log_callback_t) console_log);
         GB_set_pixels_output(&gb, active_pixel_buffer);
         GB_set_rgb_encode_callback(&gb, rgb_encode);
         GB_set_rumble_callback(&gb, rumble);

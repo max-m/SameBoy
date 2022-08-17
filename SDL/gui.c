@@ -1,3 +1,7 @@
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #include <OpenDialog/open_dialog.h>
 #include <SDL.h>
 #include <stdbool.h>
@@ -10,10 +14,6 @@
 #include "gui.h"
 #include "font.h"
 #include "audio/audio.h"
-
-#ifdef __EMSCRIPTEN__
-#include <emscripten.h>
-#endif
 
 extern bool uses_gl(void);
 
