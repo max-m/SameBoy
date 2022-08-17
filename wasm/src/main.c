@@ -1161,6 +1161,9 @@ int EMSCRIPTEN_KEEPALIVE init(void)
         Module.gb_set_touch_controls_mode($0);
     }, configuration.touch_controls_mode);
 
+    SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS,
+                configuration.allow_background_controllers? "1" : "0");
+
     window = SDL_CreateWindow(
         "SameBoy v" GB_VERSION,
         SDL_WINDOWPOS_UNDEFINED,
