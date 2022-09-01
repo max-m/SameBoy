@@ -329,6 +329,14 @@ static void item_help(unsigned index)
     gui_state = SHOWING_HELP;
 }
 
+#ifndef __EMSCRIPTEN__
+static void about(unsigned index)
+{
+    current_help_page = 1;
+    gui_state = SHOWING_HELP;
+}
+#endif
+
 static void enter_emulation_menu(unsigned index);
 static void enter_graphics_menu(unsigned index);
 static void enter_keyboard_menu(unsigned index);
@@ -337,6 +345,7 @@ static void enter_audio_menu(unsigned index);
 static void enter_controls_menu(unsigned index);
 #ifndef __EMSCRIPTEN__
 static void toggle_audio_recording(unsigned index);
+static void enter_help_menu(unsigned index);
 #endif
 
 #ifdef __EMSCRIPTEN__
@@ -432,6 +441,38 @@ void recalculate_menu_height(void)
     }
 }
 
+#if SDL_COMPILEDVERSION < 2014
+int SDL_OpenURL(const char *url)
+{
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        window.open(UTF8ToString($0), "_blank");
+    }, url);
+
+    return 0;
+#else
+    char *string = NULL;
+#ifdef __APPLE__
+    asprintf(&string, "open '%s'", url);
+#else
+#ifdef _WIN32
+    asprintf(&string, "explorer '%s'", url);
+#else
+    asprintf(&string, "xdg-open '%s'", url);
+#endif
+#endif
+    int ret = system(string);
+    free(string);
+    return ret;
+#endif
+}
+#endif
+
+static void sponsor(unsigned index)
+{
+    SDL_OpenURL("https://github.com/sponsors/LIJI32");
+}
+
 #ifdef __EMSCRIPTEN__
 extern void enter_examples_menu(unsigned index);
 extern void enter_serial_device_menu(unsigned index);
@@ -496,11 +537,16 @@ static const struct menu_item paused_menu[] = {
     {"External Devices", enter_serial_device_menu},
     {"Help", item_help},
     {"About", item_about},
+    {"Sponsor SameBoy", sponsor},
     {NULL,}
 };
 #else
 static char audio_recording_menu_item[] = "Start Audio Recording";
 
+static void debugger_help(unsigned index)
+{
+    SDL_OpenURL("https://sameboy.github.io/debugger/");
+}
 static const struct menu_item paused_menu[] = {
     {"Resume", NULL},
     {"Open ROM", open_rom},
@@ -509,7 +555,8 @@ static const struct menu_item paused_menu[] = {
     {"Audio Options", enter_audio_menu},
     {"Control Options", enter_controls_menu},
     {audio_recording_menu_item, toggle_audio_recording},
-    {"Help", item_help},
+    {"Help & About", enter_help_menu},
+    {"Sponsor SameBoy", sponsor},
     {"Quit SameBoy", item_exit},
     {NULL,}
 };
@@ -524,6 +571,24 @@ void return_to_root_menu(unsigned index)
     scroll = 0;
     recalculate_menu_height();
 }
+
+#ifndef __EMSCRIPTEN__
+static const struct menu_item help_menu[] = {
+    {"Shortcuts", item_help},
+    {"Debugger Help", debugger_help},
+    {"About SameBoy", about},
+    {"Back", return_to_root_menu},
+    {NULL,}
+};
+
+static void enter_help_menu(unsigned index)
+{
+    current_menu = help_menu;
+    current_selection = 0;
+    scroll = 0;
+    recalculate_menu_height();
+}
+#endif
 
 static void cycle_model(unsigned index)
 {
@@ -2355,10 +2420,14 @@ bool run_gui_iteration(bool is_running) {
                 }
             }
             else if (gui_state == SHOWING_HELP) {
+#ifdef __EMSCRIPTEN__
                 current_help_page++;
                 if (current_help_page == sizeof(help) / sizeof(help[0])) {
                     gui_state = SHOWING_MENU;
                 }
+#else
+                gui_state = SHOWING_MENU;
+#endif
                 menu_state.should_render = true;
             }
             break;

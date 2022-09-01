@@ -1115,9 +1115,6 @@ int EMSCRIPTEN_KEEPALIVE init(void)
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 0);
 
     printf("SameBoy v" GB_LONG_VERSION "\n");
-    EM_ASM({
-        document.getElementById('sameboyVersion').innerText = ` v${UTF8ToString($0, $1)}`;
-    }, GB_LONG_VERSION, strlen(GB_LONG_VERSION));
 
     FILE *prefs_file = fopen(PREFS_PATH, "rb");
     if (prefs_file) {

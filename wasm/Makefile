@@ -3,16 +3,6 @@
 
 # Set target, configuration, version and destination folders
 
-PLATFORM := $(shell uname -s)
-ifneq ($(findstring MINGW,$(PLATFORM)),)
-PLATFORM := windows32
-USE_WINDRES := true
-endif
-
-ifneq ($(findstring MSYS,$(PLATFORM)),)
-PLATFORM := windows32
-endif
-
 ifeq ($(PLATFORM),windows32)
 _ := $(shell chcp 65001)
 endif
@@ -26,50 +16,33 @@ endif
 
 CORE_DIR += ..
 
-include $(CORE_DIR)/version.mk
-
 GIT := $(shell command -v git 2> /dev/null)
 ifdef GIT
 GIT_COMMIT   := $(shell $(GIT) describe --always --dirty=-modified)
-LONG_VERSION := "$(VERSION) ($(GIT_COMMIT))"
+LONG_VERSION := $(VERSION) ($(GIT_COMMIT))
 else
 LONG_VERSION := $(VERSION)
 endif
 
-CFLAGS += -DGB_VERSION=\"$(VERSION)\"
 ifdef GIT_COMMIT
-CFLAGS += -DGB_GIT_COMMIT=\"$(GIT_COMMIT)\"
+CFLAGS += -DGB_GIT_COMMIT='"$(GIT_COMMIT)"'
 endif
-CFLAGS += -DGB_LONG_VERSION=\"$(LONG_VERSION)\"
-CONF ?= debug
+CFLAGS += -DGB_LONG_VERSION='"$(LONG_VERSION)"'
 
 BIN := $(CORE_DIR)/build/wasm_bin
 OBJ := $(CORE_DIR)/build/wasm_obj
 BOOTROMS_DIR ?= $(CORE_DIR)/build/bin/BootROMs
 
-ifdef DATA_DIR
-CFLAGS += -DDATA_DIR="\"$(DATA_DIR)\""
-endif
-
 # Set tools
 
 CC := emcc
 
-ifeq ($(PLATFORM),windows32)
-# To force use of the Unix version instead of the Windows version
-MKDIR := $(shell which mkdir)
-else
-MKDIR := mkdir
-endif
-
-ifeq ($(CONF),native_release)
-override CONF := release
-endif
-
 # Set compilation and linkage flags based on target, platform and configuration
 
-CFLAGS += -Werror -Wall -Wno-strict-aliasing -Wno-unknown-warning -Wno-unknown-warning-option -Wno-multichar -Wno-int-in-bool-context -std=gnu11 -D_GNU_SOURCE -DVERSION="$(VERSION)" -I. -D_USE_MATH_DEFINES
-# CFLAGS += -DGB_INTERNAL=1 # get access to internal APIs
+CFLAGS += $(WARNINGS)
+
+CFLAGS += -std=gnu11 -D_GNU_SOURCE -DGB_VERSION='"$(VERSION)"' -DGB_COPYRIGHT_YEAR='"$(COPYRIGHT_YEAR)"' -I. -D_USE_MATH_DEFINES
+
 CFLAGS += -I$(CORE_DIR)
 # CFLAGS += -Wcast-align -Wover-aligned -s SAFE_HEAP=1 -s WARN_UNALIGNED=1
 
@@ -254,7 +227,7 @@ $(BIN)/service_worker.js: $(JS_FILES) $(ICONS) $(WEB_OBJECTS)
 
 $(BIN)/index.html: web/index.html $(BIN)/index.js $(BIN)/sameboy.webmanifest $(JS_FILES) $(ICONS) $(WEB_OBJECTS)
 	-@$(MKDIR) -p $(dir $@)
-	cp web/index.html $@
+	sed "s/@VERSION/$(LONG_VERSION)/;s/@COPYRIGHT_YEAR/$(COPYRIGHT_YEAR)/" < web/index.html > $@
 
 $(BIN)/index.js: $(CORE_OBJECTS) $(SDL_OBJECTS) $(WASM_OBJECTS) $(SHADERS) $(PALETTES) $(BOOTROM_OBJECTS) web/js/_debug.js web/js/pre.js web/js/main.js $(BIN)/service_worker.js $(CORE_DIR)/SDL/background.bmp
 	-@$(MKDIR) -p $(dir $@)
