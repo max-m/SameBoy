@@ -14,6 +14,7 @@ ifeq ($(MAKECMDGOALS),)
 MAKECMDGOALS := $(DEFAULT)
 endif
 
+CONF ?= debug
 CORE_DIR += ..
 
 GIT := $(shell command -v git 2> /dev/null)
