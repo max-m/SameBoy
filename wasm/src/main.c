@@ -1109,6 +1109,10 @@ int EMSCRIPTEN_KEEPALIVE init(void)
     EM_ASM({ Module.wasmTable = wasmTable; });
 #endif
 
+    SDL_version sdl_version;
+    SDL_GetVersion(&sdl_version);
+    printf("SDL version %u.%u.%u.\n", sdl_version.major, sdl_version.minor, sdl_version.patch);
+
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
         fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
         return EXIT_FAILURE;
