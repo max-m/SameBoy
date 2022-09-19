@@ -1,5 +1,8 @@
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#define STATIC
+#else
+#define STATIC static
 #endif
 
 #include <OpenDialog/open_dialog.h>
@@ -134,8 +137,6 @@ void render_texture(void *pixels,  void *previous)
 }
 
 static const char *help[] = {
-"Drop a ROM to play.\n"
-"\n"
 "Keyboard Shortcuts:\n"
 " Open Menu:        Escape\n"
 " Open ROM:          " MODIFIER_NAME "+O\n"
@@ -149,8 +150,19 @@ static const char *help[] = {
 #else
 " Mute/Unmute:       " MODIFIER_NAME "+M\n"
 #endif
+" Toggle channel: " ALT_STRING "+(1-4)\n"
 #ifndef GB_DISABLE_DEBUGGER
 " Break Debugger:    " CTRL_STRING "+C"
+#endif
+#ifndef __EMSCRIPTEN__
+"\n"
+"SameBoy\n"
+"Version " GB_VERSION "\n\n"
+"Copyright " COPYRIGHT_STRING " 2015-" GB_COPYRIGHT_YEAR "\n"
+"Lior Halphon\n\n"
+"Licensed under the MIT\n"
+"license, see LICENSE for\n"
+"more details."
 #endif
 };
 
@@ -329,13 +341,17 @@ static void item_help(unsigned index)
     gui_state = SHOWING_HELP;
 }
 
-#ifndef __EMSCRIPTEN__
 static void about(unsigned index)
 {
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        Module.gb_open_about_dialog();
+    });
+#else
     current_help_page = 1;
     gui_state = SHOWING_HELP;
-}
 #endif
+}
 
 static void enter_emulation_menu(unsigned index);
 static void enter_graphics_menu(unsigned index);
@@ -343,15 +359,50 @@ static void enter_keyboard_menu(unsigned index);
 static void enter_joypad_menu(unsigned index);
 static void enter_audio_menu(unsigned index);
 static void enter_controls_menu(unsigned index);
+static void enter_help_menu(unsigned index);
+static void enter_options_menu(unsigned index);
 #ifndef __EMSCRIPTEN__
 static void toggle_audio_recording(unsigned index);
-static void enter_help_menu(unsigned index);
 #endif
 
 #ifdef __EMSCRIPTEN__
 extern void open_menu(void);
+extern void enter_examples_menu(unsigned index);
+extern void enter_serial_device_menu(unsigned index);
+extern void open_save_manager(unsigned index) EM_IMPORT(open_save_manager);
+extern void synchronize_save_files(unsigned index) EM_IMPORT(synchronize_save_files);
 
-static void open_rom(unsigned index)
+static void cycle_touch_controls(unsigned index)
+{
+    configuration.touch_controls_mode++;
+    if (configuration.touch_controls_mode == TOUCH_CONTROLS_MAX) {
+        configuration.touch_controls_mode = 0;
+    }
+
+    EM_ASM({
+        Module.gb_set_touch_controls_mode($0);
+    }, configuration.touch_controls_mode);
+}
+
+static void cycle_touch_controls_backwards(unsigned index)
+{
+    if (configuration.touch_controls_mode == 0) {
+        configuration.touch_controls_mode = TOUCH_CONTROLS_MAX;
+    }
+    configuration.touch_controls_mode--;
+
+    EM_ASM({
+        Module.gb_set_touch_controls_mode($0);
+    }, configuration.touch_controls_mode);
+}
+
+const char *current_touch_controls_string(unsigned index)
+{
+    return (const char *[]){"Disabled", "Enabled", "Automatic"}
+        [configuration.touch_controls_mode];
+}
+
+static void _load_rom(bool hot_swap)
 {
     const int result = EM_ASM_INT({
         try {
@@ -379,7 +430,7 @@ static void open_rom(unsigned index)
 
                 const file = await handle.getFile();
 
-                Module.gb_open_file(file);
+                Module.gb_open_file(file, $0);
             })
             .catch(e => {
                 console.debug('Could not get file:', e);
@@ -395,12 +446,14 @@ static void open_rom(unsigned index)
             const file_selector = document.createElement('input');
             file_selector.setAttribute('type', 'file');
             file_selector.setAttribute('accept','.gb,.gbc,.isx,.bin');
-            file_selector.addEventListener('change', Module.gb_open_file);
+            file_selector.addEventListener('change', event => {
+                Module.gb_open_file(event, $0)
+            });
             file_selector.click();
 
             return 1;
         }
-    });
+    }, hot_swap);
 
     if (result == 0) {
         // We have got a file picker that is awaitable, yay.
@@ -408,9 +461,19 @@ static void open_rom(unsigned index)
     }
     else {
         // We can’t know if the dialog has been canceled by the user.
-        // Might be a good idea to make sure that the use is in the emulator menu …
+        // Might be a good idea to make sure that the user is in the emulator menu …
         open_menu();
     }
+}
+
+static void open_rom(unsigned index)
+{
+    _load_rom(false);
+}
+
+static void cart_swap(unsigned index)
+{
+    _load_rom(true);
 }
 #else
 extern void set_filename(const char *new_filename, typeof(free) *new_free_function);
@@ -422,9 +485,18 @@ static void open_rom(unsigned index)
         pending_command = GB_SDL_NEW_FILE_COMMAND;
     }
 }
+
+static void cart_swap(unsigned index)
+{
+    char *filename = do_open_rom_dialog();
+    if (filename) {
+        set_filename(filename, free);
+        pending_command = GB_SDL_CART_SWAP_COMMAND;
+    }
+}
 #endif
 
-void recalculate_menu_height(void)
+STATIC void recalculate_menu_height(void)
 {
     menu_height = 24;
     scrollbar_size = 0;
@@ -468,46 +540,28 @@ int SDL_OpenURL(const char *url)
 }
 #endif
 
+#ifndef __EMSCRIPTEN__
+static char audio_recording_menu_item[] = "Start Audio Recording";
+#endif
+
 static void sponsor(unsigned index)
 {
     SDL_OpenURL("https://github.com/sponsors/LIJI32");
 }
 
-#ifdef __EMSCRIPTEN__
-extern void enter_examples_menu(unsigned index);
-extern void enter_serial_device_menu(unsigned index);
-extern void item_about(unsigned index) EM_IMPORT(item_about);
-extern void open_save_manager(unsigned index) EM_IMPORT(open_save_manager);
-extern void synchronize_save_files(unsigned index) EM_IMPORT(synchronize_save_files);
-
-static void cycle_touch_controls(unsigned index)
+#ifndef __EMSCRIPTEN__
+static void debugger_help(unsigned index)
 {
-    configuration.touch_controls_mode++;
-    if (configuration.touch_controls_mode == TOUCH_CONTROLS_MAX) {
-        configuration.touch_controls_mode = 0;
-    }
-
-    EM_ASM({
-        Module.gb_set_touch_controls_mode($0);
-    }, configuration.touch_controls_mode);
+    SDL_OpenURL("https://sameboy.github.io/debugger/");
 }
+#endif
 
-static void cycle_touch_controls_backwards(unsigned index)
+STATIC void return_to_root_menu(unsigned index)
 {
-    if (configuration.touch_controls_mode == 0) {
-        configuration.touch_controls_mode = TOUCH_CONTROLS_MAX;
-    }
-    configuration.touch_controls_mode--;
-
-    EM_ASM({
-        Module.gb_set_touch_controls_mode($0);
-    }, configuration.touch_controls_mode);
-}
-
-const char *current_touch_controls_string(unsigned index)
-{
-    return (const char *[]){"Disabled", "Enabled", "Automatic"}
-        [configuration.touch_controls_mode];
+    current_menu = root_menu;
+    current_selection = 0;
+    scroll = 0;
+    recalculate_menu_height();
 }
 
 static const struct menu_item options_menu[] = {
@@ -527,33 +581,26 @@ static void enter_options_menu(unsigned index)
     recalculate_menu_height();
 }
 
+#ifdef __EMSCRIPTEN__
 static const struct menu_item paused_menu[] = {
     {"Resume", NULL},
     {"Open ROM", open_rom},
+    {"Hot Swap Cartridge", cart_swap},
     {"Open Example", enter_examples_menu},
     {"Synchronize Saves", synchronize_save_files},
     {"Open Save Manager", open_save_manager},
     {"Options", enter_options_menu},
     {"External Devices", enter_serial_device_menu},
-    {"Help", item_help},
-    {"About", item_about},
+    {"Help & About", enter_help_menu},
     {"Sponsor SameBoy", sponsor},
     {NULL,}
 };
 #else
-static char audio_recording_menu_item[] = "Start Audio Recording";
-
-static void debugger_help(unsigned index)
-{
-    SDL_OpenURL("https://sameboy.github.io/debugger/");
-}
 static const struct menu_item paused_menu[] = {
     {"Resume", NULL},
     {"Open ROM", open_rom},
-    {"Emulation Options", enter_emulation_menu},
-    {"Graphic Options", enter_graphics_menu},
-    {"Audio Options", enter_audio_menu},
-    {"Control Options", enter_controls_menu},
+    {"Hot Swap Cartridge", cart_swap},
+    {"Options", enter_options_menu},
     {audio_recording_menu_item, toggle_audio_recording},
     {"Help & About", enter_help_menu},
     {"Sponsor SameBoy", sponsor},
@@ -562,20 +609,28 @@ static const struct menu_item paused_menu[] = {
 };
 #endif
 
-static const struct menu_item *const nonpaused_menu = &paused_menu[1];
+static struct menu_item nonpaused_menu[sizeof(paused_menu) / sizeof(paused_menu[0]) - 2];
 
-void return_to_root_menu(unsigned index)
+static void __attribute__((constructor)) build_nonpaused_menu(void)
 {
-    current_menu = root_menu;
-    current_selection = 0;
-    scroll = 0;
-    recalculate_menu_height();
+    const struct menu_item *in = paused_menu;
+    struct menu_item *out = nonpaused_menu;
+    while (in->string) {
+        if (in->handler == NULL || in->handler == cart_swap) {
+            in++;
+            continue;
+        }
+        *out = *in;
+        out++;
+        in++;
+    }
 }
 
-#ifndef __EMSCRIPTEN__
 static const struct menu_item help_menu[] = {
     {"Shortcuts", item_help},
+#ifndef __EMSCRIPTEN__
     {"Debugger Help", debugger_help},
+#endif
     {"About SameBoy", about},
     {"Back", return_to_root_menu},
     {NULL,}
@@ -588,7 +643,6 @@ static void enter_help_menu(unsigned index)
     scroll = 0;
     recalculate_menu_height();
 }
-#endif
 
 static void cycle_model(unsigned index)
 {
@@ -807,11 +861,7 @@ static const struct menu_item emulation_menu[] = {
     {"Rewind Length:", cycle_rewind, current_rewind_string, cycle_rewind_backwards},
 #endif
     {"Real Time Clock:", toggle_rtc_mode, current_rtc_mode_string, toggle_rtc_mode},
-#ifdef __EMSCRIPTEN__
     {"Back", enter_options_menu},
-#else
-    {"Back", return_to_root_menu},
-#endif
     {NULL,}
 };
 
@@ -1270,12 +1320,7 @@ static const struct menu_item graphics_menu[] = {
     {"Mono Palette:", cycle_palette, current_palette, cycle_palette_backwards},
     {"Display Border:", cycle_border_mode, current_border_mode, cycle_border_mode_backwards},
     {"On-Screen Display:", toggle_osd, current_osd_mode, toggle_osd},
-
-#ifdef __EMSCRIPTEN__
     {"Back", enter_options_menu},
-#else
-    {"Back", return_to_root_menu},
-#endif
     {NULL,}
 };
 
@@ -1432,11 +1477,7 @@ static struct menu_item audio_menu[] = {
     {"Interference Volume:", increase_interference_volume, interference_volume_string, decrease_interference_volume},
     {"Preferred Audio Driver:", cycle_prefrered_audio_driver, preferred_audio_driver_string, cycle_preferred_audio_driver_backwards},
     {"Active Driver:", nop, audio_driver_string},
-#ifdef __EMSCRIPTEN__
     {"Back", enter_options_menu},
-#else
-    {"Back", return_to_root_menu},
-#endif
     {NULL,}
 };
 
@@ -1767,11 +1808,7 @@ static const struct menu_item controls_menu[] = {
     {"Touch Controls:", cycle_touch_controls, current_touch_controls_string, cycle_touch_controls_backwards},
 #endif
     {"Motion-controlled games:", toggle_mouse_control, mouse_control_string, toggle_mouse_control},
-#ifdef __EMSCRIPTEN__
     {"Back", enter_options_menu},
-#else
-    {"Back", return_to_root_menu},
-#endif
     {NULL,}
 };
 
@@ -2340,6 +2377,10 @@ bool run_gui_iteration(bool is_running) {
                     gui_state = SHOWING_MENU;
                 }
             }
+            else if (gui_state == SHOWING_HELP) {
+                gui_state = SHOWING_MENU;
+                menu_state.should_render = true;
+            }
             else if (key == MENU_KEY_OPEN_ROOT) {
                 if (gui_state == SHOWING_MENU && current_menu != root_menu) {
                     for (const struct menu_item *item = current_menu; item->string; item++) {
@@ -2418,17 +2459,6 @@ bool run_gui_iteration(bool is_running) {
                         }
                     }
                 }
-            }
-            else if (gui_state == SHOWING_HELP) {
-#ifdef __EMSCRIPTEN__
-                current_help_page++;
-                if (current_help_page == sizeof(help) / sizeof(help[0])) {
-                    gui_state = SHOWING_MENU;
-                }
-#else
-                gui_state = SHOWING_MENU;
-#endif
-                menu_state.should_render = true;
             }
             break;
         }

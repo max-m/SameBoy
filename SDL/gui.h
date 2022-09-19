@@ -35,6 +35,8 @@ enum pending_command {
     GB_SDL_LOAD_STATE_FROM_FILE_COMMAND,
 #ifdef __EMSCRIPTEN__
     GB_SDL_WAIT_FOR_DIALOG,
+#else
+    GB_SDL_CART_SWAP_COMMAND,
 #endif
 };
 
@@ -96,8 +98,10 @@ extern unsigned current_selection;
 extern signed scroll;
 
 void set_clear_color(uint8_t r, uint8_t g, uint8_t b);
+#ifdef __EMSCRIPTEN__
 void return_to_root_menu(unsigned index);
 void recalculate_menu_height(void);
+#endif
 
 void update_viewport(void);
 void init_gui(bool is_running);

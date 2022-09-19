@@ -1092,7 +1092,9 @@ static bool is_path_writeable(const char *path)
         }
         GB_load_battery(&gb, self.savPath.UTF8String);
         GB_load_cheats(&gb, self.chtPath.UTF8String);
-        [self.cheatWindowController cheatsUpdated];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.cheatWindowController cheatsUpdated];
+        });
         GB_debugger_load_symbol_file(&gb, [[[NSBundle mainBundle] pathForResource:@"registers" ofType:@"sym"] UTF8String]);
         GB_debugger_load_symbol_file(&gb, [[fileName stringByDeletingPathExtension] stringByAppendingPathExtension:@"sym"].UTF8String);
     }];
@@ -1192,6 +1194,9 @@ static bool is_path_writeable(const char *path)
     }
     else if ([anItem action] == @selector(toggleAudioRecording:)) {
         [(NSMenuItem *)anItem setTitle:_isRecordingAudio? @"Stop Audio Recording" : @"Start Audio Recording…"];
+    }
+    else if ([anItem action] == @selector(toggleAudioChannel:)) {
+        [(NSMenuItem *)anItem setState:!GB_is_channel_muted(&gb, [anItem tag])];
     }
     
     return [super validateUserInterfaceItem:anItem];
@@ -1650,9 +1655,17 @@ static bool is_path_writeable(const char *path)
             GB_log(&gb, "Value $%04x is out of range.\n", addr);
             return;
         }
-        [hex_controller setSelectedContentsRanges:@[[HFRangeWrapper withRange:HFRangeMake(addr, 0)]]];
-        [hex_controller _ensureVisibilityOfLocation:addr];
-        [self.memoryWindow makeFirstResponder:self.memoryView.subviews[0].subviews[0]];
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [hex_controller setSelectedContentsRanges:@[[HFRangeWrapper withRange:HFRangeMake(addr, 0)]]];
+            [hex_controller _ensureVisibilityOfLocation:addr];
+            for (HFRepresenter *representer in hex_controller.representers) {
+                if ([representer isKindOfClass:[HFHexTextRepresenter class]]) {
+                    [self.memoryWindow makeFirstResponder:representer.view];
+                    break;
+                }
+            }
+        });
     }];
     if (error) {
         NSBeep();
@@ -1700,7 +1713,9 @@ static bool is_path_writeable(const char *path)
 
         [sender setStringValue:[NSString stringWithFormat:@"$%x", bank]];
         [(GBMemoryByteArray *)(hex_controller.byteArray) setSelectedBank:bank];
-        [hex_controller reloadData];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [hex_controller reloadData];
+        });
     }];
     
     if (error && !ignore_errors) {
@@ -1929,12 +1944,12 @@ static bool is_path_writeable(const char *path)
         uint8_t lcdc = ((uint8_t *)GB_get_direct_access(&gb, GB_DIRECT_ACCESS_IO, NULL, NULL))[GB_IO_LCDC];
         uint8_t *vram = GB_get_direct_access(&gb, GB_DIRECT_ACCESS_VRAM, NULL, NULL);
         
-        if (map_type == GB_MAP_9C00 || (map_type == GB_MAP_AUTO && lcdc & 0x08)) {
+        if (map_type == GB_MAP_9C00 || (map_type == GB_MAP_AUTO && lcdc & GB_LCDC_BG_MAP)) {
             map_base = 0x1C00;
         }
         
         if (tileset_type == GB_TILESET_AUTO) {
-            tileset_type = (lcdc & 0x10)? GB_TILESET_8800 : GB_TILESET_8000;
+            tileset_type = (lcdc & GB_LCDC_TILE_SEL)? GB_TILESET_8800 : GB_TILESET_8000;
         }
         
         uint8_t tile = vram[map_base + map_offset];
@@ -2505,6 +2520,43 @@ static bool is_path_writeable(const char *path)
             _audioSavePanel.allowedFileTypes = @[@"wav"];
             break;
     }
+}
+
+- (IBAction)toggleAudioChannel:(NSMenuItem *)sender
+{
+    GB_set_channel_muted(&gb, sender.tag, !GB_is_channel_muted(&gb, sender.tag));
+}
+
+- (IBAction)cartSwap:(id)sender
+{
+    bool wasRunning = running;
+    if (wasRunning) {
+        [self stop];
+    }
+    [[NSDocumentController sharedDocumentController] beginOpenPanelWithCompletionHandler:^(NSArray<NSURL *> *urls) {
+        if (urls.count == 1) {
+            bool ok = true;
+            for (Document *document in [NSDocumentController sharedDocumentController].documents) {
+                if ([document.fileURL isEqual:urls.firstObject]) {
+                    NSAlert *alert = [[NSAlert alloc] init];
+                    [alert setMessageText:[NSString stringWithFormat:@"‘%@’ is already open in another window. Close ‘%@’ before hot swapping it into this instance.",
+                                                                     urls.firstObject.lastPathComponent, urls.firstObject.lastPathComponent]];
+                    [alert setAlertStyle:NSAlertStyleCritical];
+                    [alert runModal];
+                    ok = false;
+                    break;
+                }
+            }
+            if (ok) {
+                GB_save_battery(&gb, self.savPath.UTF8String);
+                self.fileURL = urls.firstObject;
+                [self loadROM];
+            }
+        }
+        if (wasRunning) {
+            [self start];
+        }
+    }];
 }
 
 @end

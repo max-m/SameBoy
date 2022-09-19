@@ -13,10 +13,6 @@ EM_JS(void, open_save_manager, (unsigned index), {
     Module.gb_open_save_manager();
 });
 
-EM_JS(void, item_about, (unsigned index), {
-    Module.gb_open_about_dialog();
-});
-
 EM_JS(void, start_example, (unsigned index), {
     const names = [
         "tobudx.gb",

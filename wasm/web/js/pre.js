@@ -263,7 +263,7 @@ Module.gb_load_remote_rom = async function (url) {
 	}
 };
 
-Module.gb_open_file = function (event) {
+Module.gb_open_file = function (event, hot_swap) {
 	const file = event instanceof File
 	           ? event
 	           : (event.dataTransfer || event.target).files[0];
@@ -289,7 +289,7 @@ Module.gb_open_file = function (event) {
 			const wasm_buf = new Uint8Array(Module.HEAPU8.buffer, ptr, data.byteLength);
 			wasm_buf.set(new Uint8Array(data));
 
-			Module._load_rom(wasm_buf.byteOffset, wasm_buf.byteLength, battery_path);
+			Module._load_rom(wasm_buf.byteOffset, wasm_buf.byteLength, battery_path, hot_swap);
 			resolve();
 		}
 		reader.onabort = reject;

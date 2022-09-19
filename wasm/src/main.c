@@ -655,6 +655,20 @@ static void handle_events(GB_gameboy_t *gb)
                                     pending_command = GB_SDL_SAVE_STATE_COMMAND;
                                 }
                             }
+                            /* TODO: This does not work in Firefox at the moment.
+                                     In Firefox we receive one keydown event for the Alt key (with `mod & KMOD_ALT > 0`)
+                                     and then for every keypress while holding the Alt key we receive normal keydown events with `mod & KMOD_ALT == 0`.
+                            */
+                            else if ((event.key.keysym.mod & KMOD_ALT) && event.key.keysym.scancode <= SDL_SCANCODE_4) {
+                                GB_channel_t channel = event.key.keysym.scancode - SDL_SCANCODE_1;
+                                bool state = !GB_is_channel_muted(gb, channel);
+
+                                GB_set_channel_muted(gb, channel, state);
+
+                                static char message[18];
+                                sprintf(message, "Channel %d %smuted", channel + 1, state? "" : "un");
+                                show_osd_text(message);
+                            }
                         }
                         break;
                 }
@@ -873,7 +887,7 @@ static void console_log(GB_gameboy_t *gb, const char *string, GB_log_attributes 
     }, style, string);
 }
 
-static void init_gb(void)
+static void init_gb(bool hot_swap)
 {
     pending_command = GB_SDL_NO_COMMAND;
     GB_model_t model;
@@ -895,9 +909,13 @@ static void init_gb(void)
     printf("Initializing ...\n");
 
     if (GB_is_inited(&gb)) {
-        printf("Already initialized, switching model ...\n");
-
-        GB_switch_model_and_reset(&gb, model);
+        if (hot_swap) {
+            printf("Already initialized, hot-swapping cartridge ...\n");
+        }
+        else {
+            printf("Already initialized, switching model ...\n");
+            GB_switch_model_and_reset(&gb, model);
+        }
     }
     else {
         printf("Initializing new GB ...\n");
@@ -1058,7 +1076,7 @@ void EMSCRIPTEN_KEEPALIVE run_frame(void)
     /* These commands can't run in the handle_event function, because they're not safe in a vblank context. */
     if (handle_pending_command()) {
         pending_command = GB_SDL_NO_COMMAND;
-        init_gb();
+        init_gb(false);
     }
     pending_command = GB_SDL_NO_COMMAND;
 }
@@ -1217,7 +1235,7 @@ int EMSCRIPTEN_KEEPALIVE init(void)
 
     GB_audio_init();
     GB_audio_set_paused(false);
-    init_gb();
+    init_gb(false);
 
     EM_ASM({
         function audio_workaround(e) {
@@ -1294,14 +1312,14 @@ static bool is_path_writeable(const char *path)
     return true;
 }
 
-void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_save_path)
+void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_save_path, bool hot_swap)
 {
     close_menu();
 
     // There might be a previous session that needs to be saved
     save_battery();
 
-    init_gb();
+    init_gb(hot_swap);
 
     GB_load_rom_from_buffer(&gb, buffer, size);
     free(buffer);

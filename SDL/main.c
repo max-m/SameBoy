@@ -441,6 +441,16 @@ static void handle_events(GB_gameboy_t *gb)
                                     pending_command = GB_SDL_SAVE_STATE_COMMAND;
                                 }
                             }
+                            else if ((event.key.keysym.mod & KMOD_ALT) && event.key.keysym.scancode <= SDL_SCANCODE_4) {
+                                GB_channel_t channel = event.key.keysym.scancode - SDL_SCANCODE_1;
+                                bool state = !GB_is_channel_muted(gb, channel);
+                                
+                                GB_set_channel_muted(gb, channel, state);
+                                
+                                static char message[18];
+                                sprintf(message, "Channel %d %smuted", channel + 1, state? "" : "un");
+                                show_osd_text(message);
+                            }
                         }
                         break;
                 }
@@ -570,6 +580,7 @@ static void gb_audio_callback(GB_gameboy_t *gb, GB_sample_t *sample)
     
 }
     
+static bool doing_hot_swap = false;
 static bool handle_pending_command(void)
 {
     switch (pending_command) {
@@ -622,6 +633,8 @@ static bool handle_pending_command(void)
         case GB_SDL_NO_COMMAND:
             return false;
             
+        case GB_SDL_CART_SWAP_COMMAND:
+            doing_hot_swap = true;
         case GB_SDL_RESET_COMMAND:
         case GB_SDL_NEW_FILE_COMMAND:
             GB_save_battery(&gb, battery_save_path_ptr);
@@ -690,7 +703,12 @@ restart:
     }[configuration.model];
     
     if (GB_is_inited(&gb)) {
-        GB_switch_model_and_reset(&gb, model);
+        if (doing_hot_swap) {
+            doing_hot_swap = false;
+        }
+        else {
+            GB_switch_model_and_reset(&gb, model);
+        }
     }
     else {
         GB_init(&gb, model);
