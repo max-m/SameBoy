@@ -77,7 +77,8 @@ LDFLAGS += -s MODULARIZE=1 -s EXPORT_ES6=1 -s EXPORT_NAME=initSameBoy
 # LDFLAGS += -s SUPPORT_BIG_ENDIAN=1
 
 LDFLAGS += -s LLD_REPORT_UNDEFINED
-LDFLAGS += -s "EXPORTED_RUNTIME_METHODS=['ccall', 'cwrap', 'getValue', 'AsciiToString', 'FS']"
+LDFLAGS += -s "EXPORTED_RUNTIME_METHODS=['FS']"
+LDFLAGS += -s "EXPORTED_FUNCTIONS=_GB_camera_updated"
 
 LDFLAGS += -lc -lm -ldl
 

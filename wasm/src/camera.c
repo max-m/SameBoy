@@ -101,19 +101,25 @@ void camera_request_update(GB_gameboy_t *gb)
             else {
                 fprintf(stderr, "Camera buffer too small:\nIs: %ld\nShould: %ld\n", camera_buffer_size, end);
             }
-
-            GB_camera_updated(gb);
             break;
         }
 
-        case 1:
+        case 1: {
             // Not yet ready
-            GB_camera_updated(gb);
             break;
+        }
 
-        case -1:
-            GB_camera_updated(gb);
+        case -1: {
+            printf("Camera is not supported, using fallback\n");
             camera_unsupported(gb);
             break;
+        }
     }
+
+    // If we respond immediately the Game Boy Camera ROM gets stuck
+    EM_ASM({
+        requestAnimationFrame(function() {
+            Module._GB_camera_updated($0);
+        });
+    }, gb);
 }
