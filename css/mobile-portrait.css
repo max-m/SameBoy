@@ -7,7 +7,8 @@ html.mobile.portrait #system {
   flex-direction: column;
 }
 html.mobile.portrait #display {
-  flex: 1 1 50%;
+  flex: 1 1 auto;
+  aspect-ratio: var(--width) / var(--height);
 }
 html.mobile.portrait #canvasWrapper, #spinner {
   width: 100vw;
@@ -18,7 +19,11 @@ html.mobile.portrait #system.hasScreenBorder #canvasWrapper {
   height: min(100%, calc(100vw * var(--bordered-height) / var(--bordered-width)));
 }
 html.mobile.portrait #controls {
-  flex: 1 1 50%;
+  /* 10vh + 12vh comes from the definition of the grid
+   * min(45vw, 28vh) comes from “html.mobile.portrait .dpadWrapper”
+   * We subtract 5vh because the Start and Select labels are less important than the screen
+   */
+  flex: 1 0 calc(10vh + min(45vw, 28vh) + 12vh - 5vh);
   position: relative;
   display: grid;
   grid-template-rows: 10vh auto 12vh;
