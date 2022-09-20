@@ -232,7 +232,7 @@ function setup_controls() {
 				// Remove the SDL_WINDOW_FULLSCREEN flag if it has been set for some unknown reason
 				Module._emscripten_sdl2_fullscreen_workaround();
 
-				window.dispatchEvent(new Event('resize'))
+				window.dispatchEvent(new Event('resize'));
 			});
 		});
 

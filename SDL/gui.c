@@ -2207,6 +2207,7 @@ bool run_gui_iteration(bool is_running) {
             }
         }
     }
+
     switch (menu_state.event.type) {
         case SDL_QUIT: {
             if (!is_running) {
@@ -2218,7 +2219,11 @@ bool run_gui_iteration(bool is_running) {
             }
         }
         case SDL_WINDOWEVENT: {
+#ifdef __EMSCRIPTEN__
+            if (menu_state.event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED || menu_state.event.window.event == SDL_WINDOWEVENT_RESIZED) {
+#else
             if (menu_state.event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+#endif
                 update_viewport();
                 render_texture(NULL, NULL);
             }

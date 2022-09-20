@@ -504,7 +504,7 @@ static void handle_events(GB_gameboy_t *gb)
             }
 
             case SDL_WINDOWEVENT: {
-                if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+                if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED || event.window.event == SDL_WINDOWEVENT_RESIZED) {
                     update_viewport();
                     render_texture(NULL, NULL);
                 }
@@ -1376,4 +1376,28 @@ void EMSCRIPTEN_KEEPALIVE do_resume(void) {
     SDL_FlushEvents(SDL_KEYDOWN, SDL_DROPCOMPLETE);
 
     emscripten_resume_main_loop();
+}
+
+// I have no idea why the rendering breaks when we go from portrait
+// to landscape orientation or vice versa.
+// This UGLY HACK “fixes” the rendering by increasing the size of the window
+// and reverting it afterwards.
+//
+// See also `pre.js`.
+void EMSCRIPTEN_KEEPALIVE resize_workaround(bool undo) {
+    if (SDL_GetWindowID(window) == 0) {
+        return;
+    }
+
+    int w, h;
+    SDL_GetWindowSize(window, &w, &h);
+
+    if (undo) {
+        printf("Running resize workaround (undo)\n");
+        SDL_SetWindowSize(window, w - 1, h - 1);
+    }
+    else {
+        printf("Running resize workaround\n");
+        SDL_SetWindowSize(window, w + 1, h + 1);
+    }
 }

@@ -26,6 +26,32 @@ function on_escape(fn) {
 	}
 }
 
+// On certain viewport changes the SDL window seems to become confused
+// and our display becomes horribly stretched.
+// I have no idea why, but manually resizing the browser window by even a single
+// pixel “fixes” it.
+// The native code first increases the window dimensions by a pixel,
+// then we undo it on the next frame.
+//
+// See also wasm/main.c
+function resize_workaround() {
+	window.dispatchEvent(new Event('resize'));
+
+	Module.ready.then(() => {
+		// Give the system time to process the initial events ...
+		requestAnimationFrame(() => {
+			Module._resize_workaround(false);
+			window.dispatchEvent(new Event('resize'));
+
+			// Give the system time to process the previous event ...
+			requestAnimationFrame(() => {
+				Module._resize_workaround(true);
+				window.dispatchEvent(new Event('resize'));
+			});
+		});
+	});
+}
+
 (() => {
 	const portrait = window.matchMedia('(orientation: portrait)');
 	const portrait_listener = event => {
@@ -37,6 +63,8 @@ function on_escape(fn) {
 			document.documentElement.classList.remove('portrait');
 			document.documentElement.classList.add('landscape');
 		}
+
+		resize_workaround();
 	};
 	portrait.addEventListener('change', portrait_listener);
 
@@ -452,7 +480,7 @@ Module.gb_set_touch_controls_mode = (mode) => {
 		break;
 	}
 
-	window.dispatchEvent(new Event('resize'));
+	resize_workaround();
 }
 
 Module.GbCamera = 'unloaded';
