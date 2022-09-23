@@ -942,7 +942,7 @@ static void init_gb(bool hot_swap)
         GB_set_update_input_hint_callback(&gb, handle_events);
         GB_apu_set_sample_callback(&gb, gb_audio_callback);
 
-        GB_set_camera_get_pixel_callback(&gb, (GB_camera_get_pixel_callback_t) camera_get_pixels);
+        GB_set_camera_get_pixel_callback(&gb, (GB_camera_get_pixel_callback_t) camera_get_pixel);
         GB_set_camera_update_request_callback(&gb, (GB_camera_update_request_callback_t) camera_request_update);
 
         if (battery_save_path_ptr) {

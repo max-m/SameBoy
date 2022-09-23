@@ -484,7 +484,7 @@ Module.gb_set_touch_controls_mode = (mode) => {
 }
 
 Module.GbCamera = 'unloaded';
-Module.gb_camera_init = () => {
+Module.gb_camera_init_or_read_frame = () => {
 	if (Module.GbCamera === undefined) {
 		// Error
 		return -1;
@@ -510,8 +510,8 @@ Module.gb_camera_init = () => {
 			});
 	}
 
-	if (Module.GbCamera.init) {
-		return Module.GbCamera.init();
+	if (Module.GbCamera.read_frame) {
+		return Module.GbCamera.read_frame();
 	}
 
 	// Not yet ready

@@ -183,7 +183,7 @@ export default Module => {
 		}
 	}
 
-	Camera.init = () => {
+	Camera.read_frame = () => {
 		if (unsupported) {
 			return -1;
 		}

@@ -8,8 +8,9 @@ static unsigned camera_x_offset = 0;
 static unsigned camera_y_offset = 0;
 static unsigned camera_width = 0;
 static unsigned camera_height = 0;
+static unsigned camera_request_id = 0;
 
-uint8_t camera_get_pixels(GB_gameboy_t *gb, uint8_t x, uint8_t y)
+uint8_t camera_get_pixel(GB_gameboy_t *gb, uint8_t x, uint8_t y)
 {
     if (!camera_buffer_ptr || camera_buffer_size == 0) {
         return 0;
@@ -24,7 +25,7 @@ uint8_t camera_get_pixels(GB_gameboy_t *gb, uint8_t x, uint8_t y)
     return camera_buffer_ptr[offset];
 }
 
-void EMSCRIPTEN_KEEPALIVE camera_free()
+void EMSCRIPTEN_KEEPALIVE camera_free(void)
 {
     if (camera_buffer_ptr) {
         free(camera_buffer_ptr);
@@ -42,7 +43,7 @@ void EMSCRIPTEN_KEEPALIVE camera_free()
     });
 }
 
-void camera_unsupported(GB_gameboy_t *gb)
+static void camera_unsupported(GB_gameboy_t *gb)
 {
     GB_set_camera_get_pixel_callback(gb, NULL);
     GB_set_camera_update_request_callback(gb, NULL);
@@ -70,10 +71,9 @@ void EMSCRIPTEN_KEEPALIVE camera_set_buf(uint8_t *buffer, size_t size, unsigned 
     printf("Camera y offset: %d\n", camera_y_offset);
 }
 
-void camera_request_update(GB_gameboy_t *gb)
-{
+void EMSCRIPTEN_KEEPALIVE poll_camera(GB_gameboy_t *gb) {
     int32_t result = EM_ASM_INT({
-        return Module.gb_camera_init();
+        return Module.gb_camera_init_or_read_frame();
     });
 
     switch (result) {
@@ -88,6 +88,7 @@ void camera_request_update(GB_gameboy_t *gb)
                     uint8_t g = camera_buffer_ptr[i + 1];
                     uint8_t b = camera_buffer_ptr[i + 2];
 
+                    // Convert color to grayscale
                     uint8_t y = (((uint16_t)r * 77)
                               + ((uint16_t)g * 151)
                               + ((uint16_t)b * 28)) >> 8;
@@ -116,10 +117,24 @@ void camera_request_update(GB_gameboy_t *gb)
         }
     }
 
-    // If we respond immediately the Game Boy Camera ROM gets stuck
-    EM_ASM({
-        requestAnimationFrame(function() {
-            Module._GB_camera_updated($0);
-        });
+    GB_camera_updated(gb);
+    camera_request_id = 0;
+}
+
+void camera_request_update(GB_gameboy_t *gb)
+{
+    if (camera_request_id) {
+        printf("Waiting for camera ...\n");
+        // Image is not yet ready
+        return;
+    }
+
+    // GB_camera_updated() must not be called in the camera request callback directly,
+    // otherwise the camera flags get stuck in the "camera is capturing an image" state,
+    // therefore we call the camera code asynchronously.
+    camera_request_id = EM_ASM_INT({
+        return setTimeout(function() {
+            Module._poll_camera($0);
+        }, 0);
     }, gb);
 }
