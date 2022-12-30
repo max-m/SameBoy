@@ -95,7 +95,7 @@ CFLAGS += -O3 -flto -DNDEBUG
 LDFLAGS += -flto
 LDFLAGS += -s GL_TRACK_ERRORS=0
 else
-$(error Invalid value for CONF: $(CONF). Use "debug", "release" or "native_release")
+$(error Invalid value for CONF: $(CONF). Use "debug", "release")
 endif
 
 CFLAGS := $(CFLAGS) $(CFLAGS_OVERRIDES)

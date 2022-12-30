@@ -2143,7 +2143,7 @@ bool run_gui_iteration(bool is_running) {
                 if (button == JOYPAD_BUTTON_A) {
                     menu_state.event.key.keysym.scancode = SDL_SCANCODE_RETURN;
                 }
-                else if (button == JOYPAD_BUTTON_MENU) {
+                else if (button == JOYPAD_BUTTON_MENU || button == JOYPAD_BUTTON_B) {
                     menu_state.event.key.keysym.scancode = SDL_SCANCODE_ESCAPE;
                 }
                 else if (button == JOYPAD_BUTTON_UP) menu_state.event.key.keysym.scancode = SDL_SCANCODE_UP;
