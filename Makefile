@@ -491,7 +491,7 @@ $(BIN)/BootROMs/%.bin: BootROMs/%.asm $(OBJ)/BootROMs/SameBoyLogo.pb12
 
 # Libretro Core (uses its own build system)
 libretro:
-	CFLAGS="$(WARNINGS)" $(MAKE) -C libretro
+	CFLAGS="$(WARNINGS)" $(MAKE) -C libretro BOOTROMS_DIR=$(abspath $(BOOTROMS_DIR))
 
 # WASM core (uses its own build system)
 WASM_MAKE := CFLAGS="$(WARNINGS)" \
