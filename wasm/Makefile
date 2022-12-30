@@ -1,6 +1,10 @@
 # Make hacks
 .INTERMEDIATE:
 
+REPOSITORY_URL := https://github.com/max-m/SameBoy/tree/wasm
+WEBSITE_DOMAIN := max-m.github.io
+WEBSITE_URL := https://$(WEBSITE_DOMAIN)/SameBoy/
+
 # Set target, configuration, version and destination folders
 
 ifeq ($(PLATFORM),windows32)
@@ -229,6 +233,7 @@ $(BIN)/service_worker.js: $(JS_FILES) $(ICONS) $(WEB_OBJECTS)
 $(BIN)/index.html: web/index.html $(BIN)/index.js $(BIN)/sameboy.webmanifest $(JS_FILES) $(ICONS) $(WEB_OBJECTS)
 	-@$(MKDIR) -p $(dir $@)
 	sed "s/@VERSION/$(LONG_VERSION)/;s/@COPYRIGHT_YEAR/$(COPYRIGHT_YEAR)/" < web/index.html > $@
+	sed "s~@REPOSITORY_URL~$(REPOSITORY_URL)~;s~@WEBSITE_DOMAIN~$(WEBSITE_DOMAIN)~;s~@WEBSITE_URL~$(WEBSITE_URL)~" < web/index.html > $@
 
 $(BIN)/index.js: $(CORE_OBJECTS) $(SDL_OBJECTS) $(WASM_OBJECTS) $(SHADERS) $(PALETTES) $(BOOTROM_OBJECTS) web/js/_debug.js web/js/pre.js web/js/main.js $(BIN)/service_worker.js $(CORE_DIR)/SDL/background.bmp
 	-@$(MKDIR) -p $(dir $@)
