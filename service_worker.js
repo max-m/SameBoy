@@ -1,4 +1,4 @@
-const VERSION = "0.15.8_3d4ba06";
+const VERSION = "0.15.8_22edec7";
 const FILES = [
 	"index.html",
 	"index.js",
@@ -16,6 +16,7 @@ const FILES = [
 	"img/icon-128x128.png",
 	"img/icon-256x256.png",
 	"img/icon-512x512.png",
+	"img/og-image.png",
 	"img/apple-touch-icon.png",
 	"img/front_text.svg",
 	"img/apple-touch-icon-precomposed.png",
