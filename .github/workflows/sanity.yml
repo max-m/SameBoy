@@ -1,4 +1,4 @@
-name: "Bulidability and Sanity"
+name: "Buildability and Sanity"
 on: push
 
 env:
@@ -21,7 +21,7 @@ jobs:
           cc: gcc
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install deps
         shell: bash
         run: |
@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: sanity
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install deps
         shell: bash
         run: |
