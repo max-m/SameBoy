@@ -432,10 +432,11 @@ struct GB_gameboy_internal_s {
         uint32_t ram_size; // Different between CGB and DMG
         GB_workboy_t workboy;
                
-       int32_t ir_sensor;
-       bool effective_ir_input;
-       uint16_t address_bus;
-       uint8_t data_bus; // cart data bus
+        int32_t ir_sensor;
+        bool effective_ir_input;
+        uint16_t address_bus;
+        uint8_t data_bus; // cart data bus (MAIN)
+        uint32_t data_bus_decay_countdown;
     )
 
     /* DMA and HDMA */
@@ -452,7 +453,7 @@ struct GB_gameboy_internal_s {
         int8_t dma_cycles_modulo;
         bool dma_ppu_vram_conflict;
         uint16_t dma_ppu_vram_conflict_addr;
-        uint8_t hdma_open_bus; /* Required to emulate HDMA reads from Exxx */
+        GB_PADDING(uint8_t, hdma_open_bus);
         bool allow_hdma_on_wake;
         bool dma_restarting;
     )
@@ -719,6 +720,7 @@ struct GB_gameboy_internal_s {
         uint32_t rtc_second_length;
         uint32_t clock_rate;
         uint32_t unmultiplied_clock_rate;
+        uint32_t data_bus_decay;
 
         /* Audio */
         GB_apu_output_t apu_output;
@@ -831,6 +833,7 @@ struct GB_gameboy_internal_s {
         bool disable_oam_corruption; // For safe memory reads
         bool in_dma_read;
         bool hdma_in_progress;
+        bool returned_open_bus;
         uint16_t addr_for_hdma_conflict;
                
         GB_gbs_header_t gbs_header;
@@ -977,6 +980,9 @@ bool GB_has_accelerometer(GB_gameboy_t *gb);
 // In units of g (gravity's acceleration).
 // Values within ±4 recommended
 void GB_set_accelerometer_values(GB_gameboy_t *gb, double x, double y);
+    
+// Time it takes for a value in the data bus to decay to FF, in 8MHz units. (0 to never decay, like e.g. an EverDrive)
+void GB_set_open_bus_decay_time(GB_gameboy_t *gb, uint32_t decay);
     
 /* For integration with SFC/SNES emulators */
 void GB_set_joyp_write_callback(GB_gameboy_t *gb, GB_joyp_write_callback_t callback);
