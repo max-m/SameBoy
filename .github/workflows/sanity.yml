@@ -11,22 +11,33 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest, ubuntu-18.04]
-        cc: [gcc, clang]
         include:
-        - os: macos-latest
-          cc: clang
-          extra_targets: cocoa ios-ipa ios-deb
-        exclude:
-        - os: macos-latest
-          cc: gcc
+          - os: macos-latest
+            cc: clang
+            extra_targets: cocoa ios-ipa ios-deb
+
+          - os: ubuntu-latest
+            cc: clang
+          - os: ubuntu-latest
+            cc: gcc
+
+          - os: ubuntu-latest
+            os-name: ubuntu-18.04
+            container: buildpack-deps:18.04
+            cc: gcc
+          - os: ubuntu-latest
+            os-name: ubuntu-18.04
+            container: buildpack-deps:18.04
+            cc: clang
+
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
     steps:
       - uses: actions/checkout@v3
       - name: Install deps
         shell: bash
         run: |
-          ./.github/actions/install_deps.sh ${{ matrix.os }}
+          ./.github/actions/install_deps.sh ${{ matrix.os-name || matrix.os }}
       - name: Build
         run: |
           ${{ matrix.cc }} -v; (make -j sdl tester libretro ${{ matrix.extra_targets }} CONF=release CC=${{ matrix.cc }} || (echo "==== Build Failed ==="; make sdl tester libretro ${{ matrix.extra_targets }} CONF=release CC=${{ matrix.cc }}))
@@ -37,5 +48,5 @@ jobs:
       - name: Upload binaries
         uses: actions/upload-artifact@v1
         with:
-          name: sameboy-canary-${{ matrix.os }}-${{ matrix.cc }}
+          name: sameboy-canary-${{ matrix.os-name || matrix.os }}-${{ matrix.cc }}
           path: build/bin
