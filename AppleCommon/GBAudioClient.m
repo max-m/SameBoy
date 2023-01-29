@@ -35,7 +35,11 @@ static OSStatus render(
     // kAudioUnitSubType_DefaultOutput on Mac OS X)
     AudioComponentDescription defaultOutputDescription;
     defaultOutputDescription.componentType = kAudioUnitType_Output;
+#if TARGET_OS_IPHONE
+    defaultOutputDescription.componentSubType = kAudioUnitSubType_RemoteIO;
+#else
     defaultOutputDescription.componentSubType = kAudioUnitSubType_DefaultOutput;
+#endif
     defaultOutputDescription.componentManufacturer = kAudioUnitManufacturer_Apple;
     defaultOutputDescription.componentFlags = 0;
     defaultOutputDescription.componentFlagsMask = 0;
@@ -51,7 +55,7 @@ static OSStatus render(
     // Set our tone rendering function on the unit
     AURenderCallbackStruct input;
     input.inputProc = (void*)render;
-    input.inputProcRefCon = (__bridge void * _Nullable)(self);
+    input.inputProcRefCon = (__bridge void *)(self);
     err = AudioUnitSetProperty(audioUnit,
                                kAudioUnitProperty_SetRenderCallback,
                                kAudioUnitScope_Input,

@@ -43,4 +43,4 @@ typedef struct {
 
 #define GB_AUDIO_DRIVER_REF(name) ({extern const GB_audio_driver_t name##driver; &name##driver;})
 
-#endif /* sdl_audio_h */
+#endif

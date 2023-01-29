@@ -65,7 +65,7 @@ static uint32_t color_to_int(NSColor *color)
 
                                                               @"GBFilter": @"NearestNeighbor",
                                                               @"GBColorCorrection": @(GB_COLOR_CORRECTION_MODERN_BALANCED),
-                                                              @"GBHighpassFilter": @(GB_HIGHPASS_REMOVE_DC_OFFSET),
+                                                              @"GBHighpassFilter": @(GB_HIGHPASS_ACCURATE),
                                                               @"GBRewindLength": @(10),
                                                               @"GBFrameBlendingMode": @([defaults boolForKey:@"DisableFrameBlending"]? GB_FRAME_BLENDING_MODE_DISABLED : GB_FRAME_BLENDING_MODE_ACCURATE),
                                                               
@@ -430,13 +430,13 @@ static uint32_t color_to_int(NSColor *color)
     [self.updateProgressSpinner startAnimation:nil];
     self.updateProgressButton.title = @"Cancel";
     self.updateProgressButton.enabled = true;
-    self.updateProgressLabel.stringValue = @"Downloading update...";
+    self.updateProgressLabel.stringValue = @"Downloading update…";
     _updateState = UPDATE_DOWNLOADING;
     _updateTask = [[NSURLSession sharedSession] downloadTaskWithURL: [NSURL URLWithString:_updateURL] completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
         _updateTask = nil;
         dispatch_sync(dispatch_get_main_queue(), ^{
             self.updateProgressButton.enabled = false;
-            self.updateProgressLabel.stringValue = @"Extracting update...";
+            self.updateProgressLabel.stringValue = @"Extracting update…";
             _updateState = UPDATE_EXTRACTING;
         });
         
@@ -498,7 +498,7 @@ static uint32_t color_to_int(NSColor *color)
 - (void)performUpgrade
 {
     self.updateProgressButton.enabled = false;
-    self.updateProgressLabel.stringValue = @"Instaling update...";
+    self.updateProgressLabel.stringValue = @"Instaling update…";
     _updateState = UPDATE_INSTALLING;
     self.updateProgressButton.enabled = false;
     [self.updateProgressSpinner startAnimation:nil];

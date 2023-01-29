@@ -177,6 +177,20 @@ else
 LDFLAGS += -lc -lm -ldl
 endif
 
+ifeq ($(MAKECMDGOALS),_ios)
+OBJ := build/obj-ios
+SYSROOT := $(shell xcodebuild -sdk iphoneos -version Path 2> $(NULL))
+ifeq ($(SYSROOT),)
+$(error Could not find an iOS SDK)
+endif
+CFLAGS += -arch arm64 -miphoneos-version-min=11.0 -isysroot $(SYSROOT) -IAppleCommon
+LDFLAGS += -arch arm64
+OCFLAGS += -x objective-c -fobjc-arc -Wno-deprecated-declarations -isysroot $(SYSROOT)
+LDFLAGS += -miphoneos-version-min=11.0  -isysroot $(SYSROOT)
+REREGISTER_LDFLAGS := $(LDFLAGS) -lobjc -framework CoreServices -framework Foundation
+LDFLAGS += -lobjc -framework UIKit -framework Foundation -framework CoreGraphics -framework Metal -framework MetalKit -framework AudioToolbox -framework AVFoundation -framework QuartzCore -framework CoreMotion -framework CoreVideo -framework CoreMedia -framework CoreImage -weak_framework CoreHaptics 
+CODESIGN := codesign -fs -
+else
 ifeq ($(PLATFORM),Darwin)
 SYSROOT := $(shell xcodebuild -sdk macosx -version Path 2> $(NULL))
 ifeq ($(SYSROOT),)
@@ -186,15 +200,16 @@ ifeq ($(SYSROOT),/Library/Developer/CommandLineTools/SDKs/)
 $(error Could not find a macOS SDK)
 endif
 
-CFLAGS += -F/Library/Frameworks -mmacosx-version-min=10.9 -isysroot $(SYSROOT)
+CFLAGS += -F/Library/Frameworks -mmacosx-version-min=10.9 -isysroot $(SYSROOT) -IAppleCommon
 OCFLAGS += -x objective-c -fobjc-arc -Wno-deprecated-declarations -isysroot $(SYSROOT)
-LDFLAGS += -framework AppKit -framework PreferencePanes -framework Carbon -framework QuartzCore -framework Security -framework WebKit -weak_framework Metal -weak_framework MetalKit -mmacosx-version-min=10.9 -isysroot $(SYSROOT)
+LDFLAGS += -framework AppKit -mmacosx-version-min=10.9 -isysroot $(SYSROOT)
 GL_LDFLAGS := -framework OpenGL
 endif
 CFLAGS += -Wno-deprecated-declarations
 ifeq ($(PLATFORM),windows32)
 CFLAGS += -Wno-deprecated-declarations # Seems like Microsoft deprecated every single LIBC function
 LDFLAGS += -Wl,/NODEFAULTLIB:libcmt.lib
+endif
 endif
 
 ifeq ($(CONF),debug)
@@ -234,6 +249,9 @@ quicklook: $(BIN)/SameBoy.qlgenerator
 sdl: $(SDL_TARGET) $(BIN)/SDL/dmg_boot.bin $(BIN)/SDL/mgb_boot.bin $(BIN)/SDL/cgb0_boot.bin $(BIN)/SDL/cgb_boot.bin $(BIN)/SDL/agb_boot.bin $(BIN)/SDL/sgb_boot.bin $(BIN)/SDL/sgb2_boot.bin $(BIN)/SDL/LICENSE $(BIN)/SDL/registers.sym $(BIN)/SDL/background.bmp $(BIN)/SDL/Shaders $(BIN)/SDL/Palettes
 bootroms: $(BIN)/BootROMs/agb_boot.bin $(BIN)/BootROMs/cgb_boot.bin $(BIN)/BootROMs/cgb0_boot.bin $(BIN)/BootROMs/dmg_boot.bin $(BIN)/BootROMs/mgb_boot.bin $(BIN)/BootROMs/sgb_boot.bin $(BIN)/BootROMs/sgb2_boot.bin
 tester: $(TESTER_TARGET) $(BIN)/tester/dmg_boot.bin $(BIN)/tester/cgb_boot.bin $(BIN)/tester/agb_boot.bin $(BIN)/tester/sgb_boot.bin $(BIN)/tester/sgb2_boot.bin
+_ios: $(BIN)/SameBoy-iOS.app $(OBJ)/reregister
+ios-ipa: $(BIN)/SameBoy-iOS.ipa
+ios-deb: $(BIN)/SameBoy-iOS.deb
 all: cocoa sdl tester libretro wasm
 
 # Get a list of our source files and their respective object file targets
@@ -241,11 +259,9 @@ all: cocoa sdl tester libretro wasm
 CORE_SOURCES := $(shell ls Core/*.c)
 SDL_SOURCES := $(shell ls SDL/*.c) $(OPEN_DIALOG) $(patsubst %,SDL/audio/%.c,$(SDL_AUDIO_DRIVERS))
 TESTER_SOURCES := $(shell ls Tester/*.c)
-
-ifeq ($(PLATFORM),Darwin)
-COCOA_SOURCES := $(shell ls Cocoa/*.m) $(shell ls HexFiend/*.m) $(shell ls JoyKit/*.m)
+IOS_SOURCES := $(filter-out iOS/reregister.m, $(shell ls iOS/*.m)) $(shell ls AppleCommon/*.m)
+COCOA_SOURCES := $(shell ls Cocoa/*.m) $(shell ls HexFiend/*.m) $(shell ls JoyKit/*.m) $(shell ls AppleCommon/*.m)
 QUICKLOOK_SOURCES := $(shell ls QuickLook/*.m) $(shell ls QuickLook/*.c)
-endif
 
 ifeq ($(PLATFORM),windows32)
 CORE_SOURCES += $(shell ls Windows/*.c)
@@ -253,13 +269,14 @@ endif
 
 CORE_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(CORE_SOURCES))
 COCOA_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(COCOA_SOURCES))
+IOS_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(IOS_SOURCES))
 QUICKLOOK_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(QUICKLOOK_SOURCES))
 SDL_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(SDL_SOURCES))
 TESTER_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(TESTER_SOURCES))
 
 # Automatic dependency generation
 
-ifneq ($(filter-out clean bootroms libretro wasm %.bin, $(MAKECMDGOALS)),)
+ifneq ($(filter-out ios ios-ipa ios-dev clean bootroms libretro wasm %.bin, $(MAKECMDGOALS)),)
 -include $(CORE_OBJECTS:.o=.dep)
 ifneq ($(filter $(MAKECMDGOALS),sdl),)
 -include $(SDL_OBJECTS:.o=.dep)
@@ -269,6 +286,9 @@ ifneq ($(filter $(MAKECMDGOALS),tester),)
 endif
 ifneq ($(filter $(MAKECMDGOALS),cocoa),)
 -include $(COCOA_OBJECTS:.o=.dep)
+endif
+ifneq ($(filter $(MAKECMDGOALS),_ios),)
+-include $(IOS_OBJECTS:.o=.dep)
 endif
 endif
 
@@ -311,6 +331,38 @@ $(OBJ)/HexFiend/%.m.o: HexFiend/%.m
 $(OBJ)/%.m.o: %.m
 	-@$(MKDIR) -p $(dir $@)
 	$(CC) $(CFLAGS) $(FAT_FLAGS) $(OCFLAGS) -c $< -o $@
+    
+# iOS Port
+
+$(BIN)/SameBoy-iOS.app: $(BIN)/SameBoy-iOS.app/SameBoy \
+                        $(shell ls iOS/*.png) \
+                        iOS/License.html \
+                        iOS/Info.plist \
+                        $(BIN)/SameBoy-iOS.app/dmg_boot.bin \
+                        $(BIN)/SameBoy-iOS.app/mgb_boot.bin \
+                        $(BIN)/SameBoy-iOS.app/cgb0_boot.bin \
+                        $(BIN)/SameBoy-iOS.app/cgb_boot.bin \
+                        $(BIN)/SameBoy-iOS.app/agb_boot.bin \
+                        $(BIN)/SameBoy-iOS.app/sgb_boot.bin \
+                        $(BIN)/SameBoy-iOS.app/sgb2_boot.bin \
+                        Shaders
+	$(MKDIR) -p $(BIN)/SameBoy-iOS.app
+	cp iOS/*.png $(BIN)/SameBoy-iOS.app
+	sed "s/@VERSION/$(VERSION)/;s/@COPYRIGHT_YEAR/$(COPYRIGHT_YEAR)/" < iOS/Info.plist > $(BIN)/SameBoy-iOS.app/Info.plist
+	sed "s/@COPYRIGHT_YEAR/$(COPYRIGHT_YEAR)/" < iOS/License.html > $(BIN)/SameBoy-iOS.app/License.html
+	$(MKDIR) -p $(BIN)/SameBoy-iOS.app/Shaders
+	cp Shaders/*.fsh Shaders/*.metal $(BIN)/SameBoy-iOS.app/Shaders
+	$(CODESIGN) $@
+
+$(BIN)/SameBoy-iOS.app/SameBoy: $(CORE_OBJECTS) $(IOS_OBJECTS)
+	-@$(MKDIR) -p $(dir $@)
+	$(CC) $^ -o $@ $(LDFLAGS)
+ifeq ($(CONF), release)
+	$(STRIP) $@
+endif
+
+$(OBJ)/reregister: iOS/reregister.m
+	$(CC) $< -o $@ $(REREGISTER_LDFLAGS) $(CFLAGS)
 
 # Cocoa Port
 
@@ -343,7 +395,7 @@ endif
 
 $(BIN)/SameBoy.app/Contents/MacOS/SameBoy: $(CORE_OBJECTS) $(COCOA_OBJECTS)
 	-@$(MKDIR) -p $(dir $@)
-	$(CC) $^ -o $@ $(LDFLAGS) $(FAT_FLAGS) -framework OpenGL -framework AudioUnit -framework AVFoundation -framework CoreVideo -framework CoreMedia -framework IOKit
+	$(CC) $^ -o $@ $(LDFLAGS) $(FAT_FLAGS) -framework OpenGL -framework AudioToolbox -framework AudioUnit -framework AVFoundation -framework CoreVideo -framework CoreMedia -framework IOKit -framework PreferencePanes -framework Carbon -framework QuartzCore -framework Security -framework WebKit -weak_framework Metal -weak_framework MetalKit
 ifeq ($(CONF), release)
 	$(STRIP) $@
 endif
@@ -440,6 +492,10 @@ $(BIN)/tester/%.bin: $(BOOTROMS_DIR)/%.bin
 	cp -f $^ $@
 
 $(BIN)/SameBoy.app/Contents/Resources/%.bin: $(BOOTROMS_DIR)/%.bin
+	-@$(MKDIR) -p $(dir $@)
+	cp -f $^ $@
+
+$(BIN)/SameBoy-iOS.app/%.bin: $(BOOTROMS_DIR)/%.bin
 	-@$(MKDIR) -p $(dir $@)
 	cp -f $^ $@
 
@@ -546,9 +602,42 @@ $(DESTDIR)$(PREFIX)/share/mime/packages/sameboy.xml: FreeDesktop/sameboy.xml
 	cp -f $^ $@
 endif
 
+ios:
+	@$(MAKE) _ios
+    
+$(BIN)/SameBoy-iOS.ipa: ios
+	$(MKDIR) -p $(OBJ)/Payload
+	cp -rf $(BIN)/SameBoy-iOS.app $(OBJ)/Payload/SameBoy-iOS.app
+	(cd $(OBJ) && zip $(abspath $@) -r Payload)
+	rm -rf $(OBJ)/Payload
+
+    
+$(BIN)/SameBoy-iOS.deb: $(OBJ)/debian-binary $(OBJ)/control.tar.gz $(OBJ)/data.tar.gz
+	-@$(MKDIR) -p $(dir $@)
+	(cd $(OBJ) && ar cr $(abspath $@) $(notdir $^))
+	
+$(OBJ)/data.tar.gz: ios iOS/jailbreak.entitlements
+	$(MKDIR) -p $(OBJ)/Applications
+	cp -rf $(BIN)/SameBoy-iOS.app $(OBJ)/Applications/SameBoy-iOS.app
+	cp build/obj-ios/reregister iOS/reregister.entitlements $(OBJ)/Applications/SameBoy-iOS.app
+	codesign -fs - --entitlements iOS/jailbreak.entitlements $(OBJ)/Applications/SameBoy-iOS.app
+	(cd $(OBJ) && tar -czf $(abspath $@) ./Applications)
+	rm -rf $(OBJ)/Applications
+	
+$(OBJ)/control.tar.gz: iOS/deb-postinst iOS/deb-control
+	-@$(MKDIR) -p $(dir $@)
+	sed "s/@VERSION/$(VERSION)/" < iOS/deb-control > $(OBJ)/control
+	ln iOS/deb-postinst $(OBJ)/postinst
+	(cd $(OBJ) && tar -czf $(abspath $@) ./control ./postinst)
+	rm $(OBJ)/control $(OBJ)/postinst
+	
+$(OBJ)/debian-binary:
+	-@$(MKDIR) -p $(dir $@)
+	echo 2.0 > $@
+	
 # Clean
 clean:
 	rm -rf build
 	$(WASM_MAKE) clean
 
-.PHONY: libretro tester wasm
+.PHONY: libretro tester cocoa ios _ios wasm
