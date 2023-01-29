@@ -133,7 +133,7 @@
 							src="img/logo-128x128.png"
 							alt="SameBoy Logo"
 						>
-						<h1><a href="https://sameboy.github.io/">SameBoy v0.15.8 (ff58932)</a></h1>
+						<h1><a href="https://sameboy.github.io/">SameBoy v0.15.8 (43f40f4)</a></h1>
 						<h2>MIT License</h2>
 						<h3>Copyright © 2015-2023 <a href="https://github.com/LIJI32">Lior Halphon</a></h3>
 						<h4>WebAssembly port by <a href="https://github.com/max-m">Maximilian Mader</a></h4>
@@ -164,9 +164,21 @@
 
 
 		<script type="module">
-			import initModule from"./index.js";
+			import initSameBoy from"./index.js";
+			const SAMEBOY = await initSameBoy();
 
-			initModule();
+			SAMEBOY.ready.then(async () => {
+				SAMEBOY.setStatus('Syncing filesystem');
+
+				SAMEBOY.FS.mkdir('/persist');
+				SAMEBOY.FS.mount(SAMEBOY.IDBFS, { }, '/persist');
+
+				await SAMEBOY.gb_syncfs(true);
+
+				// Call the exported init function
+				SAMEBOY._init();
+				SAMEBOY.setStatus(null);
+			});
 		</script>
 	</body>
 </html>
