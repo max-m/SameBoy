@@ -74,6 +74,11 @@ LDFLAGS += -lEGL -lGL -s MAX_WEBGL_VERSION=2
 # Create an ES6 Module
 LDFLAGS += -s MODULARIZE=1 -s EXPORT_ES6=1 -s EXPORT_NAME=initSameBoy
 
+# Disable "use strict"; in ES6 modules, see:
+# - <https://github.com/emscripten-core/emscripten/issues/18620>
+# - <https://github.com/emscripten-core/emscripten/issues/18610>
+LDFLAGS += -s STRICT_JS=0
+
 # If set to 1, perform acorn pass that converts each HEAP access into a
 # function call that uses DataView to enforce LE byte order for HEAP buffer;
 # This makes generated JavaScript run on BE as well as LE machines. (If 0, only
@@ -81,7 +86,8 @@ LDFLAGS += -s MODULARIZE=1 -s EXPORT_ES6=1 -s EXPORT_NAME=initSameBoy
 # LDFLAGS += -s SUPPORT_BIG_ENDIAN=1
 
 LDFLAGS += -s LLD_REPORT_UNDEFINED
-LDFLAGS += -s "EXPORTED_RUNTIME_METHODS=['FS']"
+LDFLAGS += -s "EXPORTED_FUNCTIONS=['_malloc']"
+LDFLAGS += -s "EXPORTED_RUNTIME_METHODS=['FS', 'IDBFS']"
 
 LDFLAGS += -lc -lm -ldl
 

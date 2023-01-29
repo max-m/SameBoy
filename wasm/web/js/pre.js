@@ -1042,16 +1042,3 @@ window.onerror = () => {
 		if (text) Module.printErr('[post-exception status] ' + text);
 	};
 };
-
-Module.ready.then(async () => {
-	Module.setStatus('Syncing filesystem');
-
-	FS.mkdir('/persist');
-	FS.mount(IDBFS, { }, '/persist');
-
-	await Module.gb_syncfs(true);
-
-	// Call the exported init function
-	Module._init();
-	Module.setStatus(null);
-});

@@ -164,9 +164,21 @@
 
 
 		<script type="module">
-			import initModule from"./index.js";
+			import initSameBoy from"./index.js";
+			const SAMEBOY = await initSameBoy();
 
-			initModule();
+			SAMEBOY.ready.then(async () => {
+				SAMEBOY.setStatus('Syncing filesystem');
+
+				SAMEBOY.FS.mkdir('/persist');
+				SAMEBOY.FS.mount(SAMEBOY.IDBFS, { }, '/persist');
+
+				await SAMEBOY.gb_syncfs(true);
+
+				// Call the exported init function
+				SAMEBOY._init();
+				SAMEBOY.setStatus(null);
+			});
 		</script>
 	</body>
 </html>
