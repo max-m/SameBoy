@@ -180,6 +180,12 @@ static void printImage(GB_gameboy_t *gb, uint32_t *image, uint8_t height,
     [self printImage:image height:height topMargin:top_margin bottomMargin:bottom_margin exposure:exposure];
 }
 
+static void printDone(GB_gameboy_t *gb)
+{
+    Document *self = (__bridge Document *)GB_get_user_data(gb);
+    [self printDone];
+}
+
 static void setWorkboyTime(GB_gameboy_t *gb, time_t t)
 {
     [[NSUserDefaults standardUserDefaults] setInteger:time(NULL) - t forKey:@"GBWorkboyTimeOffset"];
@@ -1861,18 +1867,20 @@ static bool is_path_writeable(const char *path)
                 NSError *error;
                 AVCaptureDevice *device = [AVCaptureDevice defaultDeviceWithMediaType: AVMediaTypeVideo];
                 AVCaptureDeviceInput *input = [AVCaptureDeviceInput deviceInputWithDevice: device error: &error];
-                CMVideoDimensions dimensions = CMVideoFormatDescriptionGetDimensions([[[device formats] firstObject] formatDescription]);
+                CMVideoDimensions dimensions = CMVideoFormatDescriptionGetDimensions([[[device formats] lastObject] formatDescription]);
 
                 if (!input) {
                     GB_camera_updated(&gb);
                     return;
                 }
+                
+                double ratio = MAX(130.0 / dimensions.width, 114.0 / dimensions.height);
 
                 cameraOutput = [[AVCaptureStillImageOutput alloc] init];
                 /* Greyscale is not widely supported, so we use YUV, whose first element is the brightness. */
                 [cameraOutput setOutputSettings: @{(id)kCVPixelBufferPixelFormatTypeKey: @(kYUVSPixelFormat),
-                                                   (id)kCVPixelBufferWidthKey: @(MAX(128, 112 * dimensions.width / dimensions.height)),
-                                                   (id)kCVPixelBufferHeightKey: @(MAX(112, 128 * dimensions.height / dimensions.width)),}];
+                                                   (id)kCVPixelBufferWidthKey: @(round(dimensions.width * ratio)),
+                                                   (id)kCVPixelBufferHeightKey: @(round(dimensions.height * ratio)),}];
 
 
                 cameraSession = [AVCaptureSession new];
@@ -1908,7 +1916,7 @@ static bool is_path_writeable(const char *path)
     });
 }
 
-- (uint8_t)cameraGetPixelAtX:(uint8_t)x andY:(uint8_t) y
+- (uint8_t)cameraGetPixelAtX:(unsigned)x andY:(unsigned)y
 {
     if (!cameraImage) {
         return 0;
@@ -1916,8 +1924,8 @@ static bool is_path_writeable(const char *path)
 
     uint8_t *baseAddress = (uint8_t *)CVPixelBufferGetBaseAddress(cameraImage);
     size_t bytesPerRow = CVPixelBufferGetBytesPerRow(cameraImage);
-    uint8_t offsetX = (CVPixelBufferGetWidth(cameraImage) - 128) / 2;
-    uint8_t offsetY = (CVPixelBufferGetHeight(cameraImage) - 112) / 2;
+    unsigned offsetX = (CVPixelBufferGetWidth(cameraImage) - 128) / 2;
+    unsigned offsetY = (CVPixelBufferGetHeight(cameraImage) - 112) / 2;
     uint8_t ret = baseAddress[(x + offsetX) * 2 + (y + offsetY) * bytesPerRow];
 
     return ret;
@@ -2058,9 +2066,9 @@ static bool is_path_writeable(const char *path)
     [self reloadVRAMData: nil];
 }
 
-- (void) printImage:(uint32_t *)imageBytes height:(unsigned) height
-          topMargin:(unsigned) topMargin bottomMargin: (unsigned) bottomMargin
-           exposure:(unsigned) exposure
+- (void)printImage:(uint32_t *)imageBytes height:(unsigned) height
+         topMargin:(unsigned) topMargin bottomMargin: (unsigned) bottomMargin
+          exposure:(unsigned) exposure
 {
     uint32_t paddedImage[160 * (topMargin + height + bottomMargin)];
     memset(paddedImage, 0xFF, sizeof(paddedImage));
@@ -2071,6 +2079,7 @@ static bool is_path_writeable(const char *path)
     [currentPrinterImageData appendBytes:paddedImage length:sizeof(paddedImage)];
     /* UI related code must run on main thread. */
     dispatch_async(dispatch_get_main_queue(), ^{
+        [_printerSpinner startAnimation:nil];
         self.feedImageView.image = [Document imageFromData:currentPrinterImageData
                                                      width:160
                                                     height:currentPrinterImageData.length / 160 / sizeof(imageBytes[0])
@@ -2083,6 +2092,13 @@ static bool is_path_writeable(const char *path)
         [self.printerFeedWindow orderFront:NULL];
     });
     
+}
+
+- (void)printDone
+{
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [_printerSpinner stopAnimation:nil];
+    });
 }
 
 - (void)printDocument:(id)sender
@@ -2133,7 +2149,7 @@ static bool is_path_writeable(const char *path)
     [self disconnectLinkCable];
     [self performAtomicBlock:^{
         accessory = GBAccessoryPrinter;
-        GB_connect_printer(&gb, printImage);
+        GB_connect_printer(&gb, printImage, printDone);
     }];
 }
 
