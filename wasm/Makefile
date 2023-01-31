@@ -162,8 +162,8 @@ WASM_OBJECTS := $(patsubst %,$(OBJ)/%.o,$(WASM_SOURCES))
 ICON_SIZES := 16x16 32x32 64x64 128x128 256x256 512x512
 ICONS := $(foreach size,$(ICON_SIZES),$(BIN)/img/icon-$(size).png)
 
-WEB_SOURCES := $(shell find web/ressources/ -type f)
-WEB_OBJECTS := $(patsubst web/ressources/%,$(BIN)/%,$(WEB_SOURCES))
+WEB_SOURCES := $(shell find web/resources/ -type f)
+WEB_OBJECTS := $(patsubst web/resources/%,$(BIN)/%,$(WEB_SOURCES))
 
 JS_SOURCES := $(filter-out _debug.js pre.js main.js,$(shell ls web/js/.))
 JS_FILES := $(patsubst %,$(BIN)/js/%,$(JS_SOURCES))
@@ -253,7 +253,7 @@ $(BIN)/index.js: $(CORE_OBJECTS) $(SDL_OBJECTS) $(WASM_OBJECTS) $(SHADERS) $(PAL
 		$(filter %.o, $^) \
 		-o $@
 
-$(BIN)/%: web/ressources/%
+$(BIN)/%: web/resources/%
 	-@$(MKDIR) -p $(dir $@)
 	cp -a $< $@
 
