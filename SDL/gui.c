@@ -128,10 +128,12 @@ void render_texture(void *pixels,  void *previous)
                 mode = GB_is_odd_frame(&gb)? GB_FRAME_BLENDING_MODE_ACCURATE_ODD : GB_FRAME_BLENDING_MODE_ACCURATE_EVEN;
             }
         }
-        render_bitmap_with_shader(&shader, _pixels, previous,
-                                  GB_get_screen_width(&gb), GB_get_screen_height(&gb),
-                                  rect.x, rect.y, rect.w, rect.h,
-                                  mode);
+        if (_pixels) {
+            render_bitmap_with_shader(&shader, _pixels, previous,
+                                      GB_get_screen_width(&gb), GB_get_screen_height(&gb),
+                                      rect.x, rect.y, rect.w, rect.h,
+                                      mode);
+        }
         SDL_GL_SwapWindow(window);
     }
 }

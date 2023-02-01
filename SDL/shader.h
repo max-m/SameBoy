@@ -1,3 +1,6 @@
+#ifdef __EMSCRIPTEN__
+#include "../wasm/src/shader.h"
+#else
 #ifndef shader_h
 #define shader_h
 #include "opengl_compat.h"
@@ -32,3 +35,5 @@ void render_bitmap_with_shader(shader_t *shader, void *bitmap, void *previous,
 void free_shader(struct shader_s *shader);
 
 #endif
+
+#endif /* __EMSCRIPTEN */
