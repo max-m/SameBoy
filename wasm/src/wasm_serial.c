@@ -30,6 +30,8 @@ static void printer_callback(GB_gameboy_t *gb, uint32_t *image, uint8_t height, 
         const buf = new Uint8Array(Module.HEAPU8.buffer, image_ptr, size);
         const game_filename = UTF8ToString(filename_ptr, filename_length);
 
+        document.querySelector('#printerDialog').classList.add('printing');
+
         document.querySelector('#printerDialog .prints').dataset.game = game_filename;
 
         // If there’s a margin, we are most likely dealing with a new image
@@ -100,6 +102,13 @@ static void printer_callback(GB_gameboy_t *gb, uint32_t *image, uint8_t height, 
     }), image, height, top_margin, bottom_margin, exposure, filename, strlen(filename));
 }
 
+static void printer_done_callback(GB_gameboy_t *gb)
+{
+    EM_ASM(({
+        document.querySelector('#printerDialog').classList.remove('printing');
+    }));
+}
+
 static void workboy_set_time_callback(GB_gameboy_t *gb, time_t new_time)
 {
     workboy_time = time(NULL) - new_time;
@@ -114,7 +123,7 @@ void connect_printer(unsigned index)
 {
     disconnect_serial(0);
 
-    GB_connect_printer(&gb, printer_callback);
+    GB_connect_printer(&gb, printer_callback, printer_done_callback);
 
     connected_device = SERIAL_DEVICE_PRINTER;
     reset_menus();
