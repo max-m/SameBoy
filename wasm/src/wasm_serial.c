@@ -13,7 +13,7 @@ static time_t workboy_time = 0;
 
 static void printer_callback(GB_gameboy_t *gb, uint32_t *image, uint8_t height, uint8_t top_margin, uint8_t bottom_margin, uint8_t exposure)
 {
-    char filename[strlen(battery_save_path_ptr) - 9]; // remove /persist/
+    char filename[strlen(battery_save_path_ptr) - 9 + 1]; // remove /persist/
     replace_extension(battery_save_path_ptr + 9, strlen(battery_save_path_ptr + 9), filename, "");
 
     EM_ASM(({
@@ -106,6 +106,8 @@ static void printer_done_callback(GB_gameboy_t *gb)
 {
     EM_ASM(({
         document.querySelector('#printerDialog').classList.remove('printing');
+
+        Module.gb_open_printer_dialog();
     }));
 }
 

@@ -22,7 +22,7 @@ static void handle_command(GB_gameboy_t *gb)
                 gb->printer.status = 6; /* Printing */
 
 #ifdef __EMSCRIPTEN__
-                uint32_t *image = malloc(gb->printer.image_offset);
+                uint32_t *image = malloc(gb->printer.image_offset * sizeof(uint32_t));
                 if (image == NULL) {
                     fprintf(stderr, "Failed to allocate image buffer\n");
                     return;
