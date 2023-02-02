@@ -262,7 +262,9 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 {
     GB_model_t model;
     if (!GB_get_state_model(file.fileSystemRepresentation, &model)) {
-        GB_switch_model_and_reset(&_gb, model);
+        if (GB_get_model(&_gb) != model) {
+            GB_switch_model_and_reset(&_gb, model);
+        }
         GB_load_state(&_gb, file.fileSystemRepresentation);
     }
 }
@@ -273,7 +275,13 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
     GBROMManager *romManager = [GBROMManager sharedManager];
     if (romManager.romFile) {
         // Todo: display errors and warnings
-        _romLoaded = GB_load_rom(&_gb, romManager.romFile.fileSystemRepresentation) == 0;
+        if ([romManager.romFile.pathExtension.lowercaseString isEqualToString:@"isx"]) {
+            _romLoaded = GB_load_isx(&_gb, romManager.romFile.fileSystemRepresentation) == 0;
+        }
+        else {
+            _romLoaded = GB_load_rom(&_gb, romManager.romFile.fileSystemRepresentation) == 0;
+        }
+        GB_rewind_reset(&_gb);
         if (_romLoaded) {
             GB_reset(&_gb);
             GB_load_battery(&_gb, [GBROMManager sharedManager].batterySaveFile.fileSystemRepresentation);
