@@ -336,6 +336,12 @@ typedef union {
     };
 } GB_registers_t;
 
+typedef GB_ENUM(uint8_t, {
+    GB_ACCESSORY_NONE,
+    GB_ACCESSORY_PRINTER,
+    GB_ACCESSORY_WORKBOY,
+}) GB_accessory_t;
+
 /* When state saving, each section is dumped independently of other sections.
    This allows adding data to the end of the section without worrying about future compatibility.
    Some other changes might be "safe" as well.
@@ -637,11 +643,7 @@ struct GB_gameboy_internal_s {
     )
     
     GB_SECTION(accessory,
-        GB_ENUM(uint8_t, {
-            GB_ACCESSORY_NONE,
-            GB_ACCESSORY_PRINTER,
-            GB_ACCESSORY_WORKBOY,
-        }) accessory;
+        GB_accessory_t accessory;
         union {
             GB_printer_t printer;
             GB_workboy_t workboy;
@@ -813,6 +815,9 @@ struct GB_gameboy_internal_s {
         bool returned_open_bus;
         uint16_t addr_for_hdma_conflict;
                
+        /* Thread safety (debug only) */
+        void *running_thread_id;
+               
         GB_gbs_header_t gbs_header;
    )
 };
@@ -948,6 +953,7 @@ bool GB_serial_get_data_bit(GB_gameboy_t *gb);
 void GB_serial_set_data_bit(GB_gameboy_t *gb, bool data);
     
 void GB_disconnect_serial(GB_gameboy_t *gb);
+GB_accessory_t GB_get_built_in_accessory(GB_gameboy_t *gb);
     
 /* For cartridges with an alarm clock */
 unsigned GB_time_to_alarm(GB_gameboy_t *gb); // 0 if no alarm
@@ -986,4 +992,26 @@ internal void GB_borrow_sgb_border(GB_gameboy_t *gb);
 internal void GB_update_clock_rate(GB_gameboy_t *gb);
 #endif
     
+#ifdef GB_INTERNAL
+
+#ifndef NDEBUG
+#define GB_CONTEXT_SAFETY
+#endif
+    
+#ifdef GB_CONTEXT_SAFETY
+#include <assert.h>
+internal void *GB_get_thread_id(void);
+internal void GB_set_running_thread(GB_gameboy_t *gb);
+internal void GB_clear_running_thread(GB_gameboy_t *gb);
+#define GB_ASSERT_NOT_RUNNING(gb) if (gb->running_thread_id) {GB_log(gb, "Function %s must not be called in a running context.\n", __FUNCTION__); assert(!gb->running_thread_id);}
+#define GB_ASSERT_NOT_RUNNING_OTHER_THREAD(gb) if (gb->running_thread_id && gb->running_thread_id != GB_get_thread_id()) {GB_log(gb, "Function %s must not be called while running in another thread.\n", __FUNCTION__); assert(!gb->running_thread_id || gb->running_thread_id == GB_get_thread_id());}
+
+#else
+#define GB_ASSERT_NOT_RUNNING(gb)
+#define GB_ASSERT_NOT_RUNNING_OTHER_THREAD(gb)
+#define GB_set_running_thread(gb)
+#define GB_clear_running_thread(gb)
+#endif
+    
+#endif
 #endif
