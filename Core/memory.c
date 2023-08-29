@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdbool.h>
+#include <string.h>
 #include "gb.h"
 
 typedef uint8_t read_function_t(GB_gameboy_t *gb, uint16_t addr);
@@ -665,7 +666,8 @@ static uint8_t read_high_memory(GB_gameboy_t *gb, uint16_t addr)
                 if (!gb->cgb_mode) {
                     return 0xFF;
                 }
-                return gb->cgb_ram_bank | ~0x7;
+
+                return gb->io_registers[GB_IO_SVBK];
             case GB_IO_VBK:
                 if (!GB_is_cgb(gb)) {
                     return 0xFF;
@@ -700,7 +702,8 @@ static uint8_t read_high_memory(GB_gameboy_t *gb, uint16_t addr)
                     return 0xFF;
                 }
                 return (gb->io_registers[GB_IO_KEY1] & 0x7F) | (gb->cgb_double_speed? 0xFE : 0x7E);
-
+            case GB_IO_BANK:
+                return 0xFE | gb->boot_rom_finished;
             case GB_IO_RP: {
                 if (!gb->cgb_mode) return 0xFF;
                 /* You will read your own IR LED if it's on. */
@@ -757,9 +760,11 @@ uint8_t GB_read_memory(GB_gameboy_t *gb, uint16_t addr)
 {
     GB_ASSERT_NOT_RUNNING_OTHER_THREAD(gb)
     
+#ifndef GB_DISABLE_DEBUGGER
     if (unlikely(gb->n_watchpoints)) {
         GB_debugger_test_read_watchpoint(gb, addr);
     }
+#endif
     if (unlikely(is_addr_in_dma_use(gb, addr))) {
         if (GB_is_cgb(gb) && bus_for_addr(gb, addr) == GB_BUS_MAIN && gb->dma_current_src >= 0xE000) {
             /* This is cart specific! Everdrive 7X on a CGB-A or 0 behaves differently. */
@@ -1489,9 +1494,9 @@ static void write_high_memory(GB_gameboy_t *gb, uint16_t addr, uint8_t value)
                     GB_lcd_off(gb);
                 }
                 /* Handle disabling objects while already fetching an object */
-                if ((gb->io_registers[GB_IO_LCDC] & GB_LCDC_OBJ_EN) && !(value & GB_LCDC_OBJ_EN)) {
+                if (!GB_is_cgb(gb) && (gb->io_registers[GB_IO_LCDC] & GB_LCDC_OBJ_EN) && !(value & GB_LCDC_OBJ_EN)) {
                     if (gb->during_object_fetch) {
-                        gb->cycles_for_line += gb->display_cycles;
+                        gb->cycles_for_line += gb->display_cycles / 2;
                         gb->display_cycles = 0;
                         gb->object_fetch_aborted = true;
                     }
@@ -1504,14 +1509,23 @@ static void write_high_memory(GB_gameboy_t *gb, uint16_t addr, uint8_t value)
                 return;
 
             case GB_IO_STAT:
-                /* Delete previous R/W bits */
                 gb->io_registers[GB_IO_STAT] &= 7;
-                /* Set them by value */
                 gb->io_registers[GB_IO_STAT] |= value & ~7;
-                /* Set unused bit to 1 */
                 gb->io_registers[GB_IO_STAT] |= 0x80;
                 
-                GB_STAT_update(gb);
+                /* Annoying edge timing case */
+                if (gb->cgb_double_speed &&
+                    gb->display_state == 8 &&
+                    gb->oam_search_index == 0 &&
+                    gb->display_cycles == 0 &&
+                    (value & 0x20)) {
+                    gb->mode_for_interrupt = 2;
+                    GB_STAT_update(gb);
+                    gb->mode_for_interrupt = -1;
+                }
+                else {
+                    GB_STAT_update(gb);
+                }
                 return;
 
             case GB_IO_DIV:
@@ -1527,14 +1541,30 @@ static void write_high_memory(GB_gameboy_t *gb, uint16_t addr, uint8_t value)
                     GB_update_joyp(gb);
                 }
                 else if ((gb->io_registers[GB_IO_JOYP] & 0x30) != (value & 0x30)) {
-                    if (gb->model < GB_MODEL_SGB) { // DMG only
+                    if (!GB_is_cgb(gb) && !GB_is_sgb(gb)) {
                         if (gb->joyp_switching_delay) {
                             gb->io_registers[GB_IO_JOYP] = (gb->joyp_switch_value & 0xF0) | (gb->io_registers[GB_IO_JOYP] & 0x0F);
                         }
                         gb->joyp_switch_value = value;
-                        gb->joyp_switching_delay = 24;
-                        value &= gb->io_registers[GB_IO_JOYP];
-                        gb->joypad_is_stable = false;
+                        uint8_t delay = 0;
+                        switch (((gb->io_registers[GB_IO_JOYP] & 0x30) >> 4) |
+                                ((value & 0x30) >> 2)) {
+                            case 0x4: delay = 48; break;
+                            case 0x6: delay = gb->model == GB_MODEL_MGB? 56 : 48; break;
+                            case 0x8: delay = 24; break;
+                            case 0x9: delay = 24; break;
+                            case 0xC: delay = 48; break;
+                            case 0xD: delay = 24; break;
+                            case 0xE: delay = 48; break;
+                        }
+                        if (delay && gb->model == GB_MODEL_MGB) {
+                            delay -= 16;
+                        }
+                        gb->joyp_switching_delay = MAX(gb->joyp_switching_delay, delay);
+                        if (gb->joyp_switching_delay) {
+                            value &= gb->io_registers[GB_IO_JOYP];
+                            gb->joypad_is_stable = false;
+                        }
                     }
                     GB_sgb_write(gb, value);
                     gb->io_registers[GB_IO_JOYP] = (value & 0xF0) | (gb->io_registers[GB_IO_JOYP] & 0x0F);
@@ -1543,7 +1573,7 @@ static void write_high_memory(GB_gameboy_t *gb, uint16_t addr, uint8_t value)
                 return;
 
             case GB_IO_BANK:
-                gb->boot_rom_finished = true;
+                gb->boot_rom_finished |= value & 1;
                 return;
 
             case GB_IO_KEY0:
@@ -1568,6 +1598,7 @@ static void write_high_memory(GB_gameboy_t *gb, uint16_t addr, uint8_t value)
                     if (!gb->cgb_ram_bank) {
                         gb->cgb_ram_bank++;
                     }
+                    gb->io_registers[GB_IO_SVBK] = value | ~0x7;
                 }
                 return;
             case GB_IO_VBK:
@@ -1733,10 +1764,11 @@ void GB_set_write_memory_callback(GB_gameboy_t *gb, GB_write_memory_callback_t c
 void GB_write_memory(GB_gameboy_t *gb, uint16_t addr, uint8_t value)
 {
     GB_ASSERT_NOT_RUNNING_OTHER_THREAD(gb)
-    
+#ifndef GB_DISABLE_DEBUGGER
     if (unlikely(gb->n_watchpoints)) {
         GB_debugger_test_write_watchpoint(gb, addr, value);
     }
+#endif
     if (bus_for_addr(gb, addr) == GB_BUS_MAIN && addr < 0xFF00) {
         gb->data_bus = value;
         gb->data_bus_decay_countdown = gb->data_bus_decay;

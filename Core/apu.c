@@ -3,6 +3,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
+#include <stdlib.h>
 #include "gb.h"
 
 static const uint8_t duties[] = {
@@ -726,6 +727,12 @@ void GB_apu_run(GB_gameboy_t *gb, bool force)
                     }
                     gb->apu.square_channels[i].did_tick = true;
                     update_square_sample(gb, i);
+
+                    uint8_t duty = gb->io_registers[i == GB_SQUARE_1? GB_IO_NR11 :GB_IO_NR21] >> 6;
+                    uint8_t edge_sample_index = inline_const(uint8_t[], {7, 7, 5, 1})[duty];
+                    if (gb->apu.square_channels[i].current_sample_index == edge_sample_index) {
+                        gb->apu_output.edge_triggered[i] = true;
+                    }
                 }
                 if (cycles_left) {
                     gb->apu.square_channels[i].sample_countdown -= cycles_left;
@@ -745,6 +752,9 @@ void GB_apu_run(GB_gameboy_t *gb, bool force)
                     gb->io_registers[GB_IO_WAV_START + (gb->apu.wave_channel.current_sample_index >> 1)];
                 update_wave_sample(gb, cycles - cycles_left);
                 gb->apu.wave_channel.wave_form_just_read = true;
+                if (gb->apu.wave_channel.current_sample_index == 0) {
+                    gb->apu_output.edge_triggered[GB_WAVE] = true;
+                }
             }
             if (cycles_left) {
                 gb->apu.wave_channel.sample_countdown -= cycles_left;
@@ -804,6 +814,7 @@ void GB_apu_run(GB_gameboy_t *gb, bool force)
             }
             else {
                 gb->apu.noise_channel.countdown_reloaded = true;
+                gb->apu_output.edge_triggered[GB_NOISE] = true;
             }
         }
     }
@@ -1278,7 +1289,7 @@ void GB_apu_write(GB_gameboy_t *gb, uint8_t reg, uint8_t value)
             gb->apu.wave_channel.pulse_length = (0x100 - value);
             break;
         case GB_IO_NR32:
-            gb->apu.wave_channel.shift = (const uint8_t[]){4, 0, 1, 2}[(value >> 5) & 3];
+            gb->apu.wave_channel.shift = inline_const(uint8_t[], {4, 0, 1, 2})[(value >> 5) & 3];
             if (gb->apu.is_active[GB_WAVE]) {
                 update_wave_sample(gb, 0);
             }
@@ -1393,11 +1404,11 @@ void GB_apu_write(GB_gameboy_t *gb, uint8_t reg, uint8_t value)
                 if (!divisor) divisor = 2;
                 if (gb->model > GB_MODEL_CGB_C) {
                     gb->apu.noise_channel.counter_countdown =
-                    divisor + (divisor == 2? 0 : (const uint8_t[]){2, 1, 0, 3}[(gb->apu.noise_channel.alignment) & 3]);
+                    divisor + (divisor == 2? 0 : inline_const(uint8_t[], {2, 1, 0, 3})[(gb->apu.noise_channel.alignment) & 3]);
                 }
                 else {
                     gb->apu.noise_channel.counter_countdown =
-                    divisor + (divisor == 2? 0 : (const uint8_t[]){2, 1, 4, 3}[(gb->apu.noise_channel.alignment) & 3]);
+                    divisor + (divisor == 2? 0 : inline_const(uint8_t[], {2, 1, 4, 3})[(gb->apu.noise_channel.alignment) & 3]);
                 }
                 gb->apu.noise_channel.delta = 0;
             }
@@ -1441,10 +1452,10 @@ void GB_apu_write(GB_gameboy_t *gb, uint8_t reg, uint8_t value)
                     }
                     else {
                         if (gb->model <= GB_MODEL_CGB_C) {
-                            gb->apu.noise_channel.counter_countdown += (const uint8_t[]){2, 1, 4, 3}[gb->apu.noise_channel.alignment & 3];
+                            gb->apu.noise_channel.counter_countdown += inline_const(uint8_t[], {2, 1, 4, 3})[gb->apu.noise_channel.alignment & 3];
                         }
                         else {
-                            gb->apu.noise_channel.counter_countdown += (const uint8_t[]){2, 1, 0, 3}[gb->apu.noise_channel.alignment & 3];
+                            gb->apu.noise_channel.counter_countdown += inline_const(uint8_t[], {2, 1, 0, 3})[gb->apu.noise_channel.alignment & 3];
                         }
                         if (((gb->apu.noise_channel.alignment + 1) & 3) < 2) {
                             if ((gb->io_registers[GB_IO_NR43] & 0x07) == 1) {
@@ -1748,4 +1759,62 @@ void GB_set_channel_muted(GB_gameboy_t *gb, GB_channel_t channel, bool muted)
 bool GB_is_channel_muted(GB_gameboy_t *gb, GB_channel_t channel)
 {
     return gb->apu_output.channel_muted[channel];
+}
+
+// Note: this intentionally does not check to see if the channel is muted.
+uint8_t GB_get_channel_volume(GB_gameboy_t *gb, GB_channel_t channel)
+{
+    switch (channel) {
+        case GB_SQUARE_1:
+        case GB_SQUARE_2:
+            return gb->apu.square_channels[channel].current_volume;
+
+        case GB_WAVE:
+            return inline_const(uint8_t[], {0xF, 8, 4, 0, 0})[gb->apu.wave_channel.shift];
+
+        case GB_NOISE:
+            return gb->apu.noise_channel.current_volume;
+
+        default:
+            return 0;
+    }
+}
+
+uint8_t GB_get_channel_amplitude(GB_gameboy_t *gb, GB_channel_t channel)
+{
+    return gb->apu.is_active[channel] ? gb->apu.samples[channel] : 0;
+}
+
+uint16_t GB_get_channel_period(GB_gameboy_t *gb, GB_channel_t channel)
+{
+    switch (channel) {
+        case GB_SQUARE_1:
+        case GB_SQUARE_2:
+            return gb->apu.square_channels[channel].sample_length;
+
+        case GB_WAVE:
+            return gb->apu.wave_channel.sample_length;
+
+        case GB_NOISE:
+            return (gb->io_registers[GB_IO_NR43] & 7) << (gb->io_registers[GB_IO_NR43] >> 4);
+
+        default:
+            return 0;
+    }
+}
+
+// wave_table is a user allocated uint8_t[32] array
+void GB_get_apu_wave_table(GB_gameboy_t *gb, uint8_t *wave_table)
+{
+    for (unsigned i = GB_IO_WAV_START; i <= GB_IO_WAV_END; i++) {
+        wave_table[2 * (i - GB_IO_WAV_START)] = gb->io_registers[i] >> 4;
+        wave_table[2 * (i - GB_IO_WAV_START) + 1] = gb->io_registers[i] & 0xF;
+    }
+}
+
+bool GB_get_channel_edge_triggered(GB_gameboy_t *gb, GB_channel_t channel)
+{
+    bool edge_triggered = gb->apu_output.edge_triggered[channel];
+    gb->apu_output.edge_triggered[channel] = false;
+    return edge_triggered;
 }

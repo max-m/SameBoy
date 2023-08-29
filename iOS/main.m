@@ -1,5 +1,5 @@
 #import <UIKit/UIKit.h>
-#include <Core/gb.h>
+#import <Core/gb.h>
 #import "GBViewController.h"
 #import "GBView.h"
 
@@ -21,6 +21,7 @@ int main(int argc, char * argv[])
             @"GBButtonHaptics": @YES,
             @"GBTurboSpeed": @1,
             @"GBRewindSpeed": @1,
+            @"GBDynamicSpeed": @NO,
                         
             @"GBCurrentTheme": @"Lime (Game Boy)",
             // Default themes

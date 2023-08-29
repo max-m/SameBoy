@@ -57,7 +57,7 @@ CFLAGS += -Wno-pass-failed
 CFLAGS += -s DEFAULT_TO_CXX=0
 CFLAGS += -s USE_SDL=2
 
-CFLAGS += -DGB_DISABLE_TIMEKEEPING -DGB_DISABLE_DEBUGGER -DGB_DISABLE_CHEATS
+CFLAGS += -DGB_DISABLE_TIMEKEEPING -DGB_DISABLE_DEBUGGER
 CFLAGS += -DGB_ENABLE_CHAMELEON_MODE
 
 ifndef ENABLE_REWIND
@@ -124,21 +124,21 @@ bootroms: $(BOOTROM_OBJECTS)
 
 # CORE_SOURCES_RAW := $(shell ls $(CORE_DIR)/Core/*.c)
 CORE_SOURCES := \
-	$(CORE_DIR)/Core/gb.c \
-	$(CORE_DIR)/Core/sgb.c \
 	$(CORE_DIR)/Core/apu.c \
-	$(CORE_DIR)/Core/memory.c \
-	$(CORE_DIR)/Core/mbc.c \
-	$(CORE_DIR)/Core/timing.c \
-	$(CORE_DIR)/Core/display.c \
-	$(CORE_DIR)/Core/symbol_hash.c \
 	$(CORE_DIR)/Core/camera.c \
-	$(CORE_DIR)/Core/sm83_cpu.c \
+	$(CORE_DIR)/Core/cheats.c \
+	$(CORE_DIR)/Core/display.c \
+	$(CORE_DIR)/Core/gb.c \
 	$(CORE_DIR)/Core/joypad.c \
-	$(CORE_DIR)/Core/save_state.c \
+	$(CORE_DIR)/Core/mbc.c \
+	$(CORE_DIR)/Core/memory.c \
+	$(CORE_DIR)/Core/printer.c \
 	$(CORE_DIR)/Core/random.c \
 	$(CORE_DIR)/Core/rumble.c \
-	$(CORE_DIR)/Core/printer.c \
+	$(CORE_DIR)/Core/save_state.c \
+	$(CORE_DIR)/Core/sgb.c \
+	$(CORE_DIR)/Core/sm83_cpu.c \
+	$(CORE_DIR)/Core/timing.c \
 	$(CORE_DIR)/Core/workboy.c
 
 ifdef ENABLE_REWIND

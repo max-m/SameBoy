@@ -1,6 +1,4 @@
-#ifndef GB_h
-#define GB_h
-#define typeof __typeof__
+#pragma once
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdalign.h>
@@ -194,7 +192,7 @@ enum {
     /* Missing */
 
     GB_IO_VBK        = 0x4F, // CGB Mode Only - VRAM Bank
-    GB_IO_BANK       = 0x50, // Write to disable the BIOS mapping
+    GB_IO_BANK       = 0x50, // Write to disable the boot ROM mapping
 
     /* CGB DMA */
     GB_IO_HDMA1      = 0x51, // CGB Mode Only - New DMA Source, High
@@ -252,18 +250,18 @@ typedef enum {
 #define SGB_PAL_FREQUENCY (21281370 / 5)
 #define DIV_CYCLES (0x100)
 
-#if !defined(MIN)
-#define MIN(A, B)    ({ __typeof__(A) __a = (A); __typeof__(B) __b = (B); __a < __b ? __a : __b; })
+#ifdef GB_DISABLE_REWIND
+#define GB_rewind_reset(...)
+#define GB_rewind_push(...)
+#define GB_rewind_invalidate_for_backstepping(...)
 #endif
 
-#if !defined(MAX)
-#define MAX(A, B)    ({ __typeof__(A) __a = (A); __typeof__(B) __b = (B); __a < __b ? __b : __a; })
-#endif
 #endif
 
 typedef void (*GB_vblank_callback_t)(GB_gameboy_t *gb, GB_vblank_type_t type);
 typedef void (*GB_log_callback_t)(GB_gameboy_t *gb, const char *string, GB_log_attributes attributes);
 typedef char *(*GB_input_callback_t)(GB_gameboy_t *gb);
+typedef void (*GB_debugger_reload_callback_t)(GB_gameboy_t *gb);
 typedef uint32_t (*GB_rgb_encode_callback_t)(GB_gameboy_t *gb, uint8_t r, uint8_t g, uint8_t b);
 typedef void (*GB_infrared_callback_t)(GB_gameboy_t *gb, bool on);
 typedef void (*GB_rumble_callback_t)(GB_gameboy_t *gb, double rumble_amplitude);
@@ -730,10 +728,15 @@ struct GB_gameboy_internal_s {
         GB_execution_callback_t execution_callback;
         GB_lcd_line_callback_t lcd_line_callback;
         GB_lcd_status_callback_t lcd_status_callback;
+        GB_debugger_reload_callback_t debugger_reload_callback;
+               
+#ifndef GB_DISABLE_DEBUGGER
         /*** Debugger ***/
         volatile bool debug_stopped, debug_disable;
         bool debug_fin_command, debug_next_command;
+        bool debug_active; // Cached value determining if GB_debugger_run does anything
         bool help_shown;
+        uint32_t backstep_instructions;
 
         /* Breakpoints */
         uint16_t n_breakpoints;
@@ -770,16 +773,21 @@ struct GB_gameboy_internal_s {
         /* Undo */
         uint8_t *undo_state;
         const char *undo_label;
+#endif
 
+#ifndef GB_DISABLE_REWIND
         /* Rewind */
         size_t rewind_buffer_length;
         size_t rewind_state_size;
         struct {
             uint8_t *key_state;
             uint8_t *compressed_states[GB_REWIND_FRAMES_PER_KEY];
+            uint32_t instruction_count[GB_REWIND_FRAMES_PER_KEY + 1];
             unsigned pos;
         } *rewind_sequences; // lasts about 4 seconds
         size_t rewind_pos;
+        bool rewind_disable_invalidation;
+#endif
                
         /* SGB - saved and allocated optionally */
         GB_sgb_t *sgb;
@@ -788,11 +796,13 @@ struct GB_gameboy_internal_s {
         double sgb_intro_sweep_phase;
         double sgb_intro_sweep_previous_sample;
                
-        /* Cheats */
+#ifndef GB_DISABLE_CHEATS
+       /* Cheats */
         bool cheat_enabled;
         size_t cheat_count;
         GB_cheat_t **cheats;
         GB_cheat_hash_t *cheat_hash[256];
+#endif
 
         /* Misc */
         bool turbo;
@@ -930,6 +940,7 @@ void GB_set_vblank_callback(GB_gameboy_t *gb, GB_vblank_callback_t callback);
 void GB_set_log_callback(GB_gameboy_t *gb, GB_log_callback_t callback);
 void GB_set_input_callback(GB_gameboy_t *gb, GB_input_callback_t callback);
 void GB_set_async_input_callback(GB_gameboy_t *gb, GB_input_callback_t callback);
+void GB_set_debugger_reload_callback(GB_gameboy_t *gb, GB_debugger_reload_callback_t callback);
 void GB_set_rgb_encode_callback(GB_gameboy_t *gb, GB_rgb_encode_callback_t callback);
 void GB_set_infrared_callback(GB_gameboy_t *gb, GB_infrared_callback_t callback);
 void GB_set_rumble_callback(GB_gameboy_t *gb, GB_rumble_callback_t callback);
@@ -1013,5 +1024,4 @@ internal void GB_clear_running_thread(GB_gameboy_t *gb);
 #define GB_clear_running_thread(gb)
 #endif
     
-#endif
 #endif

@@ -136,7 +136,13 @@ static NSString const *typeLightTemp = @"typeLightTemp";
                     @{@"type": typeRadio, @"pref": @"GBTurboSpeed", @"title": @"200%",     @"value": @2,},
                     @{@"type": typeRadio, @"pref": @"GBTurboSpeed", @"title": @"400%",     @"value": @4,},
                     @{@"type": typeRadio, @"pref": @"GBTurboSpeed", @"title": @"Uncapped", @"value": @1,},
-            ]
+            ],
+            @"footer": ^NSString *(){
+                if ([[NSUserDefaults standardUserDefaults] boolForKey:@"GBDynamicSpeed"]) {
+                    return @"This setting will have no effect because horizontal swipes are configured to dynamically control speed in the “Controls” settings";
+                }
+                return @"";
+            },
         },
         @{
             @"header": @"Rewind Speed",
@@ -144,7 +150,13 @@ static NSString const *typeLightTemp = @"typeLightTemp";
                     @{@"type": typeRadio, @"pref": @"GBRewindSpeed", @"title": @"100%", @"value": @1,},
                     @{@"type": typeRadio, @"pref": @"GBRewindSpeed", @"title": @"200%", @"value": @2,},
                     @{@"type": typeRadio, @"pref": @"GBRewindSpeed", @"title": @"400%", @"value": @4,},
-            ]
+            ],
+            @"footer": ^NSString *(){
+                if ([[NSUserDefaults standardUserDefaults] boolForKey:@"GBDynamicSpeed"]) {
+                    return @"This setting will have no effect because horizontal swipes are configured to dynamically control speed in the “Controls” settings";
+                }
+                return @"";
+            }
         },
         @{
             @"header": @"Emulated Revisions",
@@ -235,15 +247,15 @@ static NSString const *typeLightTemp = @"typeLightTemp";
                 @{@"type": typeRadio, @"pref": @"GBColorCorrection", @"title": @"Harsh Reality (Low Contrast)", @"value": @(GB_COLOR_CORRECTION_LOW_CONTRAST),},
             ],
             @"footer": ^NSString *(){
-                return (NSString * const[]){
+                return GB_inline_const(NSString *[], {
                     [GB_COLOR_CORRECTION_DISABLED] = @"Colors are directly interpreted as sRGB, resulting in unbalanced colors and inaccurate hues.",
                     [GB_COLOR_CORRECTION_CORRECT_CURVES] = @"Colors have their brightness corrected, but hues remain unbalanced.",
                     [GB_COLOR_CORRECTION_MODERN_BALANCED] = @"Emulates a modern display. Blue contrast is moderately enhanced at the cost of slight hue inaccuracy.",
                     [GB_COLOR_CORRECTION_MODERN_BOOST_CONTRAST] = @"Like Modern – Balanced, but further boosts the contrast of greens and magentas that is lacking on the original hardware.",
                     [GB_COLOR_CORRECTION_REDUCE_CONTRAST] = @"Slightly reduce the contrast to better represent the tint and contrast of the original display.",
-                    [GB_COLOR_CORRECTION_LOW_CONTRAST] = @"Harshly reduce the contrast to accurately represent the tint low constrast of the original display.",
+                    [GB_COLOR_CORRECTION_LOW_CONTRAST] = @"Harshly reduce the contrast to accurately represent the tint and low constrast of the original display.",
                     [GB_COLOR_CORRECTION_MODERN_ACCURATE] = @"Emulates a modern display. Colors have their hues and brightness corrected.",
-                }[MIN(GB_COLOR_CORRECTION_MODERN_ACCURATE, [[NSUserDefaults standardUserDefaults] integerForKey:@"GBColorCorrection"])];
+                })[MIN(GB_COLOR_CORRECTION_MODERN_ACCURATE, [[NSUserDefaults standardUserDefaults] integerForKey:@"GBColorCorrection"])];
             },
         },
         @{
@@ -279,11 +291,11 @@ static NSString const *typeLightTemp = @"typeLightTemp";
                 @{@"type": typeRadio, @"pref": @"GBHighpassFilter", @"title": @"Preserve Waveform",           @"value": @(GB_HIGHPASS_REMOVE_DC_OFFSET),},
             ],
             @"footer": ^NSString *(){
-                return (NSString * const[]){
+                return GB_inline_const(NSString *[], {
                     [GB_HIGHPASS_OFF] = @"No high-pass filter will be applied. DC offset will be kept, pausing and resuming will trigger audio pops.",
                     [GB_HIGHPASS_ACCURATE] = @"An accurate high-pass filter will be applied, removing the DC offset while somewhat attenuating the bass.",
                     [GB_HIGHPASS_REMOVE_DC_OFFSET] = @"A high-pass filter will be applied to the DC offset itself, removing the DC offset while preserving the waveform.",
-                }[MIN(GB_HIGHPASS_REMOVE_DC_OFFSET, [[NSUserDefaults standardUserDefaults] integerForKey:@"GBHighpassFilter"])];
+                })[MIN(GB_HIGHPASS_REMOVE_DC_OFFSET, [[NSUserDefaults standardUserDefaults] integerForKey:@"GBHighpassFilter"])];
             },
         },
         @{
@@ -310,15 +322,23 @@ static NSString const *typeLightTemp = @"typeLightTemp";
             },
         },
         @{
-            @"header": @"Fast-forward and Rewind Behavior",
+            @"header": @"Horizontal Swipe Behavior",
             @"items": @[
+                @{@"type": typeCheck, @"pref": @"GBDynamicSpeed", @"title": @"Dynamically Control Speed"},
                 @{@"type": typeCheck, @"pref": @"GBSwipeLock", @"title": @"Lock After Swiping"},
             ],
             @"footer": ^NSString *(){
                 if ([[NSUserDefaults standardUserDefaults] boolForKey:@"GBSwipeLock"]) {
-                    return @"Swipe right on the Game Boy screen to fast-forward, and swipe left to rewind. Tap on the Game Boy screen to return to normal.";
+                    if ([[NSUserDefaults standardUserDefaults] boolForKey:@"GBDynamicSpeed"]) {
+                        return @"Swipe right on the Game Boy screen to play forward, and swipe left to rewind. Tap on the Game Boy screen to return to normal. The forward and rewind speeds are determinied by the swipe distance.";
+                    }
+                    return @"Swipe right on the Game Boy screen to fast-forward, and swipe left to rewind. Tap on the Game Boy screen to return to normal. The turbo and rewind speeds can be configured under “Emulation” settings.";
                 }
-                return @"Swipe right on the Game Boy screen to fast-forward, and swipe left to rewind. Raise the touch to return to normal.";
+                
+                if ([[NSUserDefaults standardUserDefaults] boolForKey:@"GBDynamicSpeed"]) {
+                    return @"Swipe right on the Game Boy screen to play forward, and swipe left to rewind. Raise the touch to return to normal. The forward and rewind speeds are determinied by the swipe distance.";
+                }
+                return @"Swipe right on the Game Boy screen to fast-forward, and swipe left to rewind. Raise the touch to return to normal. The turbo and rewind speeds can be configured under “Emulation” settings.";
             },
         },
         @{

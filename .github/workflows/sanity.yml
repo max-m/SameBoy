@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest, ubuntu-18.04]
+        os: [macos-latest, ubuntu-latest, ubuntu-20.04]
         cc: [gcc, clang]
         include:
         - os: macos-latest
@@ -34,16 +34,19 @@ jobs:
           ./.github/actions/install_deps.sh ${{ matrix.os }}
       - name: Build
         run: |
-          ${{ matrix.cc }} -v; (make -j sdl tester libretro ${{ matrix.extra_targets }} CONF=release CC=${{ matrix.cc }} || (echo "==== Build Failed ==="; make sdl tester libretro ${{ matrix.extra_targets }} CONF=release CC=${{ matrix.cc }}))
+          ${{ matrix.cc }} -v; (make -j all CONF=release CC=${{ matrix.cc }} || (echo "==== Build Failed ==="; make all CONF=release CC=${{ matrix.cc }}))
       - name: Sanity tests
         shell: bash
         run: |
           ./.github/actions/sanity_tests.sh
       - name: Upload binaries
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v3
         with:
           name: sameboy-canary-${{ matrix.os }}-${{ matrix.cc }}
-          path: build/bin
+          path: |
+            build/bin
+            build/lib
+            build/include
 
   wasm:
     runs-on: ubuntu-latest

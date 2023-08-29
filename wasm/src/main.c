@@ -41,6 +41,8 @@ static bool underclock_down_last = false, turbo_down_last = false;
 static bool disable_rendering = false; /* in turbo mode we render every other frame */
 static double clock_mutliplier = 1.0;
 
+char *filename = NULL;
+
 #ifndef GB_DISABLE_REWIND
 static bool rewind_down = false, do_rewind = false, rewind_paused = false;
 #endif
@@ -1342,6 +1344,10 @@ void EMSCRIPTEN_KEEPALIVE load_rom(uint8_t *buffer, size_t size, char* battery_s
     }
     battery_save_path_ptr = battery_save_path;
     save_battery();
+
+    char cheat_path[strlen(battery_save_path) + 5];
+    replace_extension(battery_save_path, strlen(battery_save_path), cheat_path, ".cht");
+    GB_load_cheats(&gb, cheat_path);
 
     static char start_text[64];
     static char title[17];
