@@ -318,9 +318,14 @@ lib: lib-unsupported
 else
 lib: $(LIB)/libsameboy.o $(LIB)/libsameboy.a
 endif
-all: sdl tester libretro lib wasm
+all: sdl tester libretro lib
 ifeq ($(PLATFORM),Darwin)
 all: cocoa ios-ipa ios-deb
+endif
+
+# only build the WASM target if the Emscripen compiler is installed
+ifneq (, $(shell which emcc 2> $(NULL)))
+all += wasm
 endif
 
 # Get a list of our source files and their respective object file targets
@@ -620,7 +625,7 @@ $(BIN)/BootROMs/%.bin: BootROMs/%.asm $(OBJ)/BootROMs/SameBoyLogo.pb12
 
 # Libretro Core (uses its own build system)
 libretro:
-	CFLAGS="$(WARNINGS)" $(MAKE) -C libretro BOOTROMS_DIR=$(abspath $(BOOTROMS_DIR))
+	CC="$(CC)" CFLAGS="$(WARNINGS)" $(MAKE) -C libretro BOOTROMS_DIR=$(abspath $(BOOTROMS_DIR))
 
 # WASM core (uses its own build system)
 WASM_MAKE := CFLAGS="$(WARNINGS)" \
