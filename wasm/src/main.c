@@ -1107,9 +1107,10 @@ void start_main_loop(void)
 
 int EMSCRIPTEN_KEEPALIVE init(void)
 {
-#if ! NDEBUG
-    EM_ASM({ Module.wasmTable = wasmTable; });
-#endif
+    printf("SameBoy v" GB_LONG_VERSION "\n");
+
+    printf("Built with: Emscripten %d.%d.%d\n", __EMSCRIPTEN_major__, __EMSCRIPTEN_minor__, __EMSCRIPTEN_tiny__);
+    printf("            Clang " __clang_version__ "\n");
 
     SDL_version sdl_version;
     SDL_GetVersion(&sdl_version);
@@ -1137,8 +1138,6 @@ int EMSCRIPTEN_KEEPALIVE init(void)
     SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0);
 #endif
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 0);
-
-    printf("SameBoy v" GB_LONG_VERSION "\n");
 
     FILE *prefs_file = fopen(PREFS_PATH, "rb");
     if (prefs_file) {

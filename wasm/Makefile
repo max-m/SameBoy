@@ -85,9 +85,13 @@ LDFLAGS += -s STRICT_JS=0
 # LE systems are supported). Does not affect generated wasm.
 # LDFLAGS += -s SUPPORT_BIG_ENDIAN=1
 
-LDFLAGS += -s LLD_REPORT_UNDEFINED
 LDFLAGS += -s "EXPORTED_FUNCTIONS=['_malloc']"
-LDFLAGS += -s "EXPORTED_RUNTIME_METHODS=['FS', 'IDBFS']"
+
+EXPORTED_RUNTIME_METHODS = 'FS', 'IDBFS'
+ifeq ($(CONF),debug)
+	EXPORTED_RUNTIME_METHODS += , 'wasmTable'
+endif
+LDFLAGS += -s "EXPORTED_RUNTIME_METHODS=[$(EXPORTED_RUNTIME_METHODS)]"
 
 LDFLAGS += -lc -lm -ldl
 
