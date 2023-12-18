@@ -16,7 +16,7 @@ endif
 ifeq ($(PLATFORM),windows32)
 _ := $(shell chcp 65001)
 EXESUFFIX:=.exe
-NATIVE_CC = clang -IWindows -Wno-deprecated-declarations --target=i386-pc-windows
+NATIVE_CC = clang -IWindows -Wno-deprecated-declarations --target=x86_64-pc-windows
 SDL_AUDIO_DRIVERS ?= xaudio2 xaudio2_7 sdl
 else
 EXESUFFIX:=
@@ -143,7 +143,10 @@ override CONF := release
 FAT_FLAGS += -arch x86_64 -arch arm64
 endif
 
-
+# Support out-of-PATH RGBDS
+RGBASM  := $(RGBDS)rgbasm
+RGBLINK := $(RGBDS)rgblink
+RGBGFX  := $(RGBDS)rgbgfx
 
 # Set compilation and linkage flags based on target, platform and configuration
 
@@ -215,8 +218,8 @@ GL_LDFLAGS := $(shell $(PKG_CONFIG) --libs gl || echo -lGL)
 endif
 
 ifeq ($(PLATFORM),windows32)
-CFLAGS += -IWindows -Drandom=rand --target=i386-pc-windows
-LDFLAGS += -lmsvcrt -lcomdlg32 -luser32 -lshell32 -lole32 -lSDL2main -Wl,/MANIFESTFILE:NUL --target=i386-pc-windows
+CFLAGS += -IWindows -Drandom=rand --target=x86_64-pc-windows
+LDFLAGS += -lmsvcrt -lcomdlg32 -luser32 -lshell32 -lole32 -lSDL2main -Wl,/MANIFESTFILE:NUL --target=x86_64-pc-windows
 SDL_LDFLAGS := -lSDL2
 GL_LDFLAGS := -lopengl32
 else
@@ -235,7 +238,7 @@ LDFLAGS += -arch arm64
 OCFLAGS += -x objective-c -fobjc-arc -Wno-deprecated-declarations -isysroot $(SYSROOT)
 LDFLAGS += -miphoneos-version-min=11.0  -isysroot $(SYSROOT)
 REREGISTER_LDFLAGS := $(LDFLAGS) -lobjc -framework CoreServices -framework Foundation
-LDFLAGS += -lobjc -framework UIKit -framework Foundation -framework CoreGraphics -framework Metal -framework MetalKit -framework AudioToolbox -framework AVFoundation -framework QuartzCore -framework CoreMotion -framework CoreVideo -framework CoreMedia -framework CoreImage -weak_framework CoreHaptics 
+LDFLAGS += -lobjc -framework UIKit -framework Foundation -framework CoreGraphics -framework Metal -framework MetalKit -framework AudioToolbox -framework AVFoundation -framework QuartzCore -framework CoreMotion -framework CoreVideo -framework CoreMedia -framework CoreImage -framework UserNotifications -weak_framework CoreHaptics 
 CODESIGN := codesign -fs -
 else
 ifeq ($(PLATFORM),Darwin)
@@ -456,7 +459,7 @@ $(BIN)/SameBoy.app: $(BIN)/SameBoy.app/Contents/MacOS/SameBoy \
                     $(BIN)/SameBoy.app/Contents/Resources/agb_boot.bin \
                     $(BIN)/SameBoy.app/Contents/Resources/sgb_boot.bin \
                     $(BIN)/SameBoy.app/Contents/Resources/sgb2_boot.bin \
-                    $(patsubst %.xib,%.nib,$(addprefix $(BIN)/SameBoy.app/Contents/Resources/Base.lproj/,$(shell cd Cocoa;ls *.xib))) \
+                    $(patsubst %.xib,%.nib,$(addprefix $(BIN)/SameBoy.app/Contents/Resources/,$(shell cd Cocoa;ls *.xib))) \
                     $(BIN)/SameBoy.qlgenerator \
                     Shaders
 	$(MKDIR) -p $(BIN)/SameBoy.app/Contents/Resources
@@ -478,7 +481,7 @@ ifeq ($(CONF), release)
 	$(STRIP) $@
 endif
 
-$(BIN)/SameBoy.app/Contents/Resources/Base.lproj/%.nib: Cocoa/%.xib
+$(BIN)/SameBoy.app/Contents/Resources/%.nib: Cocoa/%.xib
 	ibtool --target-device mac --minimum-deployment-target 10.9 --compile $@ $^ 2>&1 | cat -
 	
 # Quick Look generator
@@ -601,11 +604,11 @@ $(BIN)/SDL/Palettes: Misc/Palettes
 
 $(OBJ)/%.2bpp: %.png
 	-@$(MKDIR) -p $(dir $@)
-	rgbgfx $(if $(filter $(shell echo 'print __RGBDS_MAJOR__ || (!__RGBDS_MAJOR__ && __RGBDS_MINOR__ > 5)' | rgbasm -), $$0), -h -u, -Z -u -c embedded) -o $@ $<
+	$(RGBGFX) $(if $(filter $(shell echo 'print __RGBDS_MAJOR__ || (!__RGBDS_MAJOR__ && __RGBDS_MINOR__ > 5)' | $(RGBASM) -), $$0), -h -u, -Z -u -c embedded) -o $@ $<
 
 $(OBJ)/BootROMs/SameBoyLogo.pb12: $(OBJ)/BootROMs/SameBoyLogo.2bpp $(PB12_COMPRESS)
 	-@$(MKDIR) -p $(dir $@)
-	$(realpath $(PB12_COMPRESS)) < $< > $@
+	"$(realpath $(PB12_COMPRESS))" < $< > $@
 
 $(PB12_COMPRESS): BootROMs/pb12.c
 	-@$(MKDIR) -p $(dir $@)
@@ -618,8 +621,8 @@ $(BIN)/BootROMs/sgb2_boot: BootROMs/sgb_boot.asm
 
 $(BIN)/BootROMs/%.bin: BootROMs/%.asm $(OBJ)/BootROMs/SameBoyLogo.pb12
 	-@$(MKDIR) -p $(dir $@)
-	rgbasm -i $(OBJ)/BootROMs/ -i BootROMs/ -o $@.tmp $<
-	rgblink -o $@.tmp2 $@.tmp
+	$(RGBASM) -i $(OBJ)/BootROMs/ -i BootROMs/ -o $@.tmp $<
+	$(RGBLINK) -o $@.tmp2 $@.tmp
 	dd if=$@.tmp2 of=$@ count=1 bs=$(if $(findstring dmg,$@)$(findstring sgb,$@)$(findstring mgb,$@),256,2304) 2> $(NULL)
 	@rm $@.tmp $@.tmp2
 
@@ -686,7 +689,7 @@ ios:
 $(BIN)/SameBoy-iOS.ipa: ios
 	$(MKDIR) -p $(OBJ)/Payload
 	cp -rf $(BIN)/SameBoy-iOS.app $(OBJ)/Payload/SameBoy-iOS.app
-	(cd $(OBJ) && zip $(abspath $@) -r Payload)
+	(cd $(OBJ) && zip -q $(abspath $@) -r Payload)
 	rm -rf $(OBJ)/Payload
 
     
@@ -699,14 +702,14 @@ $(OBJ)/data.tar.gz: ios iOS/jailbreak.entitlements
 	cp -rf $(BIN)/SameBoy-iOS.app $(OBJ)/Applications/SameBoy-iOS.app
 	cp build/obj-ios/reregister iOS/reregister.entitlements $(OBJ)/Applications/SameBoy-iOS.app
 	codesign -fs - --entitlements iOS/jailbreak.entitlements $(OBJ)/Applications/SameBoy-iOS.app
-	(cd $(OBJ) && tar -czf $(abspath $@) ./Applications)
+	(cd $(OBJ) && tar -czf $(abspath $@) --format ustar ./Applications)
 	rm -rf $(OBJ)/Applications
 	
 $(OBJ)/control.tar.gz: iOS/deb-postinst iOS/deb-control
 	-@$(MKDIR) -p $(dir $@)
 	sed "s/@VERSION/$(VERSION)/" < iOS/deb-control > $(OBJ)/control
 	ln iOS/deb-postinst $(OBJ)/postinst
-	(cd $(OBJ) && tar -czf $(abspath $@) ./control ./postinst)
+	(cd $(OBJ) && tar -czf $(abspath $@) --format ustar ./control ./postinst)
 	rm $(OBJ)/control $(OBJ)/postinst
 	
 $(OBJ)/debian-binary:
@@ -740,4 +743,4 @@ clean:
 	rm -rf build
 	$(WASM_MAKE) clean
 
-.PHONY: libretro tester cocoa ios _ios ios-ipa ios-deb liblib-unsupported wasm
+.PHONY: libretro tester cocoa ios _ios ios-ipa ios-deb liblib-unsupported bootroms wasm

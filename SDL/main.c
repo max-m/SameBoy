@@ -249,6 +249,15 @@ static void handle_events(GB_gameboy_t *gb)
                 break;
             }
                 
+            case SDL_JOYDEVICEREMOVED:
+                if (joystick && event.jdevice.which == SDL_JoystickInstanceID(joystick)) {
+                    SDL_JoystickClose(joystick);
+                    joystick = NULL;
+                }
+            case SDL_JOYDEVICEADDED:
+                connect_joypad();
+                break;
+                
             case SDL_JOYBUTTONUP:
             case SDL_JOYBUTTONDOWN: {
                 joypad_button_t button = get_joypad_button(event.jbutton.button);
@@ -555,10 +564,12 @@ static void debugger_interrupt(int ignore)
     GB_debugger_break(&gb);
 }
 
+#ifndef _WIN32
 static void debugger_reset(int ignore)
 {
     pending_command = GB_SDL_RESET_COMMAND;
 }
+#endif
 
 static void gb_audio_callback(GB_gameboy_t *gb, GB_sample_t *sample)
 {    
@@ -1024,7 +1035,9 @@ int main(int argc, char **argv)
     }
 
     signal(SIGINT, debugger_interrupt);
+#ifndef _WIN32
     signal(SIGUSR1, debugger_reset);
+#endif
 
     SDL_Init(SDL_INIT_EVERYTHING & ~SDL_INIT_AUDIO);
     if ((console_supported = CON_start(completer))) {

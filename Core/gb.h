@@ -638,6 +638,7 @@ struct GB_gameboy_internal_s {
         uint32_t frame_repeat_countdown;
         bool disable_window_pixel_insertion_glitch;
         bool insert_bg_pixel;
+        uint8_t cpu_vram_bus;
     )
     
     GB_SECTION(accessory,
@@ -968,6 +969,7 @@ void GB_disconnect_serial(GB_gameboy_t *gb);
 GB_accessory_t GB_get_built_in_accessory(GB_gameboy_t *gb);
     
 /* For cartridges with an alarm clock */
+bool GB_rom_supports_alarms(GB_gameboy_t *gb);
 unsigned GB_time_to_alarm(GB_gameboy_t *gb); // 0 if no alarm
 
 /* For cartridges motion controls */
