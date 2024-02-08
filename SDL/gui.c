@@ -2402,6 +2402,20 @@ void convert_mouse_coordinates(signed *x, signed *y)
     }
 }
 
+void update_swap_interval(void)
+{
+    SDL_DisplayMode mode;
+    SDL_GetCurrentDisplayMode(SDL_GetWindowDisplayIndex(window), &mode);
+    if (mode.refresh_rate >= 60) {
+        if (SDL_GL_SetSwapInterval(1)) {
+            SDL_GL_SetSwapInterval(0);
+        }
+    }
+    else {
+        SDL_GL_SetSwapInterval(0);
+    }
+}
+
 void init_gui(bool is_running)
 {
     SDL_ShowCursor(SDL_ENABLE);
@@ -2709,6 +2723,9 @@ bool run_gui_iteration(bool is_running) {
     }
 
     switch (menu_state.event.type) {
+        case SDL_DISPLAYEVENT:
+            update_swap_interval();
+            break;
         case SDL_QUIT: {
             if (!is_running) {
                 exit(0);
@@ -2726,6 +2743,13 @@ bool run_gui_iteration(bool is_running) {
 #endif
                 update_viewport();
                 render_texture(NULL, NULL);
+            }
+            if (menu_state.event.window.type == SDL_WINDOWEVENT_MOVED
+#if SDL_COMPILEDVERSION > 2018
+                || menu_state.event.window.type == SDL_WINDOWEVENT_DISPLAY_CHANGED
+#endif
+                ) {
+                update_swap_interval();
             }
             break;
         }
@@ -2879,6 +2903,7 @@ bool run_gui_iteration(bool is_running) {
                 else {
                     SDL_SetWindowFullscreen(window, 0);
                 }
+                update_swap_interval();
                 update_viewport();
             }
             else if (event_hotkey_code(&menu_state.event) == SDL_SCANCODE_O) {
