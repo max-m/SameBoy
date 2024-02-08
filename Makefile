@@ -17,7 +17,7 @@ ifeq ($(PLATFORM),windows32)
 _ := $(shell chcp 65001)
 EXESUFFIX:=.exe
 NATIVE_CC = clang -IWindows -Wno-deprecated-declarations --target=x86_64-pc-windows
-SDL_AUDIO_DRIVERS ?= xaudio2 xaudio2_7 sdl
+SDL_AUDIO_DRIVERS ?= xaudio2 sdl
 else
 EXESUFFIX:=
 NATIVE_CC := cc
@@ -222,6 +222,11 @@ CFLAGS += -IWindows -Drandom=rand --target=x86_64-pc-windows
 LDFLAGS += -lmsvcrt -lcomdlg32 -luser32 -lshell32 -lole32 -lSDL2main -Wl,/MANIFESTFILE:NUL --target=x86_64-pc-windows
 SDL_LDFLAGS := -lSDL2
 GL_LDFLAGS := -lopengl32
+ifneq ($(REDIST_XAUDIO),)
+CFLAGS += -DREDIST_XAUDIO
+LDFLAGS += -lxaudio2_9redist
+sdl: $(BIN)/SDL/xaudio2_9redist.dll
+endif
 else
 LDFLAGS += -lc -lm -ldl
 endif
@@ -244,7 +249,7 @@ else
 ifeq ($(PLATFORM),Darwin)
 SYSROOT := $(shell xcodebuild -sdk macosx -version Path 2> $(NULL))
 ifeq ($(SYSROOT),)
-SYSROOT := /Library/Developer/CommandLineTools/SDKs/$(shell ls /Library/Developer/CommandLineTools/SDKs/ | grep 10 | tail -n 1)
+SYSROOT := /Library/Developer/CommandLineTools/SDKs/$(shell ls /Library/Developer/CommandLineTools/SDKs/ | grep "[0-9]\." | tail -n 1)
 endif
 ifeq ($(SYSROOT),/Library/Developer/CommandLineTools/SDKs/)
 $(error Could not find a macOS SDK)
@@ -545,9 +550,10 @@ $(OBJ)/%.res: %.rc
 	cvtres /OUT:"$@" $^
 endif
 
-# We must provide SDL2.dll with the Windows port.
-$(BIN)/SDL/SDL2.dll:
-	@$(eval MATCH := $(shell where $$LIB:SDL2.dll))
+# Copy required DLL files for the Windows port
+$(BIN)/SDL/%.dll:
+	-@$(MKDIR) -p $(dir $@)
+	@$(eval MATCH := $(shell where $$LIB:$(notdir $@)))
 	cp "$(MATCH)" $@
 
 # Tester
