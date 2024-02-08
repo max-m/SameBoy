@@ -2674,6 +2674,7 @@ enum GBWindowResizeAction
         if (urls.count == 1) {
             bool ok = true;
             for (Document *document in [NSDocumentController sharedDocumentController].documents) {
+                if (document == self) continue;
                 if ([document.fileURL isEqual:urls.firstObject]) {
                     NSAlert *alert = [[NSAlert alloc] init];
                     [alert setMessageText:[NSString stringWithFormat:@"‘%@’ is already open in another window. Close ‘%@’ before hot swapping it into this instance.",
@@ -2694,6 +2695,20 @@ enum GBWindowResizeAction
             [self start];
         }
     }];
+}
+
+- (IBAction)reloadROM:(id)sender
+{
+    bool wasRunning = _running;
+    if (wasRunning) {
+        [self stop];
+    }
+    
+    [self loadROM];
+
+    if (wasRunning) {
+        [self start];
+    }
 }
 
 - (void)updateDebuggerButtons
