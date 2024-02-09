@@ -54,7 +54,7 @@ CFLAGS += -I$(CORE_DIR)
 # -Werror implies -Wpass-failed=transform-warning and for some reason Clang fails to unroll some loops in apu.c
 CFLAGS += -Wno-pass-failed
 
-CFLAGS += -s DEFAULT_TO_CXX=0
+LDFLAGS += -s DEFAULT_TO_CXX=0
 CFLAGS += -s USE_SDL=2
 
 CFLAGS += -DGB_DISABLE_TIMEKEEPING -DGB_DISABLE_DEBUGGER
@@ -111,6 +111,8 @@ LDFLAGS += -s GL_TRACK_ERRORS=0
 else
 $(error Invalid value for CONF: $(CONF). Use "debug", "release")
 endif
+
+LDFLAGS += -s "INCOMING_MODULE_JS_API=['canvas','logReadFiles','preRun','print','printErr','printWithColors','setStatus','noExitRuntime']"
 
 CFLAGS := $(CFLAGS) $(CFLAGS_OVERRIDES)
 LDFLAGS := $(LDFLAGS) $(LDFLAGS_OVERRIDES)
