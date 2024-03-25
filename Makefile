@@ -162,7 +162,7 @@ endif
 
 # These must come before the -Wno- flags
 WARNINGS += -Werror -Wall -Wno-unknown-warning -Wno-unknown-warning-option -Wno-missing-braces
-WARNINGS += -Wno-nonnull -Wno-unused-result -Wno-strict-aliasing -Wno-multichar -Wno-int-in-bool-context -Wno-format-truncation
+WARNINGS += -Wno-nonnull -Wno-unused-result -Wno-multichar -Wno-int-in-bool-context -Wno-format-truncation
 
 # Only add this flag if the compiler supports it
 ifeq ($(shell $(CC) -x c -c $(NULL) -o $(NULL) -Werror -Wpartial-availability 2> $(NULL); echo $$?),0)
@@ -639,7 +639,7 @@ $(BIN)/BootROMs/%.bin: BootROMs/%.asm $(OBJ)/BootROMs/SameBoyLogo.pb12
 
 # Libretro Core (uses its own build system)
 libretro:
-	CC="$(CC)" CFLAGS="$(WARNINGS)" $(MAKE) -C libretro BOOTROMS_DIR=$(abspath $(BOOTROMS_DIR))
+	CC="$(CC)" CFLAGS="$(WARNINGS)" $(MAKE) -C libretro BOOTROMS_DIR=$(abspath $(BOOTROMS_DIR)) BIN=$(abspath $(BIN))
 
 # WASM core (uses its own build system)
 WASM_MAKE := CFLAGS="$(WARNINGS)" \
