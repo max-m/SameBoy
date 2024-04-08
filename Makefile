@@ -162,7 +162,7 @@ endif
 
 # These must come before the -Wno- flags
 WARNINGS += -Werror -Wall -Wno-unknown-warning -Wno-unknown-warning-option -Wno-missing-braces
-WARNINGS += -Wno-nonnull -Wno-unused-result -Wno-multichar -Wno-int-in-bool-context -Wno-format-truncation
+WARNINGS += -Wno-nonnull -Wno-unused-result -Wno-multichar -Wno-int-in-bool-context
 
 # Only add this flag if the compiler supports it
 ifeq ($(shell $(CC) -x c -c $(NULL) -o $(NULL) -Werror -Wpartial-availability 2> $(NULL); echo $$?),0)
@@ -632,7 +632,7 @@ $(BIN)/BootROMs/sgb2_boot: BootROMs/sgb_boot.asm
 
 $(BIN)/BootROMs/%.bin: BootROMs/%.asm $(OBJ)/BootROMs/SameBoyLogo.pb12
 	-@$(MKDIR) -p $(dir $@)
-	$(RGBASM) -i $(OBJ)/BootROMs/ -i BootROMs/ -o $@.tmp $<
+	$(RGBASM) -H -i $(OBJ)/BootROMs/ -i BootROMs/ -o $@.tmp $<
 	$(RGBLINK) -o $@.tmp2 $@.tmp
 	dd if=$@.tmp2 of=$@ count=1 bs=$(if $(findstring cgb,$@)$(findstring agb,$@),2304,256) 2> $(NULL)
 	@rm $@.tmp $@.tmp2
