@@ -143,6 +143,9 @@ override CONF := release
 FAT_FLAGS += -arch x86_64 -arch arm64
 endif
 
+IOS_MIN := 11.0
+
+IOS_PNGS := $(shell ls iOS/*.png)
 # Support out-of-PATH RGBDS
 RGBASM  := $(RGBDS)rgbasm
 RGBLINK := $(RGBDS)rgblink
@@ -237,13 +240,13 @@ SYSROOT := $(shell xcodebuild -sdk iphoneos -version Path 2> $(NULL))
 ifeq ($(SYSROOT),)
 $(error Could not find an iOS SDK)
 endif
-CFLAGS += -arch arm64 -miphoneos-version-min=11.0 -isysroot $(SYSROOT) -IAppleCommon -DGB_DISABLE_DEBUGGER
+CFLAGS += -arch arm64 -miphoneos-version-min=$(IOS_MIN) -isysroot $(SYSROOT) -IAppleCommon -DGB_DISABLE_DEBUGGER
 CORE_FILTER += Core/debugger.c Core/sm83_disassembler.c Core/symbol_hash.c
 LDFLAGS += -arch arm64
 OCFLAGS += -x objective-c -fobjc-arc -Wno-deprecated-declarations -isysroot $(SYSROOT)
-LDFLAGS += -miphoneos-version-min=11.0  -isysroot $(SYSROOT)
+LDFLAGS += -miphoneos-version-min=$(IOS_MIN)  -isysroot $(SYSROOT)
 IOS_INSTALLER_LDFLAGS := $(LDFLAGS) -lobjc -framework CoreServices -framework Foundation
-LDFLAGS += -lobjc -framework UIKit -framework Foundation -framework CoreGraphics -framework Metal -framework MetalKit -framework AudioToolbox -framework AVFoundation -framework QuartzCore -framework CoreMotion -framework CoreVideo -framework CoreMedia -framework CoreImage -framework UserNotifications -weak_framework CoreHaptics 
+LDFLAGS += -lobjc -framework UIKit -framework Foundation -framework CoreGraphics -framework Metal -framework MetalKit -framework AudioToolbox -framework AVFoundation -framework QuartzCore -framework CoreMotion -framework CoreVideo -framework CoreMedia -framework CoreImage -framework UserNotifications -framework GameController -weak_framework CoreHaptics -framework MobileCoreServices
 CODESIGN := codesign -fs -
 else
 ifeq ($(PLATFORM),Darwin)
@@ -286,6 +289,7 @@ endif
 # Don't use function outlining. I breaks Obj-C ARC optimizations and Apple never bothered to fix it. It also hardly has any effect on file size.
 ifeq ($(shell $(CC) -x c -c $(NULL) -o $(NULL) -Werror -mno-outline 2> $(NULL); echo $$?),0)
 FRONTEND_CFLAGS += -mno-outline
+LDFLAGS += -mno-outline
 endif
 
 STRIP := strip
@@ -367,7 +371,7 @@ lib: $(PUBLIC_HEADERS)
 
 # Automatic dependency generation
 
-ifneq ($(filter-out ios ios-ipa ios-dev clean bootroms libretro wasm %.bin, $(MAKECMDGOALS)),)
+ifneq ($(filter-out ios ios-ipa ios-deb clean bootroms libretro wasm %.bin, $(MAKECMDGOALS)),)
 -include $(CORE_OBJECTS:.o=.dep)
 ifneq ($(filter $(MAKECMDGOALS),sdl),)
 -include $(SDL_OBJECTS:.o=.dep)
@@ -426,7 +430,7 @@ $(OBJ)/%.m.o: %.m
 # iOS Port
 
 $(BIN)/SameBoy-iOS.app: $(BIN)/SameBoy-iOS.app/SameBoy \
-                        $(shell ls iOS/*.png) \
+                        $(IOS_PNGS) \
                         iOS/License.html \
                         iOS/Info.plist \
                         $(BIN)/SameBoy-iOS.app/dmg_boot.bin \
@@ -436,9 +440,10 @@ $(BIN)/SameBoy-iOS.app: $(BIN)/SameBoy-iOS.app/SameBoy \
                         $(BIN)/SameBoy-iOS.app/agb_boot.bin \
                         $(BIN)/SameBoy-iOS.app/sgb_boot.bin \
                         $(BIN)/SameBoy-iOS.app/sgb2_boot.bin \
+						$(BIN)/SameBoy-iOS.app/LaunchScreen.storyboardc \
                         Shaders
 	$(MKDIR) -p $(BIN)/SameBoy-iOS.app
-	cp iOS/*.png $(BIN)/SameBoy-iOS.app
+	cp $(IOS_PNGS) $(BIN)/SameBoy-iOS.app
 	sed "s/@VERSION/$(VERSION)/;s/@COPYRIGHT_YEAR/$(COPYRIGHT_YEAR)/" < iOS/Info.plist > $(BIN)/SameBoy-iOS.app/Info.plist
 	sed "s/@COPYRIGHT_YEAR/$(COPYRIGHT_YEAR)/" < iOS/License.html > $(BIN)/SameBoy-iOS.app/License.html
 	$(MKDIR) -p $(BIN)/SameBoy-iOS.app/Shaders
@@ -494,6 +499,9 @@ endif
 $(BIN)/SameBoy.app/Contents/Resources/%.nib: Cocoa/%.xib
 	ibtool --target-device mac --minimum-deployment-target 10.9 --compile $@ $^ 2>&1 | cat -
 	
+$(BIN)/SameBoy-iOS.app/%.storyboardc: iOS/%.storyboard
+	ibtool --target-device iphone --target-device ipad --minimum-deployment-target $(IOS_MIN) --compile $@ $^ 2>&1 | cat -
+
 # Quick Look generator
 
 $(BIN)/SameBoy.qlgenerator: $(BIN)/SameBoy.qlgenerator/Contents/MacOS/SameBoyQL \
