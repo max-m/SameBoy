@@ -848,6 +848,8 @@ static void load_boot_rom(GB_gameboy_t *gb, GB_boot_rom_t type)
         [GB_BOOT_ROM_SGB2] = "sgb2_boot.bin",
         [GB_BOOT_ROM_CGB_0] = "cgb0_boot.bin",
         [GB_BOOT_ROM_CGB] = "cgb_boot.bin",
+        [GB_BOOT_ROM_CGB_E] = "cgbE_boot.bin",
+        [GB_BOOT_ROM_AGB_0] = "agb0_boot.bin",
         [GB_BOOT_ROM_AGB] = "agb_boot.bin",
     };
 
@@ -856,7 +858,16 @@ static void load_boot_rom(GB_gameboy_t *gb, GB_boot_rom_t type)
     free(path);
 
     printf("Loading boot ROM: %s\n", real_path);
-    GB_load_boot_rom(gb, real_path);
+    if (GB_load_boot_rom(gb, real_path)) {
+        if (type == GB_BOOT_ROM_CGB_E) {
+            load_boot_rom(gb, GB_BOOT_ROM_CGB);
+            return;
+        }
+        if (type == GB_BOOT_ROM_AGB_0) {
+            load_boot_rom(gb, GB_BOOT_ROM_AGB);
+            return;
+        }
+    }
 }
 
 static void console_log(GB_gameboy_t *gb, const char *string, GB_log_attributes attributes) {
