@@ -52,10 +52,16 @@
     NSTimer *_disableCameraTimer;
     AVCaptureDevicePosition _cameraPosition;
     UIButton *_cameraPositionButton;
+    UIButton *_changeCameraButton;
+    NSArray *_allCaptureDevices;
+    NSArray *_backCaptureDevices;
+    AVCaptureDevice *_selectedBackCaptureDevice;
     
     __weak GCController *_lastController;
     
     dispatch_queue_t _cameraQueue;
+    
+    bool _runModeFromController;
 }
 
 static void loadBootROM(GB_gameboy_t *gb, GB_boot_rom_t type)
@@ -241,8 +247,36 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
     
     _motionManager = [[CMMotionManager alloc] init];
     _cameraPosition = AVCaptureDevicePositionBack;
-    _cameraPositionButton = [[UIButton alloc] initWithFrame:CGRectMake(8,
-                                                                       0,
+    _selectedBackCaptureDevice = [AVCaptureDevice defaultDeviceWithMediaType: AVMediaTypeVideo];
+
+    // Back camera setup
+    NSArray *deviceTypes = @[AVCaptureDeviceTypeBuiltInWideAngleCamera,
+                             AVCaptureDeviceTypeBuiltInTelephotoCamera];
+    if (@available(iOS 13.0, *)) {
+        // AVCaptureDeviceTypeBuiltInUltraWideCamera is only available in iOS 13+
+        deviceTypes = @[AVCaptureDeviceTypeBuiltInWideAngleCamera,
+                        AVCaptureDeviceTypeBuiltInUltraWideCamera,
+                        AVCaptureDeviceTypeBuiltInTelephotoCamera];
+    }
+
+    // Use a discovery session to gather the capture devices (all back cameras as well as the front camera)
+    AVCaptureDeviceDiscoverySession *cameraDiscoverySession = [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes:deviceTypes
+                                                                                                                     mediaType:AVMediaTypeVideo
+                                                                                                                      position:AVCaptureDevicePositionUnspecified];
+    _allCaptureDevices = cameraDiscoverySession.devices;
+
+    // Filter only the back cameras into a list used for switching between them
+    NSMutableArray *filteredBackCameras = [NSMutableArray array];
+    for (AVCaptureDevice *device in _allCaptureDevices) {
+        if ([device position] == AVCaptureDevicePositionBack) {
+            [filteredBackCameras addObject:device];
+        }
+    }
+    _backCaptureDevices = filteredBackCameras;
+
+    UIEdgeInsets insets = self.window.safeAreaInsets;
+    _cameraPositionButton = [[UIButton alloc] initWithFrame:CGRectMake(insets.left + 8,
+                                                                       _backgroundView.bounds.size.height - 8 - insets.bottom - 32,
                                                                        32,
                                                                        32)];
     [self didRotateFromInterfaceOrientation:[UIApplication sharedApplication].statusBarOrientation];
@@ -251,20 +285,41 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
                                                  withConfiguration:[UIImageSymbolConfiguration configurationWithScale:UIImageSymbolScaleLarge]]
                                 forState:UIControlStateNormal];
         _cameraPositionButton.backgroundColor = [UIColor systemBackgroundColor];
+
+        // Configure the change camera button stacked on top of the camera position button
+        _changeCameraButton = [[UIButton alloc] initWithFrame:CGRectMake(insets.left + 8,
+                                                                         _backgroundView.bounds.size.height - 8 - insets.bottom - 32 - 32 - 8,
+                                                                         32,
+                                                                         32)];
+        [_changeCameraButton  setImage:[UIImage systemImageNamed:@"camera.aperture"
+                                                withConfiguration:[UIImageSymbolConfiguration configurationWithScale:UIImageSymbolScaleLarge]]
+                                forState:UIControlStateNormal];
+        _changeCameraButton.backgroundColor = [UIColor systemBackgroundColor];
+        _changeCameraButton.layer.cornerRadius = 6;
+        _changeCameraButton.alpha = 0;
+        [_changeCameraButton addTarget:self
+                                action:@selector(changeCamera)
+                      forControlEvents:UIControlEventTouchUpInside];
+        // Only show the change camera button if we have more than one back camera to swap between.
+        if ([_backCaptureDevices count] > 1) {
+            [_backgroundView addSubview:_changeCameraButton];
+        }
     }
     else {
-        UIImage *image = [[UIImage imageNamed:@"CameraRotateTemplate"] imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-        [_cameraPositionButton  setImage:image
-                                forState:UIControlStateNormal];
+        UIImage *rotateImage = [[UIImage imageNamed:@"CameraRotateTemplate"] imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+        [_cameraPositionButton setImage:rotateImage
+                               forState:UIControlStateNormal];
         _cameraPositionButton.backgroundColor = [UIColor whiteColor];
     }
+
     _cameraPositionButton.layer.cornerRadius = 6;
     _cameraPositionButton.alpha = 0;
     [_cameraPositionButton addTarget:self
                               action:@selector(rotateCamera)
                     forControlEvents:UIControlEventTouchUpInside];
+
     [_backgroundView addSubview:_cameraPositionButton];
-    
+
     _cameraQueue = dispatch_queue_create("SameBoy Camera Queue", NULL);
     
     [UNUserNotificationCenter currentNotificationCenter].delegate = self;
@@ -337,9 +392,14 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
                 if (button.isAnalog && [[NSUserDefaults standardUserDefaults] boolForKey:@"GBDynamicSpeed"]) {
                     GB_set_clock_multiplier(&_gb, (button.value - analogThreshold) / (1 - analogThreshold) * 3 + 1);
                 }
+                _runModeFromController = true;
+                [_backgroundView fadeOverlayOut];
             }
             else {
-                [self setRunMode:GBRunModeNormal];
+                if (self.runMode == GBRunModeTurbo && _runModeFromController) {
+                    [self setRunMode:GBRunModeNormal];
+                    _runModeFromController = false;
+                }
             }
             break;
         case GBRewind:
@@ -348,22 +408,30 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
                 if (button.isAnalog && [[NSUserDefaults standardUserDefaults] boolForKey:@"GBDynamicSpeed"]) {
                     GB_set_clock_multiplier(&_gb, (button.value - analogThreshold) / (1 - analogThreshold) * 4);
                 }
+                _runModeFromController = true;
+                [_backgroundView fadeOverlayOut];
             }
             else {
-                [self setRunMode:GBRunModeNormal];
+                if (self.runMode == GBRunModeRewind && _runModeFromController) {
+                    [self setRunMode:GBRunModeNormal];
+                    _runModeFromController = false;
+                }
             }
             break;
         case GBUnderclock:
             if (button.value > analogThreshold) {
+                [self setRunMode:GBRunModeUnderclock ignoreDynamicSpeed:!button.isAnalog];
                 if (button.isAnalog && [[NSUserDefaults standardUserDefaults] boolForKey:@"GBDynamicSpeed"]) {
                     GB_set_clock_multiplier(&_gb, 1 - ((button.value - analogThreshold) / (1 - analogThreshold) * 0.75));
                 }
-                else {
-                    GB_set_clock_multiplier(&_gb, 0.5);
-                }
+                _runModeFromController = true;
+                [_backgroundView fadeOverlayOut];
             }
             else {
-                GB_set_clock_multiplier(&_gb, 1.0);
+                if (self.runMode == GBRunModeUnderclock && _runModeFromController) {
+                    [self setRunMode:GBRunModeNormal];
+                    _runModeFromController = false;
+                }
             }
             break;
         default: break;
@@ -685,7 +753,16 @@ static void rumbleCallback(GB_gameboy_t *gb, double amp)
 - (void)didRotateFromInterfaceOrientation:(UIInterfaceOrientation)fromInterfaceOrientation
 {
     UIEdgeInsets insets = self.window.safeAreaInsets;
-    _cameraPositionButton.frame = CGRectMake(insets.left + 8, _backgroundView.bounds.size.height - 8 - insets.bottom - 32, 32, 32);
+    _cameraPositionButton.frame = CGRectMake(insets.left + 8,
+                                             _backgroundView.bounds.size.height - 8 - insets.bottom - 32,
+                                             32,
+                                             32);
+    if (_changeCameraButton) {
+        _changeCameraButton.frame = CGRectMake(insets.left + 8,
+                                               _backgroundView.bounds.size.height - 8 - insets.bottom - 32 - 32 - 8,
+                                               32,
+                                               32);
+    }
 }
 
 - (UIInterfaceOrientationMask)supportedInterfaceOrientations
@@ -968,6 +1045,10 @@ didReceiveNotificationResponse:(UNNotificationResponse *)response
         [_audioLock signal];
         [_audioLock unlock];
     }
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self.runMode = GBRunModeNormal;
+        [_backgroundView fadeOverlayOut];
+    });
 }
 
 
@@ -1099,15 +1180,18 @@ didReceiveNotificationResponse:(UNNotificationResponse *)response
         [_audioClient stop];
     }
     
-    if (_runMode == GBRunModeNormal || _runMode == GBRunModeTurbo) {
+    if (_runMode == GBRunModeNormal || _runMode == GBRunModeTurbo || _runMode == GBRunModeUnderclock) {
         _rewindOver = false;
     }
     
-    if (_runMode == GBRunModeNormal || !([[NSUserDefaults standardUserDefaults] boolForKey:@"GBDynamicSpeed"] && !ignoreDynamicSpeed)) {
+    if (_runMode == GBRunModeNormal  || _runMode == GBRunModeUnderclock || !([[NSUserDefaults standardUserDefaults] boolForKey:@"GBDynamicSpeed"] && !ignoreDynamicSpeed)) {
         if (_runMode == GBRunModeTurbo) {
             double multiplier = [[NSUserDefaults standardUserDefaults] doubleForKey:@"GBTurboSpeed"];
             GB_set_turbo_mode(&_gb, multiplier == 1, false);
             GB_set_clock_multiplier(&_gb, multiplier);
+        }
+        else if (_runMode == GBRunModeUnderclock) {
+            GB_set_clock_multiplier(&_gb, 0.5);
         }
         else {
             GB_set_turbo_mode(&_gb, false, false);
@@ -1123,12 +1207,20 @@ didReceiveNotificationResponse:(UNNotificationResponse *)response
 
 - (AVCaptureDevice *)captureDevice
 {
-    NSArray *devices = [AVCaptureDevice devicesWithMediaType:AVMediaTypeVideo];
-    for (AVCaptureDevice *device in devices) {
+    for (AVCaptureDevice *device in _allCaptureDevices) {
         if ([device position] == _cameraPosition) {
-            return device;
+            // There is only one front camera, return it
+            if (_cameraPosition == AVCaptureDevicePositionFront) {
+                return device;
+            }
+
+            // There may be several back cameras, return the one with the matching type
+            if ([device deviceType] == [_selectedBackCaptureDevice deviceType]) {
+                return device;
+            }
         }
     }
+    // Return the default camera
     return [AVCaptureDevice defaultDeviceWithMediaType: AVMediaTypeVideo];
 }
 
@@ -1179,12 +1271,27 @@ didReceiveNotificationResponse:(UNNotificationResponse *)response
                 _cameraPositionButton.alpha = 1;
             }];
         }
+        if (_changeCameraButton) {
+            // The change camera button is only available when we are using a capture device on the back of the device
+            double changeCameraButtonAlpha = (_cameraPosition == AVCaptureDevicePositionFront) ? 0 : 1;
+            if (changeCameraButtonAlpha != _changeCameraButton.alpha) {
+                [UIView animateWithDuration:0.25 animations:^{
+                    _changeCameraButton.alpha = changeCameraButtonAlpha;
+                }];
+            }
+        }
+
         _disableCameraTimer = [NSTimer scheduledTimerWithTimeInterval:1
                                                              repeats:false
                                                                block:^(NSTimer *timer) {
             if (_cameraPositionButton.alpha) {
                 [UIView animateWithDuration:0.25 animations:^{
                     _cameraPositionButton.alpha = 0;
+                }];
+            }
+            if (_changeCameraButton.alpha) {
+                [UIView animateWithDuration:0.25 animations:^{
+                    _changeCameraButton.alpha = 0;
                 }];
             }
             dispatch_async(_cameraQueue, ^{
@@ -1281,6 +1388,25 @@ didReceiveNotificationResponse:(UNNotificationResponse *)response
 {
     dispatch_async(_cameraQueue, ^{
         _cameraPosition ^= AVCaptureDevicePositionBack ^ AVCaptureDevicePositionFront;
+        [_cameraSession stopRunning];
+        _cameraSession = nil;
+        _cameraConnection = nil;
+        _cameraOutput = nil;
+        if (_cameraNeedsUpdate) {
+            _cameraNeedsUpdate = false;
+            GB_camera_updated(&_gb);
+        }
+    });
+}
+
+- (void)changeCamera
+{
+    dispatch_async(_cameraQueue, ^{
+        // Get index of selected camera and select the next one, wrapping to the beginning
+        NSUInteger i = [_backCaptureDevices indexOfObject:_selectedBackCaptureDevice];
+        int nextIndex = (i + 1) % _backCaptureDevices.count;
+        _selectedBackCaptureDevice = _backCaptureDevices[nextIndex];
+
         [_cameraSession stopRunning];
         _cameraSession = nil;
         _cameraConnection = nil;

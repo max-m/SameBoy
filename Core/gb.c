@@ -171,6 +171,7 @@ GB_gameboy_t *GB_init(GB_gameboy_t *gb, GB_model_t model)
 #endif
     gb->cartridge_type = &GB_cart_defs[0]; // Default cartridge type
     gb->clock_multiplier = 1.0;
+    gb->apu_output.max_cycles_per_sample = 0x400;
     
     if (model & GB_MODEL_NO_SFC_BIT) {
         /* Disable time syncing. Timing should be done by the SFC emulator. */
@@ -1787,6 +1788,7 @@ static void GB_reset_internal(GB_gameboy_t *gb, bool quick)
         gb->io_registers[GB_IO_OBP0] = preserved_state->obp0;
         gb->io_registers[GB_IO_OBP1] = preserved_state->obp1;
     }
+    gb->apu.apu_cycles_in_2mhz = true;
     
     gb->magic = GB_state_magic();
     request_boot_rom(gb);
@@ -1905,8 +1907,10 @@ GB_registers_t *GB_get_registers(GB_gameboy_t *gb)
 
 void GB_set_clock_multiplier(GB_gameboy_t *gb, double multiplier)
 {
-    gb->clock_multiplier = multiplier;
-    GB_update_clock_rate(gb);
+    if (multiplier != gb->clock_multiplier) {
+        gb->clock_multiplier = multiplier;
+        GB_update_clock_rate(gb);
+    }
 }
 
 uint32_t GB_get_clock_rate(GB_gameboy_t *gb)
@@ -1932,6 +1936,7 @@ void GB_update_clock_rate(GB_gameboy_t *gb)
     }
     
     gb->clock_rate = gb->unmultiplied_clock_rate * gb->clock_multiplier;
+    GB_set_sample_rate(gb, gb->apu_output.sample_rate);
 }
 
 void GB_set_border_mode(GB_gameboy_t *gb, GB_border_mode_t border_mode)
