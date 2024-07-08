@@ -22,10 +22,10 @@ typedef enum {
     GB_CONFLICT_SGB_LCDC,
     GB_CONFLICT_WX,
     GB_CONFLICT_LCDC_CGB,
-    GB_CONFLICT_SCX_CGB,
     GB_CONFLICT_LCDC_CGB_DOUBLE,
     GB_CONFLICT_STAT_CGB_DOUBLE,
     GB_CONFLICT_NR10_CGB_DOUBLE,
+    GB_CONFLICT_SCX_CGB_DOUBLE,
 } conflict_t;
 
 static const conflict_t cgb_conflict_map[0x80] = {
@@ -36,7 +36,7 @@ static const conflict_t cgb_conflict_map[0x80] = {
     [GB_IO_BGP] = GB_CONFLICT_PALETTE_CGB,
     [GB_IO_OBP0] = GB_CONFLICT_PALETTE_CGB,
     [GB_IO_OBP1] = GB_CONFLICT_PALETTE_CGB,
-    [GB_IO_SCX] = GB_CONFLICT_SCX_CGB,
+    [GB_IO_SCX] = GB_CONFLICT_READ_OLD,
 };
 
 static const conflict_t cgb_double_conflict_map[0x80] = {
@@ -45,7 +45,7 @@ static const conflict_t cgb_double_conflict_map[0x80] = {
     [GB_IO_LYC] = GB_CONFLICT_READ_OLD,
     [GB_IO_STAT] = GB_CONFLICT_STAT_CGB_DOUBLE,
     [GB_IO_NR10] = GB_CONFLICT_NR10_CGB_DOUBLE,
-    [GB_IO_SCX] = GB_CONFLICT_SCX_CGB,
+    [GB_IO_SCX] = GB_CONFLICT_SCX_CGB_DOUBLE,
 };
 
 /* Todo: verify on an MGB */
@@ -205,9 +205,16 @@ static void cycle_write(GB_gameboy_t *gb, uint16_t addr, uint8_t value)
         }
             
         case GB_CONFLICT_PALETTE_CGB: {
-            GB_advance_cycles(gb, gb->pending_cycles - 2);
-            GB_write_memory(gb, addr, value);
-            gb->pending_cycles = 6;
+            if (gb->model >= GB_MODEL_CGB_D) {
+                GB_advance_cycles(gb, gb->pending_cycles - 2);
+                GB_write_memory(gb, addr, value);
+                gb->pending_cycles = 6;
+            }
+            else {
+                GB_advance_cycles(gb, gb->pending_cycles - 1);
+                GB_write_memory(gb, addr, value);
+                gb->pending_cycles = 5;
+            }
             break;
         }
             
@@ -263,25 +270,13 @@ static void cycle_write(GB_gameboy_t *gb, uint16_t addr, uint8_t value)
         case GB_CONFLICT_LCDC_CGB: {
             uint8_t old = gb->io_registers[GB_IO_LCDC];
             if ((~value & old) & GB_LCDC_TILE_SEL) {
-                // TODO: This is different is because my timing is off in CGB ≤ C
-                if (gb->model > GB_MODEL_CGB_C) {
-                    GB_advance_cycles(gb, gb->pending_cycles);
-                    GB_write_memory(gb, addr, value ^ GB_LCDC_TILE_SEL); // Write with the old TILE_SET first
-                    gb->tile_sel_glitch = true;
-                    GB_advance_cycles(gb, 1);
-                    gb->tile_sel_glitch = false;
-                    GB_write_memory(gb, addr, value);
-                    gb->pending_cycles = 3;
-                }
-                else {
-                    GB_advance_cycles(gb, gb->pending_cycles - 1);
-                    GB_write_memory(gb, addr, value ^ GB_LCDC_TILE_SEL); // Write with the old TILE_SET first
-                    gb->tile_sel_glitch = true;
-                    GB_advance_cycles(gb, 1);
-                    gb->tile_sel_glitch = false;
-                    GB_write_memory(gb, addr, value);
-                    gb->pending_cycles = 4;
-                }
+                GB_advance_cycles(gb, gb->pending_cycles);
+                GB_write_memory(gb, addr, value ^ GB_LCDC_TILE_SEL); // Write with the old TILE_SET first
+                gb->tile_sel_glitch = true;
+                GB_advance_cycles(gb, 1);
+                gb->tile_sel_glitch = false;
+                GB_write_memory(gb, addr, value);
+                gb->pending_cycles = 3;
             }
             else {
                 GB_advance_cycles(gb, gb->pending_cycles);
@@ -292,10 +287,7 @@ static void cycle_write(GB_gameboy_t *gb, uint16_t addr, uint8_t value)
         }
         case GB_CONFLICT_LCDC_CGB_DOUBLE: {
             uint8_t old = gb->io_registers[GB_IO_LCDC];
-            // TODO: This is wrong for CGB ≤ C for TILE_SEL, BG_EN and BG_MAP.
-            // PPU timings for these models appear to be wrong and it'd make more sense to fix those first than hacking
-            // around them.
-            
+            // TODO: Verify for CGB ≤ C for BG_EN and OBJ_EN.
             // TODO: This condition is different from single speed mode. Why? What about odd modes?
             if ((value ^ old) & GB_LCDC_TILE_SEL) {
                 GB_advance_cycles(gb, gb->pending_cycles - 2);
@@ -316,17 +308,10 @@ static void cycle_write(GB_gameboy_t *gb, uint16_t addr, uint8_t value)
             break;
         }
             
-        case GB_CONFLICT_SCX_CGB:
-            if (gb->cgb_double_speed) {
-                GB_advance_cycles(gb, gb->pending_cycles - 2);
-                GB_write_memory(gb, addr, value);
-                gb->pending_cycles = 6;
-            }
-            else {
-                GB_advance_cycles(gb, gb->pending_cycles);
-                GB_write_memory(gb, addr, value);
-                gb->pending_cycles = 4;
-            }
+        case GB_CONFLICT_SCX_CGB_DOUBLE:
+            GB_advance_cycles(gb, gb->pending_cycles - 2);
+            GB_write_memory(gb, addr, value);
+            gb->pending_cycles = 6;
             break;
         
         case GB_CONFLICT_NR10_CGB_DOUBLE: {
