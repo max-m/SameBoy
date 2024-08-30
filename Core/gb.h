@@ -9,6 +9,16 @@ extern "C" {
 #include <stdalign.h>
 #include <time.h>
 
+#ifndef GB_DISABLE_CHEAT_SEARCH
+#ifdef GB_DISABLE_CHEATS
+#define GB_DISABLE_CHEAT_SEARCH
+#else
+#ifdef GB_DISABLE_DEBUGGER
+#define GB_DISABLE_CHEAT_SEARCH
+#endif
+#endif
+#endif
+
 #include "model.h"
 #include "defs.h"
 #include "save_state.h"
@@ -27,6 +37,7 @@ extern "C" {
 #include "symbol_hash.h"
 #include "sgb.h"
 #include "cheats.h"
+#include "cheat_search.h"
 #include "rumble.h"
 #include "workboy.h"
 #include "random.h"
@@ -818,6 +829,12 @@ struct GB_gameboy_internal_s {
         size_t cheat_count;
         GB_cheat_t **cheats;
         GB_cheat_hash_t *cheat_hash[256];
+#endif
+#ifndef GB_DISABLE_CHEAT_SEARCH
+        uint8_t *cheat_search_data;
+        uint8_t *cheat_search_bitmap;
+        size_t cheat_search_count;
+        GB_cheat_search_data_type_t cheat_search_data_type;
 #endif
 
         /* Misc */
